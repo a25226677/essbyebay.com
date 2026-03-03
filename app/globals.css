@@ -1,0 +1,94 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* ── Brand Palette (esellerstorebay.com) ── */
+    --background: 0 0% 100%;
+    --foreground: 222 22% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 22% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 22% 17%;
+    --primary: 25 95% 53%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 222 22% 17%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 222 22% 17%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 25 95% 53%;
+    --radius: 0.25rem;
+    --chart-1: 210 79% 54%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --success: 152 69% 31%;
+    --warning: 28 80% 57%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .store-page-bg {
+    @apply bg-secondary/40;
+  }
+
+  .store-page-container {
+    @apply mx-auto w-full max-w-[1340px] px-4;
+  }
+
+  .store-section {
+    @apply py-5 lg:py-6;
+  }
+
+  .store-surface {
+    @apply rounded-md border bg-card;
+  }
+}
+
+/* Product card hover actions */
+.product-card-actions {
+  opacity: 0;
+  transform: translateX(8px);
+  transition: all 0.2s ease;
+}
+.group:hover .product-card-actions {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+/* Slide in animation for category products */
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
