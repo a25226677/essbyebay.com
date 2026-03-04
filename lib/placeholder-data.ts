@@ -137,7 +137,6 @@ export const categories: Category[] = [
 ];
 
 // ─── Brands ───────────────────────────────────────────────────
-<<<<<<< HEAD
 // Logos resolved dynamically in BrandCard via Simple Icons CDN + Google Favicon fallback
 // The `logo` field is a hint; the component handles broken URLs gracefully.
 
@@ -182,51 +181,6 @@ export const brands: Brand[] = [
   { id: "b-38", name: "Omega",            slug: "omega",            logo: "https://cdn.simpleicons.org/omega" },
   { id: "b-39", name: "Guess",            slug: "guess",            logo: "https://cdn.simpleicons.org/guess" },
   { id: "b-40", name: "Volvo",            slug: "volvo",            logo: "https://cdn.simpleicons.org/volvo" },
-=======
-// Logo URLs sourced from Clearbit Logo API (reliable CDN)
-
-export const brands: Brand[] = [
-  { id: "b-1",  name: "ACER",             slug: "acer",             logo: "https://logo.clearbit.com/acer.com" },
-  { id: "b-2",  name: "Adidas",           slug: "adidas",           logo: "https://logo.clearbit.com/adidas.com" },
-  { id: "b-3",  name: "Apple",            slug: "apple",            logo: "https://logo.clearbit.com/apple.com" },
-  { id: "b-4",  name: "ASUS",             slug: "asus",             logo: "https://logo.clearbit.com/asus.com" },
-  { id: "b-5",  name: "Samsung",          slug: "samsung",          logo: "https://logo.clearbit.com/samsung.com" },
-  { id: "b-6",  name: "Sony",             slug: "sony",             logo: "https://logo.clearbit.com/sony.com" },
-  { id: "b-7",  name: "Dell",             slug: "dell",             logo: "https://logo.clearbit.com/dell.com" },
-  { id: "b-8",  name: "Lenovo",           slug: "lenovo",           logo: "https://logo.clearbit.com/lenovo.com" },
-  { id: "b-9",  name: "HP",               slug: "hp",               logo: "https://logo.clearbit.com/hp.com" },
-  { id: "b-10", name: "Nike",             slug: "nike",             logo: "https://logo.clearbit.com/nike.com" },
-  { id: "b-11", name: "Puma",             slug: "puma",             logo: "https://logo.clearbit.com/puma.com" },
-  { id: "b-12", name: "Reebok",           slug: "reebok",           logo: "https://logo.clearbit.com/reebok.com" },
-  { id: "b-13", name: "Gucci",            slug: "gucci",            logo: "https://logo.clearbit.com/gucci.com" },
-  { id: "b-14", name: "Ralph Lauren",     slug: "ralph-lauren",     logo: "https://logo.clearbit.com/ralphlauren.com" },
-  { id: "b-15", name: "Calvin Klein",     slug: "calvin-klein",     logo: "https://logo.clearbit.com/calvinklein.com" },
-  { id: "b-16", name: "Yamaha",           slug: "yamaha",           logo: "https://logo.clearbit.com/yamaha.com" },
-  { id: "b-17", name: "Rolex",            slug: "rolex",            logo: "https://logo.clearbit.com/rolex.com" },
-  { id: "b-18", name: "Canon",            slug: "canon",            logo: "https://logo.clearbit.com/canon.com" },
-  { id: "b-19", name: "Corsair",          slug: "corsair",          logo: "https://logo.clearbit.com/corsair.com" },
-  { id: "b-20", name: "Logitech",         slug: "logitech",         logo: "https://logo.clearbit.com/logitech.com" },
-  { id: "b-21", name: "Microsoft",        slug: "microsoft",        logo: "https://logo.clearbit.com/microsoft.com" },
-  { id: "b-22", name: "LG",               slug: "lg",               logo: "https://logo.clearbit.com/lg.com" },
-  { id: "b-23", name: "Nokia",            slug: "nokia",            logo: "https://logo.clearbit.com/nokia.com" },
-  { id: "b-24", name: "Xiaomi",           slug: "xiaomi",           logo: "https://logo.clearbit.com/xiaomi.com" },
-  { id: "b-25", name: "OnePlus",          slug: "one-plus",         logo: "https://logo.clearbit.com/oneplus.com" },
-  { id: "b-26", name: "Mercedes-Benz",    slug: "mercedes-benz",    logo: "https://logo.clearbit.com/mercedes-benz.com" },
-  { id: "b-27", name: "BMW",              slug: "bmw",              logo: "https://logo.clearbit.com/bmw.com" },
-  { id: "b-28", name: "Audi",             slug: "audi",             logo: "https://logo.clearbit.com/audi.com" },
-  { id: "b-29", name: "Lamborghini",      slug: "lamborghini",      logo: "https://logo.clearbit.com/lamborghini.com" },
-  { id: "b-30", name: "Rolls-Royce",      slug: "rolls-royce",      logo: "https://logo.clearbit.com/rolls-roycemotorcars.com" },
-  { id: "b-31", name: "Ford",             slug: "ford",             logo: "https://logo.clearbit.com/ford.com" },
-  { id: "b-32", name: "Toyota",           slug: "toyota",           logo: "https://logo.clearbit.com/toyota.com" },
-  { id: "b-33", name: "Honda",            slug: "honda",            logo: "https://logo.clearbit.com/honda.com" },
-  { id: "b-34", name: "Suzuki",           slug: "suzuki",           logo: "https://logo.clearbit.com/suzuki.com" },
-  { id: "b-35", name: "Google",           slug: "google",           logo: "https://logo.clearbit.com/google.com" },
-  { id: "b-36", name: "Victoria's Secret",slug: "victorias-secret", logo: "https://logo.clearbit.com/victoriassecret.com" },
-  { id: "b-37", name: "Urban Decay",      slug: "urban-decay",      logo: "https://logo.clearbit.com/urbandecay.com" },
-  { id: "b-38", name: "Omega",            slug: "omega",            logo: "https://logo.clearbit.com/omegawatches.com" },
-  { id: "b-39", name: "Guess",            slug: "guess",            logo: "https://logo.clearbit.com/guess.com" },
-  { id: "b-40", name: "Volvo",            slug: "volvo",            logo: "https://logo.clearbit.com/volvo.com" },
->>>>>>> 85084d035d77697eb8ace6a69e5e1d6d4962ebb0
 ];
 
 // ─── Products ─────────────────────────────────────────────────
