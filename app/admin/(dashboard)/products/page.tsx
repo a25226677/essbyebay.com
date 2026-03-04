@@ -6,7 +6,7 @@ import Link from "next/link";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { AdminPagination } from "@/components/admin/pagination";
-import { Search, Plus, Eye, EyeOff, Trash2, Package, Filter, X, Edit3 } from "lucide-react";
+import { Search, Plus, Eye, EyeOff, Trash2, Package, Filter, X, Edit3, Download } from "lucide-react";
 
 type Category = { id: string; name: string };
 type ProductRow = {
@@ -73,6 +73,32 @@ export default function AdminProductsPage() {
 
   const hasFilters = categoryFilter || stockFilter || statusFilter;
 
+  const exportCSV = () => {
+    if (items.length === 0) return;
+    const headers = ["#", "Name", "SKU", "Category", "Price", "Compare Price", "Stock", "Rating", "Reviews", "Shop", "Status"];
+    const rows = items.map((p, i) => [
+      i + 1,
+      `"${p.title.replace(/"/g, '""')}"`,
+      p.sku || "-",
+      p.categories?.name || "-",
+      Number(p.price).toFixed(2),
+      p.compare_at_price ? Number(p.compare_at_price).toFixed(2) : "-",
+      p.stock_count,
+      Number(p.rating).toFixed(1),
+      p.review_count,
+      `"${(p.shops?.name || "-").replace(/"/g, '""')}"`,
+      p.is_active ? "Active" : "Hidden",
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `admin-products-page${pagination.page}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -80,9 +106,14 @@ export default function AdminProductsPage() {
           <h1 className="text-xl font-bold text-gray-900">Products</h1>
           <p className="text-sm text-gray-500 mt-0.5">{pagination.total} total products</p>
         </div>
-        <Link href="/admin/products/add">
-          <Button className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"><Plus className="size-4" /> Add Product</Button>
-        </Link>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" className="gap-2" onClick={exportCSV} disabled={items.length === 0}>
+            <Download className="size-4" /> Export CSV
+          </Button>
+          <Link href="/admin/products/add">
+            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white gap-2"><Plus className="size-4" /> Add Product</Button>
+          </Link>
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm">

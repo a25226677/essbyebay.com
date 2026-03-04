@@ -265,22 +265,33 @@ export async function getShopWithProducts(shopSlug: string, options?: { topSelli
   return { shop, products };
 }
 
-export async function searchStoreProducts(query: string) {
+export async function searchStoreProducts(
+  query: string,
+  page = 1,
+  perPage = 24,
+): Promise<{ products: Product[]; total: number }> {
   const supabase = await createClient();
   const term = query.trim();
-  if (!term) return [];
+  if (!term) return { products: [], total: 0 };
 
-  const { data: rows } = await supabase
+  const from = (page - 1) * perPage;
+  const to = from + perPage - 1;
+
+  const { data: rows, count } = await supabase
     .from("products")
     .select(
       "id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
+      { count: "exact" },
     )
     .eq("is_active", true)
     .or(`title.ilike.%${term}%,description.ilike.%${term}%,sku.ilike.%${term}%`)
     .order("created_at", { ascending: false })
-    .limit(80);
+    .range(from, to);
 
-  return ((rows || []) as ProductRow[]).map(rowToProduct);
+  return {
+    products: ((rows || []) as ProductRow[]).map(rowToProduct),
+    total: count ?? 0,
+  };
 }
 
 export async function getBlogPosts() {

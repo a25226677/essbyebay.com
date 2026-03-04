@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Search,
   Package,
+  Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,6 +156,28 @@ export default function SellerProductsPage() {
     }
   };
 
+  const exportCSV = () => {
+    if (products.length === 0) return;
+    const headers = ["#", "Name", "Category", "Stock", "Price", "Published", "Featured"];
+    const rows = products.map((p, i) => [
+      (currentPage - 1) * perPage + i + 1,
+      `"${p.title.replace(/"/g, '""')}"`,
+      p.categories?.name || "-",
+      p.stock_count,
+      p.price.toFixed(2),
+      p.is_active ? "Yes" : "No",
+      p.is_featured ? "Yes" : "No",
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `seller-products-page${currentPage}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-gray-800">Products</h1>
@@ -169,17 +192,27 @@ export default function SellerProductsPage() {
           <p className="text-sm opacity-90">Total Products</p>
         </div>
 
-        <Link href="/seller/products/new">
+        <div className="flex items-center gap-3">
           <Button
-            variant="ghost"
-            className="flex flex-col items-center gap-1 h-auto py-3"
+            variant="outline"
+            className="gap-2 text-sm"
+            onClick={exportCSV}
+            disabled={products.length === 0}
           >
-            <PlusCircle className="size-10 text-gray-400" />
-            <span className="text-xs text-sky-600 font-medium">
-              Add New Product
-            </span>
+            <Download className="size-4" /> Export CSV
           </Button>
-        </Link>
+          <Link href="/seller/products/new">
+            <Button
+              variant="ghost"
+              className="flex flex-col items-center gap-1 h-auto py-3"
+            >
+              <PlusCircle className="size-10 text-gray-400" />
+              <span className="text-xs text-sky-600 font-medium">
+                Add New Product
+              </span>
+            </Button>
+          </Link>
+        </div>
       </div>
 
       {/* Products Table */}
