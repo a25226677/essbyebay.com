@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Brand } from "@/lib/types";
 
 // ─── Brand slug → official website domain ─────────────────────
-// Used for Google favicon fallback: google.com/s2/favicons?domain=X&sz=128
+// Used for apple-touch-icon + DuckDuckGo icon fallbacks
 const BRAND_DOMAINS: Record<string, string> = {
   "3m": "3m.com",
   acer: "acer.com",
@@ -103,7 +103,6 @@ const BRAND_DOMAINS: Record<string, string> = {
 };
 
 // ─── Simple Icons CDN slug overrides ──────────────────────────
-// Only needed when brand slug differs from simpleicons.org slug
 const SI_OVERRIDES: Record<string, string> = {
   beats: "beatsbydre",
   "calvin-klein": "calvinklein",
@@ -156,8 +155,9 @@ interface BrandCardProps {
  * Priority:
  *  1. Database URL (Supabase storage or any real http URL)
  *  2. Simple Icons CDN (high-quality SVG in brand colors)
- *  3. Google Favicon service (128px, works for any domain)
- *  4. CSS branded initial — guarantees no broken images ever
+ *  3. Brand website apple-touch-icon (180×180 PNG — most major sites have this)
+ *  4. DuckDuckGo instant icons (reliable, good quality)
+ *  5. CSS branded initial — guarantees no broken images ever
  */
 export function BrandCard({ brand }: BrandCardProps) {
   const [failCount, setFailCount] = useState(0);
@@ -168,30 +168,44 @@ export function BrandCard({ brand }: BrandCardProps) {
   // Build ordered list of sources to try
   const sources: (string | null)[] = [];
 
-  // 1. Try the DB URL if it's a real http URL (Supabase, etc.)
-  //    Skip known-dead hosts and local placeholders
+  // 1. Try the DB URL if it's a real http URL (Supabase storage, etc.)
+  //    Skip known-dead CDNs and SimpleIcons (handled separately below)
   if (
     brand.logo?.startsWith("http") &&
     !brand.logo.includes("logo.clearbit.com") &&
-    !brand.logo.includes("esellerstorebay.com")
+    !brand.logo.includes("esellerstorebay.com") &&
+    !brand.logo.includes("cdn.simpleicons.org")
   ) {
     sources.push(brand.logo);
   }
 
-  // 2. Simple Icons CDN — official brand-color SVGs for thousands of brands
+  // 2. Simple Icons CDN — official brand-color SVGs (404 for unknown brands → onError)
   sources.push(`https://cdn.simpleicons.org/${siSlug}`);
 
-  // 3. Google Favicon V2 — reliable 128px icons for ANY domain
-  sources.push(
-    `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
-  );
+  // 3. Brand website apple-touch-icon — 180×180 high-quality PNG
+  //    Virtually all major brand websites serve this; 404 triggers onError
+  sources.push(`https://www.${domain}/apple-touch-icon.png`);
 
-  // 4. CSS text fallback (null sentinel)
+  // 4. DuckDuckGo instant icons — returns decent quality for most domains
+  sources.push(`https://icons.duckduckgo.com/ip3/${domain}.ico`);
+
+  // 5. CSS text fallback (null sentinel)
   sources.push(null);
 
   const currentUrl = sources[Math.min(failCount, sources.length - 1)];
   const initial = brand.name?.charAt(0)?.toUpperCase() || "?";
   const bgColor = brandColor(brand.name);
+
+  // Advance to next source on load error
+  const handleError = () => setFailCount((c) => c + 1);
+
+  // Skip images that loaded but are too small (< 32px) — likely generic placeholders
+  const handleLoad = (e: React.SyntheticEvent<HTMLImageElement>) => {
+    const img = e.currentTarget;
+    if (img.naturalWidth > 0 && img.naturalWidth < 32) {
+      setFailCount((c) => c + 1);
+    }
+  };
 
   return (
     <Link
@@ -204,7 +218,8 @@ export function BrandCard({ brand }: BrandCardProps) {
           <img
             src={currentUrl}
             alt={`${brand.name} logo`}
-            onError={() => setFailCount((c) => c + 1)}
+            onError={handleError}
+            onLoad={handleLoad}
             loading="lazy"
             decoding="async"
             referrerPolicy="no-referrer"
