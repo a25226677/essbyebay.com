@@ -2,14 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { Eye, EyeOff, ShieldCheck, Zap, Lock, Mail } from "lucide-react";
+import { Eye, EyeOff, ShieldCheck, Lock, Mail, AlertCircle } from "lucide-react";
 
-const DEMO_EMAIL = "admin@demo.com";
-const DEMO_PASSWORD = "Admin@123456";
+const IS_DEV = process.env.NODE_ENV === "development";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -19,55 +19,71 @@ export default function AdminLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
 
   // Redirect already-logged-in admins
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", data.session.user.id)
-          .maybeSingle();
-        if (profile?.role === "admin") {
-          router.replace("/admin/dashboard");
+    supabase.auth
+      .getSession()
+      .then(async ({ data }) => {
+        if (data.session?.user) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("role")
+            .eq("id", data.session.user.id)
+            .maybeSingle();
+          if (profile?.role === "admin") {
+            router.replace("/admin/dashboard");
+            return;
+          }
         }
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+        setCheckingSession(false);
+      })
+      .catch(() => setCheckingSession(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Show errors from middleware redirect (e.g. ?error=not_admin)
   useEffect(() => {
     const errParam = searchParams.get("error");
     if (errParam === "not_admin") {
-      setError("This account does not have admin access.");
+      setError("This account does not have admin privileges.");
     } else if (errParam) {
       setError(decodeURIComponent(errParam));
     }
   }, [searchParams]);
 
-  const fillDemo = () => {
-    setEmail(DEMO_EMAIL);
-    setPassword(DEMO_PASSWORD);
-    setError("");
-  };
-
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+
+    if (!email.trim() || !password.trim()) {
+      setError("Please enter your email and password.");
+      return;
+    }
+
     setLoading(true);
 
     try {
       const supabase = createClient();
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
         password,
       });
 
-      if (error) {
-        setError(error.message);
+      if (signInError) {
+        // Map Supabase errors to user-friendly messages
+        const msg = signInError.message.toLowerCase();
+        if (msg.includes("invalid login")) {
+          setError("Invalid email or password. Please try again.");
+        } else if (msg.includes("email not confirmed")) {
+          setError("Your email address has not been verified. Please check your inbox.");
+        } else if (msg.includes("too many requests") || msg.includes("rate limit")) {
+          setError("Too many login attempts. Please wait a moment and try again.");
+        } else {
+          setError(signInError.message);
+        }
         setLoading(false);
         return;
       }
@@ -80,19 +96,27 @@ export default function AdminLoginPage() {
 
       if (!profile || profile.role !== "admin") {
         await supabase.auth.signOut();
-        setError("This account does not have admin access. Make sure the admin seed SQL has been run in Supabase.");
+        setError("This account does not have admin privileges.");
         setLoading(false);
         return;
       }
 
       router.push("/admin/dashboard");
       router.refresh();
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Unexpected error. Check your network and Supabase config.";
-      setError(msg);
+    } catch {
+      setError("Unable to connect. Please check your internet connection and try again.");
       setLoading(false);
     }
   };
+
+  // Show a clean loading state while checking existing session
+  if (checkingSession) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2238] via-[#1e2a42] to-[#0f172a]">
+        <div className="w-8 h-8 border-2 border-blue-400/30 border-t-blue-400 rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#1a2238] via-[#1e2a42] to-[#0f172a] px-4 py-12">
@@ -105,50 +129,32 @@ export default function AdminLoginPage() {
       <div className="relative w-full max-w-md space-y-4">
         {/* Logo / Brand */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-blue-500/20 border border-blue-500/30 rounded-2xl mb-3">
-            <ShieldCheck className="size-7 text-blue-400" />
+          <div className="inline-flex items-center justify-center w-16 h-16 bg-blue-500/20 border border-blue-500/30 rounded-2xl mb-4 shadow-lg shadow-blue-500/10">
+            <ShieldCheck className="size-8 text-blue-400" />
           </div>
-          <h1 className="text-2xl font-bold text-white">Admin Portal</h1>
-          <p className="text-sm text-gray-400 mt-1">Sign in to access the dashboard</p>
+          <h1 className="text-2xl font-bold text-white tracking-tight">Admin Portal</h1>
+          <p className="text-sm text-gray-400 mt-1">Secure access to the management dashboard</p>
         </div>
 
-        {/* Demo Credentials Banner */}
-        <div className="bg-teal-500/10 border border-teal-500/30 rounded-xl p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-teal-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-                <Zap className="size-3" /> Demo Credentials
-              </p>
-              <div className="space-y-1">
-                <div className="flex items-center gap-2">
-                  <Mail className="size-3 text-gray-400 shrink-0" />
-                  <code className="text-xs text-gray-200 font-mono">{DEMO_EMAIL}</code>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Lock className="size-3 text-gray-400 shrink-0" />
-                  <code className="text-xs text-gray-200 font-mono">{DEMO_PASSWORD}</code>
-                </div>
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={fillDemo}
-              className="shrink-0 text-xs px-3 py-2 bg-teal-500 hover:bg-teal-600 text-white rounded-lg font-semibold transition-colors flex items-center gap-1.5"
-            >
-              <Zap className="size-3" /> Use Demo
-            </button>
+        {/* Dev-only Demo Credentials Banner — completely stripped from production builds */}
+        {IS_DEV && (
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3">
+            <p className="text-[11px] font-medium text-amber-400 text-center">
+              Development Mode — Demo: admin@demo.com / Admin@123456
+            </p>
           </div>
-        </div>
+        )}
 
         {/* Login Card */}
-        <div className="bg-white/5 border border-white/10 backdrop-blur-sm rounded-2xl p-7 shadow-2xl">
+        <div className="bg-white/[0.04] border border-white/10 backdrop-blur-sm rounded-2xl p-7 shadow-2xl">
           {error && (
-            <div className="mb-4 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400">
-              {error}
+            <div className="mb-5 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm text-red-400 flex items-start gap-2.5">
+              <AlertCircle className="size-4 shrink-0 mt-0.5" />
+              <span>{error}</span>
             </div>
           )}
 
-          <form className="space-y-5" onSubmit={onSubmit}>
+          <form className="space-y-5" onSubmit={onSubmit} noValidate>
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-xs font-medium text-gray-300 uppercase tracking-wide">
                 Email Address
@@ -158,34 +164,49 @@ export default function AdminLoginPage() {
                 <Input
                   id="email"
                   type="email"
+                  autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="admin@demo.com"
+                  placeholder="you@company.com"
                   required
-                  className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-gray-600 focus:border-blue-500 focus:ring-blue-500/20 h-11"
+                  disabled={loading}
+                  className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-gray-600 focus:border-blue-500 focus:ring-blue-500/20 h-11 disabled:opacity-50"
                 />
               </div>
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="password" className="text-xs font-medium text-gray-300 uppercase tracking-wide">
-                Password
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="password" className="text-xs font-medium text-gray-300 uppercase tracking-wide">
+                  Password
+                </Label>
+                <Link
+                  href="/password/reset"
+                  className="text-[11px] text-blue-400 hover:text-blue-300 transition-colors font-medium"
+                  tabIndex={-1}
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-500" />
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
+                  placeholder="Enter your password"
                   required
-                  className="pl-9 pr-10 bg-white/5 border-white/10 text-white placeholder:text-gray-600 focus:border-blue-500 focus:ring-blue-500/20 h-11"
+                  disabled={loading}
+                  className="pl-9 pr-10 bg-white/5 border-white/10 text-white placeholder:text-gray-600 focus:border-blue-500 focus:ring-blue-500/20 h-11 disabled:opacity-50"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  tabIndex={-1}
                 >
                   {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                 </button>
@@ -194,26 +215,32 @@ export default function AdminLoginPage() {
 
             <Button
               type="submit"
-              className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors"
+              className="w-full h-11 bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm rounded-xl transition-colors disabled:opacity-60"
               disabled={loading}
             >
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  Signing in...
+                  Signing in…
                 </span>
               ) : (
                 <span className="flex items-center gap-2">
-                  <ShieldCheck className="size-4" /> Sign In to Dashboard
+                  <ShieldCheck className="size-4" /> Sign In
                 </span>
               )}
             </Button>
           </form>
         </div>
 
-        <p className="text-center text-xs text-gray-600">
-          Admin access only · Unauthorized access is prohibited
-        </p>
+        {/* Footer */}
+        <div className="text-center space-y-1 pt-2">
+          <p className="text-xs text-gray-500">
+            Restricted area — Authorized personnel only
+          </p>
+          <p className="text-[11px] text-gray-700">
+            &copy; {new Date().getFullYear()} All rights reserved
+          </p>
+        </div>
       </div>
     </div>
   );

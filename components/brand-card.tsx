@@ -1,123 +1,149 @@
-import Image from "next/image";
+"use client";
+
+import { useState } from "react";
 import Link from "next/link";
 import type { Brand } from "@/lib/types";
 
-// ─── Official brand logos from esellerstorebay.com ────────────
-// Keyed by brand slug — covers all brands in brands.json + placeholder-data
-const BRAND_LOGO_MAP: Record<string, string> = {
-  // Tech & Electronics
-  acer:             "https://esellerstorebay.com/public/uploads/all/Qyu62ZY0ss41fWrfsn7kEDIje6fe37SO7Q8QAjN4.jpg",
-  adidas:           "https://esellerstorebay.com/public/uploads/all/pnJLUOOCynVS3zcwiKKQaTfoI80XROjVbHb2HkXX.jpg",
-  apple:            "https://esellerstorebay.com/public/uploads/all/OORNgOuuK7i6LpaAmneoZ7XJhyXjGhn9oM2C3sHP.jpg",
-  asus:             "https://esellerstorebay.com/public/uploads/all/hKVK9fJ4AFupftAHV6fCQF3ysYfxlEXCha1NrSEH.jpg",
-  samsung:          "https://esellerstorebay.com/public/uploads/all/CHiPPwWsYyBSKA86NensGpbPkF1PujSxg3UjyACn.jpg",
-  sony:             "https://esellerstorebay.com/public/uploads/all/32t6dhIilYusFyl7qDNolVLppb4v9sUJxF6foHBZ.jpg",
-  dell:             "https://esellerstorebay.com/public/uploads/all/cHHHavWbYah9GncgLMh2CfEl4hz801GQ1jC1zdo9.jpg",
-  lenovo:           "https://esellerstorebay.com/public/uploads/all/0fuebltbHk8mgooYwGXQMw7Iq5pKkrTng9k16PjW.png",
-  hp:               "https://esellerstorebay.com/public/uploads/all/LQMLgUWHTDLzZWYoojq4Cj6I12Tbp2vfC6Hq9VPi.jpg",
-  microsoft:        "https://esellerstorebay.com/public/uploads/all/ZEYOuwUJBrPMBzAxhuGtVATmMWQgbs2koXL9iigk.jpg",
-  lg:               "https://esellerstorebay.com/public/uploads/all/umODcXCJXRWCXrfw3FGlhkNZFXCa68V6GlK5JqNw.jpg",
-  nokia:            "https://esellerstorebay.com/public/uploads/all/RFqP89uokkAJ7kdjThXpmhOVMQfozNihuJ0dTfVK.jpg",
-  xiaomi:           "https://esellerstorebay.com/public/uploads/all/04SK3FuD7WvRUaQsgP9LeJepw32TMvVHrxsbn6zo.jpg",
-  "one-plus":       "https://esellerstorebay.com/public/uploads/all/F0nMVGsZckKF9zvrkKlm5TJ0PJmECpgKab27A47o.jpg",
-  oneplus:          "https://esellerstorebay.com/public/uploads/all/F0nMVGsZckKF9zvrkKlm5TJ0PJmECpgKab27A47o.jpg",
-  google:           "https://esellerstorebay.com/public/uploads/all/hvTR2tCxrfUnjbBYbfal0St5XfSSBASaNWYRVwNF.jpg",
-  canon:            "https://esellerstorebay.com/public/uploads/all/a6Up1xvLDybhNDluBNmmYt2lO7XIXnAEg7D6wkVJ.jpg",
-  corsair:          "https://esellerstorebay.com/public/uploads/all/HyCiLur6BpTaXmxsO51XdeBGJlBtskbjTTEAmdAk.jpg",
-  logitech:         "https://esellerstorebay.com/public/uploads/all/8pNkfmAWx4ptMdsKkFZE3OiK8EwZL9GnjUtPuF7S.jpg",
-  intel:            "/images/placeholders/brand-apple.svg",
-  amd:              "/images/placeholders/brand-apple.svg",
-  nvidia:           "/images/placeholders/brand-apple.svg",
-  msi:              "/images/placeholders/brand-apple.svg",
-  jbl:              "/images/placeholders/brand-apple.svg",
-  belkin:           "/images/placeholders/brand-apple.svg",
-  anker:            "/images/placeholders/brand-apple.svg",
-  mac:              "https://esellerstorebay.com/public/uploads/all/QGNQwT6jvTT0MqilutIlYlkOivJbY1iMZUHfEFjZ.jpg",
-  beats:            "/images/placeholders/brand-apple.svg",
-  // Sports & Fashion
-  nike:             "https://esellerstorebay.com/public/uploads/all/TS4YAf73JiTA6k0cTuc17AZF5vApcJ06lAFLfAc2.jpg",
-  puma:             "https://esellerstorebay.com/public/uploads/all/rcpEO7fXVzm4kaejPNwqw6fwyZSwJEx5zyx953QB.jpg",
-  reebok:           "https://esellerstorebay.com/public/uploads/all/IhbWqyrbpQUHZd60sqz2ffGIlY5MgdhKHTZrJEVd.jpg",
-  "under-armour":   "/images/placeholders/brand-apple.svg",
-  gucci:            "https://esellerstorebay.com/public/uploads/all/rkyIjS3WVegrJmDqLOSE5PIpyxcBHgnKTyVDOE51.jpg",
-  "ralph-lauren":   "https://esellerstorebay.com/public/uploads/all/3HnaeERBehoFSHZiEtzYhWFvfIcM3hKR33StN0u0.png",
-  "calvin-klein":   "https://esellerstorebay.com/public/uploads/all/V81L322ARziA33w4Okg3yW029JtNXnLCx8nqUYe2.jpg",
-  zara:             "/images/placeholders/brand-apple.svg",
-  hm:               "/images/placeholders/brand-h&m.svg",
-  "h&m":            "/images/placeholders/brand-h&m.svg",
-  "tommy-hilfiger": "/images/placeholders/brand-apple.svg",
-  "michael-kors":   "/images/placeholders/brand-apple.svg",
-  levis:            "/images/placeholders/brand-apple.svg",
-  "kate-spade":     "/images/placeholders/brand-apple.svg",
-  columbia:         "/images/placeholders/brand-apple.svg",
-  "north-face":     "/images/placeholders/brand-apple.svg",
-  "victorias-secret":"https://esellerstorebay.com/public/uploads/all/rTnF7lkUo98xSabKEL33PB8Jy2wTriBdbuaEInWK.jpg",
-  "urban-decay":    "https://esellerstorebay.com/public/uploads/all/26AUkrxaz6uHIX5js628FlgzxkGPaTO272uugCQd.jpg",
-  coach:            "/images/placeholders/brand-apple.svg",
-  guess:            "https://esellerstorebay.com/public/uploads/all/VM6VW4RtuX7SVsHmPJN5tBKFB491DM8agVksrEi7.jpg",
-  wilson:           "/images/placeholders/brand-apple.svg",
-  spalding:         "/images/placeholders/brand-apple.svg",
-  coleman:          "/images/placeholders/brand-apple.svg",
-  // Automotive
-  "mercedes-benz":  "https://esellerstorebay.com/public/uploads/all/BzkZ50NsIxzdS9ToxXJzP7PV9Hk5pRshyxE73sbq.jpg",
-  mercedes:         "https://esellerstorebay.com/public/uploads/all/N602WIwftMypkpk23tZljEqSXUEWKW7jwAhaMa1h.jpg",
-  bmw:              "/images/placeholders/brand-bmw.svg",
-  audi:             "https://esellerstorebay.com/public/uploads/all/DYRuBljh1IMi24ibQJWwyxtlbO9unim0YgVVLQO6.jpg",
-  lamborghini:      "https://esellerstorebay.com/public/uploads/all/yFb3LI3H1O7u5esbgwttygD9qgNtSPe6nTWL1pZV.jpg",
-  "rolls-royce":    "https://esellerstorebay.com/public/uploads/all/nh9MG1IjUQNYwECygkgSBCtLUdzpQyt9a7LEFKnb.jpg",
-  ford:             "https://esellerstorebay.com/public/uploads/all/N5HzSVAmfqoflwY81P9RWJdDJ6S4mYmURIyWeqcO.jpg",
-  toyota:           "https://esellerstorebay.com/public/uploads/all/BY9Ye6rjMOzVp1ukAaueI7V29XShRNJaMucauqVs.jpg",
-  honda:            "/images/placeholders/brand-apple.svg",
-  suzuki:           "https://esellerstorebay.com/public/uploads/all/c0I0b7h4VyhtWml1r2VfXUWJcT030iRMPo1ce8nb.jpg",
-  yamaha:           "https://esellerstorebay.com/public/uploads/all/J37EphmHxcn76CVbWkMtRFxrg9ZC7D16BFghMb6F.jpg",
-  "royal-enfield":  "https://esellerstorebay.com/public/uploads/all/U4eIpiFD7xSs8dC0cHJrOoKmiRyEZENgkisFJJ0s.jpg",
-  volvo:            "https://esellerstorebay.com/public/uploads/all/gTCDxIFKlOwj09v3eNvHDEjWi35kLAFkYdCm06O2.jpg",
-  // Watches & Jewellery
-  rolex:            "https://esellerstorebay.com/public/uploads/all/yRR7j7evOm0KjGLRfCNfD7k3bGoF6Zo6yWVFGzys.png",
-  omega:            "https://esellerstorebay.com/public/uploads/all/89q1phGOV0Pf0B2lqTbbHihpcW76bKy7VTDqFUk6.jpg",
-  casio:            "/images/placeholders/brand-apple.svg",
-  seiko:            "/images/placeholders/brand-apple.svg",
-  fossil:           "/images/placeholders/brand-apple.svg",
-  tiffany:          "/images/placeholders/brand-apple.svg",
-  breitling:        "https://esellerstorebay.com/public/uploads/all/EmOLclj3XRc2Ng4FudSgeFc7mxH0jqZdeiRxeIkb.jpg",
-  // Beauty
-  "estee-lauder":   "/images/placeholders/brand-apple.svg",
-  clinique:         "/images/placeholders/brand-apple.svg",
-  loreal:           "/images/placeholders/brand-apple.svg",
-  maybelline:       "/images/placeholders/brand-apple.svg",
-  dyson:            "/images/placeholders/brand-apple.svg",
-  // Toys & Kids
-  hasbro:           "/images/placeholders/brand-apple.svg",
-  lego:             "/images/placeholders/brand-apple.svg",
-  mattel:           "/images/placeholders/brand-apple.svg",
-  "hot-wheels":     "/images/placeholders/brand-apple.svg",
-  "fisher-price":   "/images/placeholders/brand-apple.svg",
-  giant:            "/images/placeholders/brand-apple.svg",
-  // Other
-  "3m":             "/images/placeholders/brand-apple.svg",
-  bosch:            "/images/placeholders/brand-apple.svg",
-  dewalt:           "/images/placeholders/brand-apple.svg",
-  prada:            "/images/placeholders/brand-apple.svg",
-  otterbox:         "/images/placeholders/brand-apple.svg",
-  spigen:           "/images/placeholders/brand-apple.svg",
+// ─── Brand slug → official website domain ─────────────────────
+// Used for Google favicon fallback: google.com/s2/favicons?domain=X&sz=128
+const BRAND_DOMAINS: Record<string, string> = {
+  "3m": "3m.com",
+  acer: "acer.com",
+  adidas: "adidas.com",
+  amd: "amd.com",
+  anker: "anker.com",
+  apple: "apple.com",
+  asus: "asus.com",
+  beats: "beatsbydre.com",
+  belkin: "belkin.com",
+  bmw: "bmw.com",
+  bosch: "bosch.com",
+  breitling: "breitling.com",
+  "calvin-klein": "calvinklein.com",
+  canon: "canon.com",
+  casio: "casio.com",
+  clinique: "clinique.com",
+  coach: "coach.com",
+  coleman: "coleman.com",
+  columbia: "columbia.com",
+  corsair: "corsair.com",
+  dell: "dell.com",
+  dewalt: "dewalt.com",
+  dyson: "dyson.com",
+  "estee-lauder": "esteelauder.com",
+  "fisher-price": "fisher-price.com",
+  ford: "ford.com",
+  fossil: "fossil.com",
+  giant: "giant-bicycles.com",
+  google: "google.com",
+  gucci: "gucci.com",
+  guess: "guess.com",
+  "h&m": "hm.com",
+  hm: "hm.com",
+  hasbro: "hasbro.com",
+  honda: "honda.com",
+  "hot-wheels": "hotwheels.mattel.com",
+  hp: "hp.com",
+  intel: "intel.com",
+  jbl: "jbl.com",
+  "kate-spade": "katespade.com",
+  lamborghini: "lamborghini.com",
+  lego: "lego.com",
+  lenovo: "lenovo.com",
+  levis: "levi.com",
+  lg: "lg.com",
+  logitech: "logitech.com",
+  loreal: "loreal.com",
+  mac: "maccosmetics.com",
+  mattel: "mattel.com",
+  maybelline: "maybelline.com",
+  "mercedes-benz": "mercedes-benz.com",
+  mercedes: "mercedes-benz.com",
+  "michael-kors": "michaelkors.com",
+  microsoft: "microsoft.com",
+  msi: "msi.com",
+  nike: "nike.com",
+  nokia: "nokia.com",
+  "north-face": "thenorthface.com",
+  nvidia: "nvidia.com",
+  omega: "omegawatches.com",
+  "one-plus": "oneplus.com",
+  oneplus: "oneplus.com",
+  otterbox: "otterbox.com",
+  prada: "prada.com",
+  puma: "puma.com",
+  "ralph-lauren": "ralphlauren.com",
+  reebok: "reebok.com",
+  rolex: "rolex.com",
+  "rolls-royce": "rolls-roycemotorcars.com",
+  "royal-enfield": "royalenfield.com",
+  samsung: "samsung.com",
+  seiko: "seikowatches.com",
+  sony: "sony.com",
+  spalding: "spalding.com",
+  spigen: "spigen.com",
+  suzuki: "suzuki.com",
+  tiffany: "tiffany.com",
+  "tommy-hilfiger": "tommy.com",
+  toyota: "toyota.com",
+  "under-armour": "underarmour.com",
+  "urban-decay": "urbandecay.com",
+  "victorias-secret": "victoriassecret.com",
+  volvo: "volvo.com",
+  wilson: "wilson.com",
+  xiaomi: "xiaomi.com",
+  yamaha: "yamaha.com",
+  zara: "zara.com",
   // Legacy
-  aigner:           "https://esellerstorebay.com/public/uploads/all/werJ5uEXwIGCN2T5yC8hStWBTK9lHaOuIfRMDNUg.jpg",
-  alosa:            "https://esellerstorebay.com/public/uploads/all/oPP6xKO0Op5RjL6s23z0MO61Dx1mhCpCqKgCWqF1.jpg",
-  apato:            "https://esellerstorebay.com/public/uploads/all/MqAWwfnjrVjNSgdEMeXfv5oC18HKVElmZlNxc3Z2.jpg",
-  millet:           "https://esellerstorebay.com/public/uploads/all/DHZu4mN6igPh8C5QYJXDmlmY53ybdpHrhveWDzAe.jpg",
-  "wood-worm":      "https://esellerstorebay.com/public/uploads/all/SdYdA5C1d5rtQIfql5lmAbDMhwoXij7ug4M3HVHm.jpg",
+  aigner: "aigner.com",
+  alosa: "alosa.de",
+  apato: "apato.com",
+  millet: "millet.fr",
+  "wood-worm": "woodworm.tv",
 };
 
-const FALLBACK_LOGO = "/images/placeholders/brand-apple.svg";
+// ─── Simple Icons CDN slug overrides ──────────────────────────
+// Only needed when brand slug differs from simpleicons.org slug
+const SI_OVERRIDES: Record<string, string> = {
+  beats: "beatsbydre",
+  "calvin-klein": "calvinklein",
+  "h&m": "hm",
+  hm: "hm",
+  "kate-spade": "katespade",
+  "michael-kors": "michaelkors",
+  "north-face": "thenorthface",
+  "ralph-lauren": "ralphlauren",
+  "tommy-hilfiger": "tommyhilfiger",
+  "under-armour": "underarmour",
+  "victorias-secret": "victoriassecret",
+  "urban-decay": "urbandecay",
+  "estee-lauder": "esteelauder",
+  "fisher-price": "fisherprice",
+  "hot-wheels": "hotwheels",
+  "mercedes-benz": "mercedesbenz",
+  "rolls-royce": "rollsroyce",
+  "royal-enfield": "royalenfield",
+  "one-plus": "oneplus",
+  "wood-worm": "woodworm",
+  mac: "maccosmetics",
+};
 
-function getBrandLogoSrc(brand: { slug: string; logo: string }): string {
-  // 1. If the data layer already has a real remote URL, use it
-  if (brand.logo?.startsWith("http")) return brand.logo;
-  // 2. Look up in slug map
-  if (BRAND_LOGO_MAP[brand.slug]) return BRAND_LOGO_MAP[brand.slug];
-  // 3. Use local path if provided (e.g. /images/placeholders/...)
-  if (brand.logo?.startsWith("/")) return brand.logo;
-  return FALLBACK_LOGO;
+// ─── Generate consistent color from brand name ────────────────
+function brandColor(name: string): string {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 50%, 45%)`;
+}
+
+function getSimpleIconsSlug(slug: string): string {
+  return SI_OVERRIDES[slug] || slug.replace(/-/g, "");
+}
+
+function getBrandDomain(slug: string): string {
+  return BRAND_DOMAINS[slug] || `${slug.replace(/-/g, "")}.com`;
 }
 
 interface BrandCardProps {
@@ -125,27 +151,73 @@ interface BrandCardProps {
 }
 
 /**
- * BrandCard — grayscale by default, full colour + scale on hover.
- * Uses official brand logos from esellerstorebay.com.
+ * BrandCard — cascading logo sources with graceful fallback.
+ *
+ * Priority:
+ *  1. Database URL (Supabase storage or any real http URL)
+ *  2. Simple Icons CDN (high-quality SVG in brand colors)
+ *  3. Google Favicon service (128px, works for any domain)
+ *  4. CSS branded initial — guarantees no broken images ever
  */
 export function BrandCard({ brand }: BrandCardProps) {
-  const logoSrc = getBrandLogoSrc(brand);
+  const [failCount, setFailCount] = useState(0);
+
+  const siSlug = getSimpleIconsSlug(brand.slug);
+  const domain = getBrandDomain(brand.slug);
+
+  // Build ordered list of sources to try
+  const sources: (string | null)[] = [];
+
+  // 1. Try the DB URL if it's a real http URL (Supabase, etc.)
+  //    Skip known-dead hosts and local placeholders
+  if (
+    brand.logo?.startsWith("http") &&
+    !brand.logo.includes("logo.clearbit.com") &&
+    !brand.logo.includes("esellerstorebay.com")
+  ) {
+    sources.push(brand.logo);
+  }
+
+  // 2. Simple Icons CDN — official brand-color SVGs for thousands of brands
+  sources.push(`https://cdn.simpleicons.org/${siSlug}`);
+
+  // 3. Google Favicon V2 — reliable 128px icons for ANY domain
+  sources.push(
+    `https://www.google.com/s2/favicons?domain=${domain}&sz=128`
+  );
+
+  // 4. CSS text fallback (null sentinel)
+  sources.push(null);
+
+  const currentUrl = sources[Math.min(failCount, sources.length - 1)];
+  const initial = brand.name?.charAt(0)?.toUpperCase() || "?";
+  const bgColor = brandColor(brand.name);
 
   return (
     <Link
       href={`/search?q=${encodeURIComponent(brand.name)}`}
       className="group flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-gray-200 bg-white hover:border-[#f77f00]/40 hover:shadow-md hover:shadow-orange-100/60 transition-all duration-300"
     >
-      {/* Logo — grayscale default, full colour + scale on hover */}
-      <div className="relative w-[90px] h-[52px] flex items-center justify-center">
-        <Image
-          src={logoSrc}
-          alt={`${brand.name} logo`}
-          fill
-          sizes="90px"
-          className="object-contain transition-all duration-300 grayscale group-hover:grayscale-0 group-hover:scale-110"
-          loading="lazy"
-        />
+      <div className="relative w-[90px] h-[52px] flex items-center justify-center overflow-hidden">
+        {currentUrl ? (
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img
+            src={currentUrl}
+            alt={`${brand.name} logo`}
+            onError={() => setFailCount((c) => c + 1)}
+            loading="lazy"
+            decoding="async"
+            referrerPolicy="no-referrer"
+            className="max-w-full max-h-full object-contain transition-all duration-300 grayscale group-hover:grayscale-0 group-hover:scale-110"
+          />
+        ) : (
+          <div
+            className="w-full h-full flex items-center justify-center rounded-lg text-white font-bold text-xl tracking-wider transition-transform duration-300 group-hover:scale-110 select-none"
+            style={{ backgroundColor: bgColor }}
+          >
+            {initial}
+          </div>
+        )}
       </div>
       {/* Brand name */}
       <span className="text-[11px] font-semibold text-gray-500 group-hover:text-gray-800 transition-colors duration-200 tracking-wide uppercase">

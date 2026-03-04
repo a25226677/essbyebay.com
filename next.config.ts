@@ -28,9 +28,32 @@ const nextConfig: NextConfig = {
         hostname: "source.unsplash.com",
       },
       {
-        // Clearbit Logo API — official brand logos for BrandCard
+        // Simple Icons CDN — free SVG brand logos for BrandCard
         protocol: "https",
-        hostname: "logo.clearbit.com",
+        hostname: "cdn.simpleicons.org",
+      },
+      {
+        // Google Favicon V2 — fallback brand icons
+        protocol: "https",
+        hostname: "www.google.com",
+        pathname: "/s2/favicons**",
+      },
+      {
+        // Google Favicon V2 redirect target
+        protocol: "https",
+        hostname: "t0.gstatic.com",
+      },
+      {
+        protocol: "https",
+        hostname: "t1.gstatic.com",
+      },
+      {
+        protocol: "https",
+        hostname: "t2.gstatic.com",
+      },
+      {
+        protocol: "https",
+        hostname: "t3.gstatic.com",
       },
       {
         // Official brand logos hosted on esellerstorebay.com
