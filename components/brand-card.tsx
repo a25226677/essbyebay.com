@@ -2,105 +2,111 @@ import Image from "next/image";
 import Link from "next/link";
 import type { Brand } from "@/lib/types";
 
-// ─── Official brand logos from esellerstorebay.com ────────────
-// Keyed by brand slug — covers all brands in brands.json + placeholder-data
+// ─── Reliable brand logos via Clearbit Logo API ───────────────
+// Format: https://logo.clearbit.com/<domain>
+// Keyed by brand slug — covers all storefront brands
 const BRAND_LOGO_MAP: Record<string, string> = {
   // Tech & Electronics
-  acer:             "https://esellerstorebay.com/public/uploads/all/Qyu62ZY0ss41fWrfsn7kEDIje6fe37SO7Q8QAjN4.jpg",
-  adidas:           "https://esellerstorebay.com/public/uploads/all/pnJLUOOCynVS3zcwiKKQaTfoI80XROjVbHb2HkXX.jpg",
-  apple:            "https://esellerstorebay.com/public/uploads/all/OORNgOuuK7i6LpaAmneoZ7XJhyXjGhn9oM2C3sHP.jpg",
-  asus:             "https://esellerstorebay.com/public/uploads/all/hKVK9fJ4AFupftAHV6fCQF3ysYfxlEXCha1NrSEH.jpg",
-  samsung:          "https://esellerstorebay.com/public/uploads/all/CHiPPwWsYyBSKA86NensGpbPkF1PujSxg3UjyACn.jpg",
-  sony:             "https://esellerstorebay.com/public/uploads/all/32t6dhIilYusFyl7qDNolVLppb4v9sUJxF6foHBZ.jpg",
-  dell:             "https://esellerstorebay.com/public/uploads/all/cHHHavWbYah9GncgLMh2CfEl4hz801GQ1jC1zdo9.jpg",
-  lenovo:           "https://esellerstorebay.com/public/uploads/all/0fuebltbHk8mgooYwGXQMw7Iq5pKkrTng9k16PjW.png",
-  hp:               "https://esellerstorebay.com/public/uploads/all/LQMLgUWHTDLzZWYoojq4Cj6I12Tbp2vfC6Hq9VPi.jpg",
-  microsoft:        "https://esellerstorebay.com/public/uploads/all/ZEYOuwUJBrPMBzAxhuGtVATmMWQgbs2koXL9iigk.jpg",
-  lg:               "https://esellerstorebay.com/public/uploads/all/umODcXCJXRWCXrfw3FGlhkNZFXCa68V6GlK5JqNw.jpg",
-  nokia:            "https://esellerstorebay.com/public/uploads/all/RFqP89uokkAJ7kdjThXpmhOVMQfozNihuJ0dTfVK.jpg",
-  xiaomi:           "https://esellerstorebay.com/public/uploads/all/04SK3FuD7WvRUaQsgP9LeJepw32TMvVHrxsbn6zo.jpg",
-  "one-plus":       "https://esellerstorebay.com/public/uploads/all/F0nMVGsZckKF9zvrkKlm5TJ0PJmECpgKab27A47o.jpg",
-  oneplus:          "https://esellerstorebay.com/public/uploads/all/F0nMVGsZckKF9zvrkKlm5TJ0PJmECpgKab27A47o.jpg",
-  google:           "https://esellerstorebay.com/public/uploads/all/hvTR2tCxrfUnjbBYbfal0St5XfSSBASaNWYRVwNF.jpg",
-  canon:            "https://esellerstorebay.com/public/uploads/all/a6Up1xvLDybhNDluBNmmYt2lO7XIXnAEg7D6wkVJ.jpg",
-  corsair:          "https://esellerstorebay.com/public/uploads/all/HyCiLur6BpTaXmxsO51XdeBGJlBtskbjTTEAmdAk.jpg",
-  logitech:         "https://esellerstorebay.com/public/uploads/all/8pNkfmAWx4ptMdsKkFZE3OiK8EwZL9GnjUtPuF7S.jpg",
-  intel:            "/images/placeholders/brand-apple.svg",
-  amd:              "/images/placeholders/brand-apple.svg",
-  nvidia:           "/images/placeholders/brand-apple.svg",
-  msi:              "/images/placeholders/brand-apple.svg",
-  jbl:              "/images/placeholders/brand-apple.svg",
-  belkin:           "/images/placeholders/brand-apple.svg",
-  anker:            "/images/placeholders/brand-apple.svg",
-  mac:              "https://esellerstorebay.com/public/uploads/all/QGNQwT6jvTT0MqilutIlYlkOivJbY1iMZUHfEFjZ.jpg",
-  beats:            "/images/placeholders/brand-apple.svg",
+  "3m":             "https://logo.clearbit.com/3m.com",
+  acer:             "https://logo.clearbit.com/acer.com",
+  amd:              "https://logo.clearbit.com/amd.com",
+  anker:            "https://logo.clearbit.com/anker.com",
+  apple:            "https://logo.clearbit.com/apple.com",
+  asus:             "https://logo.clearbit.com/asus.com",
+  beats:            "https://logo.clearbit.com/beatsbydre.com",
+  belkin:           "https://logo.clearbit.com/belkin.com",
+  bosch:            "https://logo.clearbit.com/bosch.com",
+  canon:            "https://logo.clearbit.com/canon.com",
+  corsair:          "https://logo.clearbit.com/corsair.com",
+  dell:             "https://logo.clearbit.com/dell.com",
+  dewalt:           "https://logo.clearbit.com/dewalt.com",
+  dyson:            "https://logo.clearbit.com/dyson.com",
+  google:           "https://logo.clearbit.com/google.com",
+  hp:               "https://logo.clearbit.com/hp.com",
+  intel:            "https://logo.clearbit.com/intel.com",
+  jbl:              "https://logo.clearbit.com/jbl.com",
+  lenovo:           "https://logo.clearbit.com/lenovo.com",
+  lg:               "https://logo.clearbit.com/lg.com",
+  logitech:         "https://logo.clearbit.com/logitech.com",
+  microsoft:        "https://logo.clearbit.com/microsoft.com",
+  msi:              "https://logo.clearbit.com/msi.com",
+  nokia:            "https://logo.clearbit.com/nokia.com",
+  nvidia:           "https://logo.clearbit.com/nvidia.com",
+  "one-plus":       "https://logo.clearbit.com/oneplus.com",
+  oneplus:          "https://logo.clearbit.com/oneplus.com",
+  samsung:          "https://logo.clearbit.com/samsung.com",
+  sony:             "https://logo.clearbit.com/sony.com",
+  spigen:           "https://logo.clearbit.com/spigen.com",
+  xiaomi:           "https://logo.clearbit.com/xiaomi.com",
+  otterbox:         "https://logo.clearbit.com/otterbox.com",
+
   // Sports & Fashion
-  nike:             "https://esellerstorebay.com/public/uploads/all/TS4YAf73JiTA6k0cTuc17AZF5vApcJ06lAFLfAc2.jpg",
-  puma:             "https://esellerstorebay.com/public/uploads/all/rcpEO7fXVzm4kaejPNwqw6fwyZSwJEx5zyx953QB.jpg",
-  reebok:           "https://esellerstorebay.com/public/uploads/all/IhbWqyrbpQUHZd60sqz2ffGIlY5MgdhKHTZrJEVd.jpg",
-  "under-armour":   "/images/placeholders/brand-apple.svg",
-  gucci:            "https://esellerstorebay.com/public/uploads/all/rkyIjS3WVegrJmDqLOSE5PIpyxcBHgnKTyVDOE51.jpg",
-  "ralph-lauren":   "https://esellerstorebay.com/public/uploads/all/3HnaeERBehoFSHZiEtzYhWFvfIcM3hKR33StN0u0.png",
-  "calvin-klein":   "https://esellerstorebay.com/public/uploads/all/V81L322ARziA33w4Okg3yW029JtNXnLCx8nqUYe2.jpg",
-  zara:             "/images/placeholders/brand-apple.svg",
-  hm:               "/images/placeholders/brand-h&m.svg",
-  "h&m":            "/images/placeholders/brand-h&m.svg",
-  "tommy-hilfiger": "/images/placeholders/brand-apple.svg",
-  "michael-kors":   "/images/placeholders/brand-apple.svg",
-  levis:            "/images/placeholders/brand-apple.svg",
-  "kate-spade":     "/images/placeholders/brand-apple.svg",
-  columbia:         "/images/placeholders/brand-apple.svg",
-  "north-face":     "/images/placeholders/brand-apple.svg",
-  "victorias-secret":"https://esellerstorebay.com/public/uploads/all/rTnF7lkUo98xSabKEL33PB8Jy2wTriBdbuaEInWK.jpg",
-  "urban-decay":    "https://esellerstorebay.com/public/uploads/all/26AUkrxaz6uHIX5js628FlgzxkGPaTO272uugCQd.jpg",
-  coach:            "/images/placeholders/brand-apple.svg",
-  guess:            "https://esellerstorebay.com/public/uploads/all/VM6VW4RtuX7SVsHmPJN5tBKFB491DM8agVksrEi7.jpg",
-  wilson:           "/images/placeholders/brand-apple.svg",
-  spalding:         "/images/placeholders/brand-apple.svg",
-  coleman:          "/images/placeholders/brand-apple.svg",
+  adidas:           "https://logo.clearbit.com/adidas.com",
+  "calvin-klein":   "https://logo.clearbit.com/calvinklein.com",
+  coach:            "https://logo.clearbit.com/coach.com",
+  columbia:         "https://logo.clearbit.com/columbia.com",
+  gucci:            "https://logo.clearbit.com/gucci.com",
+  guess:            "https://logo.clearbit.com/guess.com",
+  hm:               "https://logo.clearbit.com/hm.com",
+  "h&m":            "https://logo.clearbit.com/hm.com",
+  "kate-spade":     "https://logo.clearbit.com/katespade.com",
+  levis:            "https://logo.clearbit.com/levi.com",
+  "michael-kors":   "https://logo.clearbit.com/michaelkors.com",
+  nike:             "https://logo.clearbit.com/nike.com",
+  "north-face":     "https://logo.clearbit.com/thenorthface.com",
+  prada:            "https://logo.clearbit.com/prada.com",
+  puma:             "https://logo.clearbit.com/puma.com",
+  "ralph-lauren":   "https://logo.clearbit.com/ralphlauren.com",
+  reebok:           "https://logo.clearbit.com/reebok.com",
+  "tommy-hilfiger": "https://logo.clearbit.com/tommy.com",
+  "under-armour":   "https://logo.clearbit.com/underarmour.com",
+  "victorias-secret":"https://logo.clearbit.com/victoriassecret.com",
+  "urban-decay":    "https://logo.clearbit.com/urbandecay.com",
+  zara:             "https://logo.clearbit.com/zara.com",
+  wilson:           "https://logo.clearbit.com/wilson.com",
+  spalding:         "https://logo.clearbit.com/spalding.com",
+  coleman:          "https://logo.clearbit.com/coleman.com",
+
   // Automotive
-  "mercedes-benz":  "https://esellerstorebay.com/public/uploads/all/BzkZ50NsIxzdS9ToxXJzP7PV9Hk5pRshyxE73sbq.jpg",
-  mercedes:         "https://esellerstorebay.com/public/uploads/all/N602WIwftMypkpk23tZljEqSXUEWKW7jwAhaMa1h.jpg",
-  bmw:              "/images/placeholders/brand-bmw.svg",
-  audi:             "https://esellerstorebay.com/public/uploads/all/DYRuBljh1IMi24ibQJWwyxtlbO9unim0YgVVLQO6.jpg",
-  lamborghini:      "https://esellerstorebay.com/public/uploads/all/yFb3LI3H1O7u5esbgwttygD9qgNtSPe6nTWL1pZV.jpg",
-  "rolls-royce":    "https://esellerstorebay.com/public/uploads/all/nh9MG1IjUQNYwECygkgSBCtLUdzpQyt9a7LEFKnb.jpg",
-  ford:             "https://esellerstorebay.com/public/uploads/all/N5HzSVAmfqoflwY81P9RWJdDJ6S4mYmURIyWeqcO.jpg",
-  toyota:           "https://esellerstorebay.com/public/uploads/all/BY9Ye6rjMOzVp1ukAaueI7V29XShRNJaMucauqVs.jpg",
-  honda:            "/images/placeholders/brand-apple.svg",
-  suzuki:           "https://esellerstorebay.com/public/uploads/all/c0I0b7h4VyhtWml1r2VfXUWJcT030iRMPo1ce8nb.jpg",
-  yamaha:           "https://esellerstorebay.com/public/uploads/all/J37EphmHxcn76CVbWkMtRFxrg9ZC7D16BFghMb6F.jpg",
-  "royal-enfield":  "https://esellerstorebay.com/public/uploads/all/U4eIpiFD7xSs8dC0cHJrOoKmiRyEZENgkisFJJ0s.jpg",
-  volvo:            "https://esellerstorebay.com/public/uploads/all/gTCDxIFKlOwj09v3eNvHDEjWi35kLAFkYdCm06O2.jpg",
+  audi:             "https://logo.clearbit.com/audi.com",
+  bmw:              "https://logo.clearbit.com/bmw.com",
+  ford:             "https://logo.clearbit.com/ford.com",
+  honda:            "https://logo.clearbit.com/honda.com",
+  lamborghini:      "https://logo.clearbit.com/lamborghini.com",
+  "mercedes-benz":  "https://logo.clearbit.com/mercedes-benz.com",
+  mercedes:         "https://logo.clearbit.com/mercedes-benz.com",
+  "rolls-royce":    "https://logo.clearbit.com/rolls-roycemotorcars.com",
+  "royal-enfield":  "https://logo.clearbit.com/royalenfield.com",
+  suzuki:           "https://logo.clearbit.com/suzuki.com",
+  toyota:           "https://logo.clearbit.com/toyota.com",
+  volvo:            "https://logo.clearbit.com/volvo.com",
+  yamaha:           "https://logo.clearbit.com/yamaha.com",
+
   // Watches & Jewellery
-  rolex:            "https://esellerstorebay.com/public/uploads/all/yRR7j7evOm0KjGLRfCNfD7k3bGoF6Zo6yWVFGzys.png",
-  omega:            "https://esellerstorebay.com/public/uploads/all/89q1phGOV0Pf0B2lqTbbHihpcW76bKy7VTDqFUk6.jpg",
-  casio:            "/images/placeholders/brand-apple.svg",
-  seiko:            "/images/placeholders/brand-apple.svg",
-  fossil:           "/images/placeholders/brand-apple.svg",
-  tiffany:          "/images/placeholders/brand-apple.svg",
-  breitling:        "https://esellerstorebay.com/public/uploads/all/EmOLclj3XRc2Ng4FudSgeFc7mxH0jqZdeiRxeIkb.jpg",
-  // Beauty
-  "estee-lauder":   "/images/placeholders/brand-apple.svg",
-  clinique:         "/images/placeholders/brand-apple.svg",
-  loreal:           "/images/placeholders/brand-apple.svg",
-  maybelline:       "/images/placeholders/brand-apple.svg",
-  dyson:            "/images/placeholders/brand-apple.svg",
+  breitling:        "https://logo.clearbit.com/breitling.com",
+  casio:            "https://logo.clearbit.com/casio.com",
+  fossil:           "https://logo.clearbit.com/fossil.com",
+  omega:            "https://logo.clearbit.com/omegawatches.com",
+  rolex:            "https://logo.clearbit.com/rolex.com",
+  seiko:            "https://logo.clearbit.com/seikowatches.com",
+  tiffany:          "https://logo.clearbit.com/tiffany.com",
+
+  // Beauty & Personal Care
+  clinique:         "https://logo.clearbit.com/clinique.com",
+  "estee-lauder":   "https://logo.clearbit.com/esteelauder.com",
+  loreal:           "https://logo.clearbit.com/loreal.com",
+  mac:              "https://logo.clearbit.com/maccosmetics.com",
+  maybelline:       "https://logo.clearbit.com/maybelline.com",
+
   // Toys & Kids
-  hasbro:           "/images/placeholders/brand-apple.svg",
-  lego:             "/images/placeholders/brand-apple.svg",
-  mattel:           "/images/placeholders/brand-apple.svg",
-  "hot-wheels":     "/images/placeholders/brand-apple.svg",
-  "fisher-price":   "/images/placeholders/brand-apple.svg",
-  giant:            "/images/placeholders/brand-apple.svg",
-  // Other
-  "3m":             "/images/placeholders/brand-apple.svg",
-  bosch:            "/images/placeholders/brand-apple.svg",
-  dewalt:           "/images/placeholders/brand-apple.svg",
-  prada:            "/images/placeholders/brand-apple.svg",
-  otterbox:         "/images/placeholders/brand-apple.svg",
-  spigen:           "/images/placeholders/brand-apple.svg",
-  // Legacy
+  "fisher-price":   "https://logo.clearbit.com/fisher-price.com",
+  giant:            "https://logo.clearbit.com/giant-bicycles.com",
+  hasbro:           "https://logo.clearbit.com/hasbro.com",
+  "hot-wheels":     "https://logo.clearbit.com/hotwheels.mattel.com",
+  lego:             "https://logo.clearbit.com/lego.com",
+  mattel:           "https://logo.clearbit.com/mattel.com",
+
+  // Legacy brands (keep esellerstorebay URLs as they were verified)
   aigner:           "https://esellerstorebay.com/public/uploads/all/werJ5uEXwIGCN2T5yC8hStWBTK9lHaOuIfRMDNUg.jpg",
   alosa:            "https://esellerstorebay.com/public/uploads/all/oPP6xKO0Op5RjL6s23z0MO61Dx1mhCpCqKgCWqF1.jpg",
   apato:            "https://esellerstorebay.com/public/uploads/all/MqAWwfnjrVjNSgdEMeXfv5oC18HKVElmZlNxc3Z2.jpg",
@@ -108,16 +114,15 @@ const BRAND_LOGO_MAP: Record<string, string> = {
   "wood-worm":      "https://esellerstorebay.com/public/uploads/all/SdYdA5C1d5rtQIfql5lmAbDMhwoXij7ug4M3HVHm.jpg",
 };
 
-const FALLBACK_LOGO = "/images/placeholders/brand-apple.svg";
 
 function getBrandLogoSrc(brand: { slug: string; logo: string }): string {
-  // 1. If the data layer already has a real remote URL, use it
-  if (brand.logo?.startsWith("http")) return brand.logo;
-  // 2. Look up in slug map
+  // 1. Always prefer our curated slug map (Clearbit CDN – most reliable)
   if (BRAND_LOGO_MAP[brand.slug]) return BRAND_LOGO_MAP[brand.slug];
-  // 3. Use local path if provided (e.g. /images/placeholders/...)
-  if (brand.logo?.startsWith("/")) return brand.logo;
-  return FALLBACK_LOGO;
+  // 2. If the data layer has a real remote URL, try it
+  if (brand.logo?.startsWith("http")) return brand.logo;
+  // 3. Try Clearbit as a dynamic fallback using the slug as domain hint
+  const guess = `https://logo.clearbit.com/${brand.slug.replace(/-/g, "")}.com`;
+  return guess;
 }
 
 interface BrandCardProps {
@@ -126,7 +131,7 @@ interface BrandCardProps {
 
 /**
  * BrandCard — grayscale by default, full colour + scale on hover.
- * Uses official brand logos from esellerstorebay.com.
+ * Uses official brand logos from Clearbit Logo API.
  */
 export function BrandCard({ brand }: BrandCardProps) {
   const logoSrc = getBrandLogoSrc(brand);
