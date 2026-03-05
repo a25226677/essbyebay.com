@@ -22,7 +22,7 @@ import {
   SlidersHorizontal,
   ChevronRight,
   Search,
-  Star,
+  Truck,
 } from "lucide-react";
 
 type NavItem = {
@@ -31,7 +31,7 @@ type NavItem = {
   icon: React.ElementType;
   badge?: number;
   badgeColor?: string;
-  children?: { href: string; label: string }[];
+  children?: { href: string; label: string; badge?: number }[];
 };
 
 const navItems: NavItem[] = [
@@ -118,21 +118,13 @@ const navItems: NavItem[] = [
   },
   {
     href: "/admin/offline-payment",
-    label: "Offline Payment",
+    label: "Offline Payment System",
     icon: CreditCard,
-    badge: 40,
+    badge: 64,
     badgeColor: "bg-rose-500",
     children: [
-      { href: "/admin/offline-payment", label: "Payment Methods" },
-      { href: "/admin/offline-payment/requests", label: "Payment Requests" },
-    ],
-  },
-  {
-    href: "/admin/reviews",
-    label: "Reviews",
-    icon: Star,
-    children: [
-      { href: "/admin/reviews", label: "All Reviews" },
+      { href: "/admin/offline-payment/manual-methods", label: "Manual Payment Methods" },
+      { href: "/admin/offline-payment/wallet-recharge", label: "Offline Wallet Recharge", badge: 64 },
     ],
   },
   {
@@ -140,8 +132,13 @@ const navItems: NavItem[] = [
     label: "Reports",
     icon: BarChart3,
     children: [
-      { href: "/admin/reports", label: "Sales Report" },
-      { href: "/admin/reports/products", label: "Product Report" },
+      { href: "/admin/reports/inhouse-sale", label: "In House Product Sale" },
+      { href: "/admin/reports/seller-sale", label: "Seller Products Sale" },
+      { href: "/admin/reports/products-stock", label: "Products Stock" },
+      { href: "/admin/reports/wishlist", label: "Products Wishlist" },
+      { href: "/admin/reports/user-searches", label: "User Searches" },
+      { href: "/admin/reports/commissions", label: "Commission History" },
+      { href: "/admin/reports/wallet-history", label: "Wallet Recharge History" },
     ],
   },
   {
@@ -168,19 +165,34 @@ const navItems: NavItem[] = [
     label: "Website Setup",
     icon: Globe,
     children: [
-      { href: "/admin/website-setup", label: "General Settings" },
+      { href: "/admin/website-setup/header", label: "Header" },
+      { href: "/admin/website-setup/footer", label: "Footer" },
       { href: "/admin/website-setup/pages", label: "Pages" },
-      { href: "/admin/website-setup/menus", label: "Menus" },
+      { href: "/admin/website-setup/appearance", label: "Appearance" },
+      { href: "/admin/website-setup/general-settings", label: "General Settings" },
+      { href: "/admin/website-setup/features", label: "Features activation" },
+    ],
+  },
+  {
+    href: "/admin/shipping",
+    label: "Shipping",
+    icon: Truck,
+    children: [
+      { href: "/admin/shipping", label: "Shipping Configuration" },
+      { href: "/admin/shipping/countries", label: "Shipping Countries" },
+      { href: "/admin/shipping/states", label: "Shipping States" },
+      { href: "/admin/shipping/cities", label: "Shipping Cities" },
     ],
   },
   {
     href: "/admin/setup-configurations",
-    label: "Setup & Config",
+    label: "Setup & Configurations",
     icon: SlidersHorizontal,
     children: [
-      { href: "/admin/setup-configurations", label: "System Config" },
-      { href: "/admin/setup-configurations/payment-gateways", label: "Payment Gateways" },
-      { href: "/admin/setup-configurations/shipping", label: "Shipping Methods" },
+      { href: "/admin/setup-configurations/club-points", label: "Club Point System" },
+      { href: "/admin/setup-configurations/blog", label: "Blog System" },
+      { href: "/admin/setup-configurations/staffs", label: "Staffs" },
+      { href: "/admin/setup-configurations/uploaded-files", label: "Uploaded Files" },
     ],
   },
 ];
@@ -312,7 +324,12 @@ export function AdminSidebar() {
                             childActive ? "bg-indigo-400" : "bg-[#2d3a5e]",
                           )}
                         />
-                        {child.label}
+                        <span className="flex-1 truncate">{child.label}</span>
+                        {child.badge !== undefined && (
+                          <span className="text-white text-[9px] font-bold rounded-full px-1.5 py-0.5 min-w-[16px] text-center leading-none bg-rose-500">
+                            {child.badge}
+                          </span>
+                        )}
                       </Link>
                     );
                   })}
