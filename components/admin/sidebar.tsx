@@ -41,8 +41,8 @@ const navItems: NavItem[] = [
     label: "POS System",
     icon: ShoppingCart,
     children: [
-      { href: "/admin/pos-system", label: "POS Terminal" },
-      { href: "/admin/pos-system/orders", label: "POS Orders" },
+      { href: "/admin/pos-system", label: "POS Manager" },
+      { href: "/admin/pos-system/pos-configuration", label: "POS Configuration" },
     ],
   },
   {
@@ -61,8 +61,7 @@ const navItems: NavItem[] = [
     label: "Product Storehouse",
     icon: Warehouse,
     children: [
-      { href: "/admin/product-storehouse", label: "Stock Management" },
-      { href: "/admin/product-storehouse/transfers", label: "Stock Transfers" },
+      { href: "/admin/product-storehouse", label: "Product Storehouse" },
     ],
   },
   {
@@ -71,8 +70,8 @@ const navItems: NavItem[] = [
     icon: TrendingUp,
     children: [
       { href: "/admin/sales", label: "All Orders" },
-      { href: "/admin/sales/invoices", label: "Invoices" },
-      { href: "/admin/sales/returns", label: "Returns" },
+      { href: "/admin/sales/seller-orders", label: "Seller Orders" },
+      { href: "/admin/sales/inhouse-orders", label: "Inhouse Orders" },
     ],
   },
   {
@@ -82,19 +81,21 @@ const navItems: NavItem[] = [
     badge: 8,
     badgeColor: "bg-emerald-500",
     children: [
-      { href: "/admin/customers", label: "All Customers" },
-      { href: "/admin/customers/reviews", label: "Reviews" },
+      { href: "/admin/customers", label: "Customer list" },
+      { href: "/admin/customers/payout-requests", label: "Payout Requests" },
+      { href: "/admin/customers/payouts", label: "Payouts" },
     ],
   },
   {
     href: "/admin/sellers",
     label: "Sellers",
     icon: Store,
-    badge: 3,
+    badge: 2,
     badgeColor: "bg-amber-500",
     children: [
-      { href: "/admin/sellers", label: "All Sellers" },
-      { href: "/admin/sellers/pending", label: "Pending Approval" },
+      { href: "/admin/sellers", label: "All Seller" },
+      { href: "/admin/sellers/payout-requests", label: "Payout Requests", badge: 2 },
+      { href: "/admin/sellers/payouts", label: "Payouts" },
     ],
   },
   {

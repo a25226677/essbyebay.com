@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     .from("products")
     .select(
       `id, title, slug, sku, price, compare_at_price, stock_count, image_url,
-       is_active, rating, review_count, created_at,
+       is_active, today_deal, is_featured, sale_count, rating, review_count, created_at,
        categories(id, name),
        brands(id, name),
        shops(id, name, slug)`,

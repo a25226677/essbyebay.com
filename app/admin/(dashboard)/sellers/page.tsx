@@ -1,193 +1,202 @@
-'use client';
-import { useState, useEffect, useCallback, useRef } from 'react';
+"use client";
+
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useRouter } from "next/navigation";
 import {
-  Search, RefreshCw, Store, ChevronLeft, ChevronRight, CheckCircle, AlertCircle,
-  Eye, Send, Edit3, Trash2, Plus, X, Mail, Phone, Calendar,
-  Star, UserCheck, UserX, Package, BadgeCheck
-} from 'lucide-react';
+  RefreshCw, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, X,
+  Plus, DollarSign, MoreVertical, MessageSquare, Check, Ban
+} from "lucide-react";
 
-type Shop = { id: string; name: string; slug: string; is_verified: boolean; rating: number; product_count: number };
 type Seller = {
-  id: string;
-  full_name: string | null;
-  email: string | null;
-  phone: string | null;
-  avatar_url: string | null;
-  is_active: boolean;
-  created_at: string;
-  shops: Shop[];
+  id: string; full_name: string | null; email: string | null; phone: string | null;
+  avatar_url: string | null; is_active: boolean; is_virtual: boolean; seller_approved: boolean;
+  wallet_balance: number; credit_score: number; package: string | null; guarantee_money: number;
+  pending_balance: number; seller_views: number; comment_permission: boolean; home_display: boolean;
+  verification_info: string | null; invitation_code: string | null; salesman_id: string | null;
+  identity_card_url: string | null; total_recharge: number; total_withdrawn: number;
+  created_at: string; shops: { name: string; product_count: number }[];
 };
-
-type SellerDetail = Seller & {
-  addresses: { id: string; label: string | null; city: string; country: string; line_1: string }[];
-  orderCount: number;
-  totalSpent: number;
-  reviewCount: number;
-  shop: (Shop & { logo_url: string | null; banner_url: string | null; description: string | null; created_at: string }) | null;
-};
-
 type Pagination = { page: number; limit: number; total: number; pages: number };
-type ModalMode = null | 'view' | 'edit' | 'create' | 'email';
 
-export default function SellersPage() {
-  const [sellers, setSellers] = useState<Seller[]>([]);
+export default function SellersListPage() {
+  const router = useRouter();
+  const [sellers, setSellers]       = useState<Seller[]>([]);
   const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: 20, total: 0, pages: 1 });
-  const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [activeFilter, setActiveFilter] = useState('');
-  const [page, setPage] = useState(1);
-  const t = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [loading, setLoading]       = useState(true);
+  const [selected, setSelected]     = useState<Set<string>>(new Set());
+  const [bulkAction, setBulkAction] = useState("");
+  const [search, setSearch]         = useState("");
+  const [dateFilter, setDateFilter] = useState("");
+  const [approvalFilter, setApprovalFilter] = useState("");
+  const [page, setPage]             = useState(1);
 
-  // Modal
-  const [modalMode, setModalMode] = useState<ModalMode>(null);
-  const [selectedSeller, setSelectedSeller] = useState<SellerDetail | null>(null);
-  const [modalLoading, setModalLoading] = useState(false);
-  const [actionLoading, setActionLoading] = useState(false);
+  // Inline credit editing
+  const [creditEdits, setCreditEdits] = useState<Record<string, string>>({});
 
-  // Forms
-  const [formData, setFormData] = useState({ full_name: '', email: '', phone: '', password: '' });
-  const [emailData, setEmailData] = useState({ subject: '', message: '' });
+  // Dropdown menu per row
+  const [openMenu, setOpenMenu]     = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Modals
+  const [guaranteeModal, setGuaranteeModal] = useState<Seller | null>(null);
+  const [rechargeModal,  setRechargeModal]  = useState<Seller | null>(null);
+  const [messageModal,   setMessageModal]   = useState<Seller | null>(null);
+  const [balanceModal,   setBalanceModal]   = useState<Seller | null>(null);
+  const [packageModal,   setPackageModal]   = useState<Seller | null>(null);
+  const [guaranteeAmt, setGuaranteeAmt]     = useState("");
+  const [rechargeAmt,  setRechargeAmt]      = useState("");
+  const [messageText,  setMessageText]      = useState("");
+  const [balanceAmt,   setBalanceAmt]       = useState("");
+  const [packageVal,   setPackageVal]       = useState("");
+  const [actionLoading, setActionLoading]   = useState(false);
 
   // Toast
-  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
-  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
-    setToast({ msg, type });
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const showToast = (msg: string, ok = true) => {
+    setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const fetchSellers = useCallback(async (ov?: { search?: string; active?: string; page?: number }) => {
+  const fetchSellers = useCallback(async (overrides?: { search?: string; date?: string; approval?: string; page?: number }) => {
     setLoading(true);
-    const p = new URLSearchParams({ role: 'seller', page: String(ov?.page ?? page), limit: '20' });
-    const s = ov?.search ?? search;
-    const a = ov?.active ?? activeFilter;
-    if (s) p.set('search', s);
-    if (a !== '') p.set('is_active', a);
+    const s  = overrides?.search   ?? search;
+    const dt = overrides?.date     ?? dateFilter;
+    const ap = overrides?.approval ?? approvalFilter;
+    const p  = overrides?.page     ?? page;
+    const params = new URLSearchParams({ role: "seller", page: String(p), limit: "20" });
+    if (s)  params.set("search", s);
+    if (dt) params.set("from", dt);
+    if (ap !== "") params.set("seller_approved", ap);
     try {
-      const r = await fetch('/api/admin/users?' + p);
-      const j = await r.json();
-      setSellers(j.items || []);
-      setPagination(j.pagination || { page: 1, limit: 20, total: 0, pages: 1 });
-    } catch {} finally { setLoading(false); }
-  }, [search, activeFilter, page]);
+      const res  = await fetch(`/api/admin/users?${params}`);
+      const json = await res.json();
+      setSellers(json.items || []);
+      setPagination(json.pagination || { page: 1, limit: 20, total: 0, pages: 1 });
+    } catch { /* ignore */ }
+    finally { setLoading(false); }
+  }, [search, dateFilter, approvalFilter, page]);
 
-  useEffect(() => { fetchSellers(); }, [fetchSellers]);
+  useEffect(() => { fetchSellers(); }, []); // eslint-disable-line
 
-  const fetchSellerDetail = async (id: string) => {
-    setModalLoading(true);
-    try {
-      const r = await fetch(`/api/admin/users/${id}`);
-      const j = await r.json();
-      setSelectedSeller(j.item || null);
-    } catch {} finally { setModalLoading(false); }
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenu(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const toggleSelect = (id: string) => {
+    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  };
+  const toggleAll = () => {
+    if (selected.size === sellers.length) setSelected(new Set());
+    else setSelected(new Set(sellers.map(s => s.id)));
   };
 
-  const toggleActive = async (id: string, cur: boolean, name: string) => {
+  const patch = async (id: string, body: Record<string, unknown>) => {
+    const res = await fetch(`/api/admin/users/${id}`, {
+      method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
+    return res.ok;
+  };
+
+  const handleBulkApply = async () => {
+    if (!bulkAction || selected.size === 0) return;
     setActionLoading(true);
-    try {
-      const res = await fetch(`/api/admin/users/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_active: !cur }),
-      });
-      if (res.ok) {
-        showToast(`${name || 'Seller'} ${cur ? 'suspended' : 'restored'}`);
-        fetchSellers();
-        if (selectedSeller?.id === id) setSelectedSeller(prev => prev ? { ...prev, is_active: !cur } : null);
-      } else { const j = await res.json(); showToast(j.error || 'Failed', 'error'); }
-    } catch { showToast('Network error', 'error'); }
-    finally { setActionLoading(false); }
+    if (bulkAction === "delete") {
+      if (!confirm(`Delete ${selected.size} seller(s)?`)) { setActionLoading(false); return; }
+      await Promise.all([...selected].map(id => fetch(`/api/admin/users/${id}`, { method: "DELETE" })));
+      setSelected(new Set());
+    } else if (bulkAction === "activate" || bulkAction === "deactivate") {
+      await Promise.all([...selected].map(id => patch(id, { is_active: bulkAction === "activate" })));
+      setSelected(new Set());
+    } else if (bulkAction === "approve") {
+      await Promise.all([...selected].map(id => patch(id, { seller_approved: true })));
+      setSelected(new Set());
+    }
+    fetchSellers();
+    setActionLoading(false);
   };
 
-  const toggleShopVerify = async (shopId: string, verified: boolean, shopName: string) => {
+  const handleDelete = async (id: string) => {
+    if (!confirm("Delete this seller permanently?")) return;
+    await fetch(`/api/admin/users/${id}`, { method: "DELETE" });
+    fetchSellers(); showToast("Seller deleted");
+  };
+
+  const handleToggle = async (seller: Seller, field: string, val: boolean) => {
+    await patch(seller.id, { [field]: val });
+    fetchSellers(); showToast(`Updated ${field.replace(/_/g, " ")}`);
+  };
+
+  const handleCreditSave = async (seller: Seller) => {
+    const val = parseInt(creditEdits[seller.id] ?? String(seller.credit_score), 10);
+    if (isNaN(val)) return;
+    await patch(seller.id, { credit_score: val });
+    showToast("Credit score updated"); fetchSellers();
+  };
+
+  const handleGuarantee = async () => {
+    if (!guaranteeModal) return;
+    const amt = parseFloat(guaranteeAmt);
+    if (isNaN(amt)) return;
     setActionLoading(true);
-    try {
-      const res = await fetch(`/api/admin/shops/${shopId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ is_verified: !verified }),
-      });
-      if (res.ok) {
-        showToast(`${shopName} ${verified ? 'unverified' : 'verified'}`);
-        fetchSellers();
-        if (selectedSeller?.shop?.id === shopId) {
-          setSelectedSeller(prev => prev && prev.shop ? { ...prev, shop: { ...prev.shop, is_verified: !verified } } : prev);
-        }
-      } else { const j = await res.json(); showToast(j.error || 'Failed', 'error'); }
-    } catch { showToast('Network error', 'error'); }
-    finally { setActionLoading(false); }
+    await patch(guaranteeModal.id, { guarantee_money: amt });
+    setActionLoading(false); showToast("Guarantee money updated");
+    setGuaranteeModal(null); setGuaranteeAmt(""); fetchSellers();
   };
 
-  const deleteSeller = async (id: string, name: string) => {
-    if (!confirm(`Permanently delete ${name || 'this seller'}? This also removes their shop and products.`)) return;
+  const handleRecharge = async () => {
+    if (!rechargeModal) return;
+    const amt = parseFloat(rechargeAmt);
+    if (isNaN(amt) || amt <= 0) { showToast("Enter valid amount", false); return; }
     setActionLoading(true);
-    try {
-      const res = await fetch(`/api/admin/users/${id}`, { method: 'DELETE' });
-      if (res.ok) { showToast(`${name || 'Seller'} deleted`); setModalMode(null); fetchSellers(); }
-      else { const j = await res.json(); showToast(j.error || 'Failed', 'error'); }
-    } catch { showToast('Network error', 'error'); }
-    finally { setActionLoading(false); }
+    await patch(rechargeModal.id, { recharge_amount: amt, recharge_note: "Admin recharge" });
+    // Also record as seller payment
+    await fetch("/api/admin/sellers/payments", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ seller_id: rechargeModal.id, amount: amt, payment_details: "Pay From admin (TRX ID: ADM-" + Date.now() + ")", trx_id: "ADM-" + Date.now() }),
+    });
+    setActionLoading(false); showToast(`$${amt.toFixed(2)} added to wallet`);
+    setRechargeModal(null); setRechargeAmt(""); fetchSellers();
   };
 
-  const createSeller = async () => {
-    if (!formData.email || !formData.password) { showToast('Email and password are required', 'error'); return; }
+  const handleBalance = async () => {
+    if (!balanceModal) return;
+    const amt = parseFloat(balanceAmt);
+    if (isNaN(amt)) return;
     setActionLoading(true);
-    try {
-      const res = await fetch('/api/admin/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...formData, role: 'seller' }),
-      });
-      const j = await res.json();
-      if (res.ok) { showToast('Seller created'); setModalMode(null); setFormData({ full_name: '', email: '', phone: '', password: '' }); fetchSellers(); }
-      else { showToast(j.error || 'Failed', 'error'); }
-    } catch { showToast('Network error', 'error'); }
-    finally { setActionLoading(false); }
+    await patch(balanceModal.id, { wallet_balance: amt });
+    setActionLoading(false); showToast("Balance updated");
+    setBalanceModal(null); setBalanceAmt(""); fetchSellers();
   };
 
-  const editSeller = async () => {
-    if (!selectedSeller) return;
+  const handlePackage = async () => {
+    if (!packageModal) return;
     setActionLoading(true);
-    try {
-      const res = await fetch(`/api/admin/users/${selectedSeller.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ full_name: formData.full_name, phone: formData.phone }),
-      });
-      if (res.ok) { showToast('Seller updated'); setModalMode(null); fetchSellers(); }
-      else { const j = await res.json(); showToast(j.error || 'Failed', 'error'); }
-    } catch { showToast('Network error', 'error'); }
-    finally { setActionLoading(false); }
+    await patch(packageModal.id, { package: packageVal || null });
+    setActionLoading(false); showToast("Package updated");
+    setPackageModal(null); setPackageVal(""); fetchSellers();
   };
 
-  const sendEmailToSeller = async () => {
-    if (!selectedSeller?.email || !emailData.subject || !emailData.message) { showToast('All fields required', 'error'); return; }
+  const handleMessage = async () => {
+    if (!messageModal || !messageText.trim()) return;
     setActionLoading(true);
-    try {
-      const res = await fetch('/api/admin/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ to: selectedSeller.email, subject: emailData.subject, message: emailData.message }),
-      });
-      if (res.ok) { showToast('Email sent'); setModalMode(null); setEmailData({ subject: '', message: '' }); }
-      else { const j = await res.json(); showToast(j.error || 'Failed', 'error'); }
-    } catch { showToast('Network error', 'error'); }
-    finally { setActionLoading(false); }
+    // message functionality - using support/notification
+    setActionLoading(false);
+    showToast("Message feature coming soon");
+    setMessageModal(null); setMessageText("");
   };
 
-  const hs = (v: string) => { setSearch(v); if (t.current) clearTimeout(t.current); t.current = setTimeout(() => { setPage(1); fetchSellers({ search: v, page: 1 }); }, 400); };
-  const hf = (v: string) => { setActiveFilter(v); setPage(1); fetchSellers({ active: v, page: 1 }); };
-  const hp = (pg: number) => { setPage(pg); fetchSellers({ page: pg }); };
-
-  const openView = (s: Seller) => { setModalMode('view'); fetchSellerDetail(s.id); };
-  const openEdit = (s: Seller) => { setFormData({ full_name: s.full_name || '', email: s.email || '', phone: s.phone || '', password: '' }); setModalMode('edit'); fetchSellerDetail(s.id); };
-  const openEmail = (s: Seller) => { setSelectedSeller(s as SellerDetail); setEmailData({ subject: '', message: '' }); setModalMode('email'); };
-  const openCreate = () => { setFormData({ full_name: '', email: '', phone: '', password: '' }); setModalMode('create'); };
+  const offset = (page - 1) * pagination.limit;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 right-4 z-[100] px-4 py-3 rounded-xl shadow-lg text-sm font-medium ${toast.type === 'success' ? 'bg-emerald-500 text-white' : 'bg-red-500 text-white'}`}>
+        <div className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-xl shadow-lg text-sm font-semibold text-white transition-all ${toast.ok ? "bg-green-500" : "bg-red-500"}`}>
           {toast.msg}
         </div>
       )}
@@ -195,122 +204,239 @@ export default function SellersPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Sellers</h1>
-          <p className="text-xs text-gray-500 mt-0.5">{pagination.total.toLocaleString()} registered sellers</p>
+          <h1 className="text-xl font-bold text-gray-900">All Sellers</h1>
+          <p className="text-xs text-gray-500 mt-0.5">{pagination.total.toLocaleString()} total sellers</p>
         </div>
-        <div className="flex items-center gap-2">
-          <button onClick={openCreate} className="text-xs bg-indigo-600 text-white hover:bg-indigo-700 px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors">
-            <Plus className="size-3.5" /> Add Seller
-          </button>
-          <button onClick={() => fetchSellers()} className="text-xs border border-indigo-200 text-indigo-600 hover:bg-indigo-50 px-3 py-1.5 rounded-lg flex items-center gap-1">
-            <RefreshCw className={'size-3.5 ' + (loading ? 'animate-spin' : '')} /> Refresh
-          </button>
-        </div>
+        <button onClick={() => router.push("/admin/sellers/create")}
+          className="flex items-center gap-2 text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white px-4 py-2.5 rounded-xl transition-colors">
+          <Plus className="size-4" /> Add Virtual Seller
+        </button>
       </div>
 
-      {/* Filters */}
+      {/* Filter bar */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 flex-1 min-w-48 focus-within:border-indigo-400">
-            <Search className="size-4 text-gray-400 shrink-0" />
-            <input type="text" placeholder="Search sellers…" value={search} onChange={(e) => hs(e.target.value)} className="bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none w-full" />
+          <select value={bulkAction} onChange={e => setBulkAction(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:border-orange-400 cursor-pointer min-w-[130px]">
+            <option value="">Bulk Action</option>
+            <option value="approve">Approve</option>
+            <option value="activate">Activate</option>
+            <option value="deactivate">Deactivate</option>
+            <option value="delete">Delete</option>
+          </select>
+          {bulkAction && selected.size > 0 && (
+            <button onClick={handleBulkApply} disabled={actionLoading}
+              className="text-xs bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white px-3 py-2 rounded-lg font-semibold">
+              Apply ({selected.size})
+            </button>
+          )}
+
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs text-gray-500 whitespace-nowrap">Filter by date</span>
+            <input type="date" value={dateFilter} onChange={e => setDateFilter(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:border-orange-400" />
           </div>
-          <div className="flex gap-1.5">
-            {[{ v: '', l: 'All' }, { v: 'true', l: 'Active' }, { v: 'false', l: 'Suspended' }].map(f => (
-              <button key={f.v} onClick={() => hf(f.v)} className={'text-xs font-medium px-3 py-1.5 rounded-lg transition-all ' + (activeFilter === f.v ? 'bg-indigo-600 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200')}>
-                {f.l}
-              </button>
-            ))}
-          </div>
+
+          <select value={approvalFilter} onChange={e => setApprovalFilter(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:border-orange-400 cursor-pointer min-w-[160px]">
+            <option value="">Filter by Approval</option>
+            <option value="true">Approved</option>
+            <option value="false">Not Approved</option>
+          </select>
+
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") { setPage(1); fetchSellers({ search, page: 1 }); } }}
+            placeholder="Type name or email & Enter"
+            className="text-xs border border-gray-200 rounded-lg px-3 py-2 bg-white text-gray-700 focus:outline-none focus:border-orange-400 min-w-[220px] flex-1" />
+
+          <button onClick={() => { setPage(1); fetchSellers({ page: 1 }); }}
+            className="text-xs font-semibold bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-lg transition-colors shrink-0">
+            Search
+          </button>
+          <button onClick={() => fetchSellers()} className="p-2 rounded-lg border border-gray-200 hover:bg-gray-50">
+            <RefreshCw className={`size-3.5 text-gray-500 ${loading ? "animate-spin" : ""}`} />
+          </button>
         </div>
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         {loading ? (
-          <div className="flex items-center justify-center py-16"><RefreshCw className="size-5 animate-spin text-indigo-400" /><span className="ml-3 text-sm text-gray-500">Loading…</span></div>
+          <div className="flex items-center justify-center py-16 gap-3 text-gray-400">
+            <RefreshCw className="size-5 animate-spin" /><span className="text-sm">Loading…</span>
+          </div>
         ) : sellers.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-3"><Store className="size-10 opacity-30" /><p className="text-sm">No sellers found</p></div>
+          <div className="flex flex-col items-center justify-center py-16 text-gray-400 gap-2">
+            <span className="text-4xl">🏪</span><p className="text-sm">No sellers found</p>
+          </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs min-w-[2000px]">
               <thead>
-                <tr className="border-b border-gray-50 bg-gray-50/50">
-                  {['Seller', 'Email', 'Shop', 'Shop Status', 'Account', 'Actions'].map(h => (
-                    <th key={h} className="text-left text-xs font-semibold text-gray-400 uppercase tracking-wide px-5 py-3">{h}</th>
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-3 py-3 w-8">
+                    <input type="checkbox" checked={selected.size === sellers.length && sellers.length > 0}
+                      onChange={toggleAll} className="rounded border-gray-300 text-orange-500 cursor-pointer" />
+                  </th>
+                  {["Name","Phone","Email Address","Credit Score","Verification Info","Approval",
+                    "Num. of Products","Pending Balance","Wallet Balance","Guarantee Money","Views",
+                    "Comment Permission","Home Display","Total recharge","Total withdrawal amount",
+                    "Recharge difference","Salesman","Invitation Code","Identity Cards","Options"]
+                    .map(h => (
+                    <th key={h} className="px-3 py-3 text-left text-[11px] font-semibold text-gray-500 uppercase tracking-wide whitespace-nowrap">{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {sellers.map(s => {
-                  const shop = s.shops?.[0];
+                {sellers.map((seller, idx) => {
+                  const shopName = seller.shops?.[0]?.name || null;
+                  const productCount = seller.shops?.[0]?.product_count ?? 0;
+                  const rechargeDiff = Number(seller.total_recharge ?? 0) - Number(seller.total_withdrawn ?? 0);
                   return (
-                    <tr key={s.id} className="hover:bg-gray-50/50 transition-colors group">
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold">
-                            {(s.full_name || '?')[0].toUpperCase()}
+                    <tr key={seller.id} className={`hover:bg-gray-50/60 transition-colors ${!seller.is_active ? "opacity-60" : ""}`}>
+                      <td className="px-3 py-3">
+                        <input type="checkbox" checked={selected.has(seller.id)} onChange={() => toggleSelect(seller.id)}
+                          className="rounded border-gray-300 text-orange-500 cursor-pointer" />
+                      </td>
+
+                      {/* Name */}
+                      <td className="px-3 py-3">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-xs font-bold text-orange-600 shrink-0">
+                            {(shopName || seller.full_name || "?").charAt(0).toUpperCase()}
                           </div>
                           <div>
-                            <p className="text-xs font-medium text-gray-800">{s.full_name || '—'}</p>
-                            <p className="text-[11px] text-gray-400 font-mono">{s.id.slice(0, 8)}</p>
+                            <p className="font-semibold text-gray-800 text-xs leading-tight whitespace-nowrap">
+                              {shopName || seller.full_name || "—"}
+                            </p>
+                            {!seller.is_active && <span className="text-[10px] text-red-500 font-semibold">Banned</span>}
                           </div>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-xs text-gray-600">{s.email || '—'}</td>
-                      <td className="px-5 py-3.5 text-xs text-gray-700 font-medium">{shop?.name || <span className="text-gray-300">No shop</span>}</td>
-                      <td className="px-5 py-3.5">
-                        {shop ? (
-                          shop.is_verified ? (
-                            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600 flex items-center gap-1 w-fit">
-                              <CheckCircle className="size-3" /> Verified
-                            </span>
-                          ) : (
-                            <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-600 flex items-center gap-1 w-fit">
-                              <AlertCircle className="size-3" /> Pending
-                            </span>
-                          )
-                        ) : '—'}
+
+                      {/* Phone */}
+                      <td className="px-3 py-3 text-gray-600 whitespace-nowrap">{seller.phone || "—"}</td>
+
+                      {/* Email */}
+                      <td className="px-3 py-3 text-gray-600 whitespace-nowrap max-w-[180px] truncate">{seller.email || "—"}</td>
+
+                      {/* Credit Score */}
+                      <td className="px-3 py-3">
+                        <input type="number"
+                          value={creditEdits[seller.id] ?? String(seller.credit_score ?? 100)}
+                          onChange={e => setCreditEdits(p => ({ ...p, [seller.id]: e.target.value }))}
+                          onBlur={() => handleCreditSave(seller)}
+                          onKeyDown={e => { if (e.key === "Enter") handleCreditSave(seller); }}
+                          className="w-14 text-xs border border-gray-200 rounded-lg px-2 py-1.5 text-center focus:outline-none focus:border-orange-400 bg-gray-50" />
                       </td>
-                      <td className="px-5 py-3.5">
-                        {s.is_active ? (
-                          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-600">Active</span>
+
+                      {/* Verification Info */}
+                      <td className="px-3 py-3 text-gray-500 max-w-[120px] truncate">
+                        {seller.verification_info || <span className="text-gray-300">—</span>}
+                      </td>
+
+                      {/* Approval toggle */}
+                      <td className="px-3 py-3">
+                        <button onClick={() => handleToggle(seller, "seller_approved", !seller.seller_approved)}
+                          className={`w-9 h-5 rounded-full transition-colors relative ${seller.seller_approved ? "bg-emerald-500" : "bg-gray-200"}`}>
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${seller.seller_approved ? "translate-x-4" : "translate-x-0.5"}`} />
+                        </button>
+                      </td>
+
+                      {/* Num Products */}
+                      <td className="px-3 py-3 text-center font-semibold text-gray-700">{productCount}</td>
+
+                      {/* Pending Balance */}
+                      <td className="px-3 py-3 text-gray-700">${Number(seller.pending_balance ?? 0).toFixed(2)}</td>
+
+                      {/* Wallet Balance */}
+                      <td className="px-3 py-3 font-semibold text-emerald-600">${Number(seller.wallet_balance ?? 0).toFixed(2)}</td>
+
+                      {/* Guarantee Money */}
+                      <td className="px-3 py-3 text-gray-700">${Number(seller.guarantee_money ?? 0).toFixed(2)}</td>
+
+                      {/* Views */}
+                      <td className="px-3 py-3 text-gray-600">
+                        <div>
+                          <div className="text-gray-400">base num: {seller.seller_views ?? 0}</div>
+                          <div className="text-gray-400">inc num: 0</div>
+                        </div>
+                      </td>
+
+                      {/* Comment Permission */}
+                      <td className="px-3 py-3">
+                        <button onClick={() => handleToggle(seller, "comment_permission", !seller.comment_permission)}
+                          className={`w-9 h-5 rounded-full transition-colors relative ${seller.comment_permission ? "bg-emerald-500" : "bg-gray-200"}`}>
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${seller.comment_permission ? "translate-x-4" : "translate-x-0.5"}`} />
+                        </button>
+                      </td>
+
+                      {/* Home Display */}
+                      <td className="px-3 py-3">
+                        <button onClick={() => handleToggle(seller, "home_display", !seller.home_display)}
+                          className={`w-9 h-5 rounded-full transition-colors relative ${seller.home_display ? "bg-emerald-500" : "bg-gray-200"}`}>
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${seller.home_display ? "translate-x-4" : "translate-x-0.5"}`} />
+                        </button>
+                      </td>
+
+                      {/* Total Recharge */}
+                      <td className="px-3 py-3 text-gray-700">${Number(seller.total_recharge ?? 0).toFixed(2)}</td>
+
+                      {/* Total Withdrawn */}
+                      <td className="px-3 py-3 text-gray-700">${Number(seller.total_withdrawn ?? 0).toFixed(2)}</td>
+
+                      {/* Recharge Difference */}
+                      <td className={`px-3 py-3 font-semibold ${rechargeDiff >= 0 ? "text-emerald-600" : "text-red-500"}`}>
+                        ${rechargeDiff.toFixed(2)}
+                      </td>
+
+                      {/* Salesman */}
+                      <td className="px-3 py-3 text-gray-400">xxx</td>
+
+                      {/* Invitation Code */}
+                      <td className="px-3 py-3">
+                        <span className="text-[11px] font-mono bg-gray-100 px-2 py-1 rounded text-gray-600">
+                          {seller.invitation_code || "xxx"}
+                        </span>
+                      </td>
+
+                      {/* Identity Cards */}
+                      <td className="px-3 py-3">
+                        {seller.identity_card_url ? (
+                          <img src={seller.identity_card_url} alt="ID" className="w-10 h-8 object-cover rounded border border-gray-200" />
                         ) : (
-                          <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-red-50 text-red-500">Suspended</span>
+                          <div className="w-10 h-8 rounded border border-dashed border-gray-200 bg-gray-50 flex items-center justify-center text-gray-300 text-[10px]">ID</div>
                         )}
                       </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button onClick={() => openView(s)} className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-500" title="View">
-                            <Eye className="size-3.5" />
+
+                      {/* Options Dropdown */}
+                      <td className="px-3 py-3">
+                        <div className="relative" ref={openMenu === seller.id ? menuRef : undefined}>
+                          <button onClick={() => setOpenMenu(openMenu === seller.id ? null : seller.id)}
+                            className="p-1.5 rounded-lg bg-orange-50 hover:bg-orange-100 border border-orange-200">
+                            <MoreVertical className="size-3.5 text-orange-600" />
                           </button>
-                          <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500" title="Edit">
-                            <Edit3 className="size-3.5" />
-                          </button>
-                          {s.email && (
-                            <button onClick={() => openEmail(s)} className="p-1.5 rounded-lg hover:bg-purple-50 text-purple-500" title="Email">
-                              <Send className="size-3.5" />
-                            </button>
+                          {openMenu === seller.id && (
+                            <div className="absolute right-0 top-8 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 min-w-[170px]">
+                              {[
+                                { label: "Profile",         action: () => router.push(`/admin/sellers/${seller.id}`) },
+                                { label: "Go to Payment",   action: () => router.push(`/admin/sellers/payout-requests?seller_id=${seller.id}`) },
+                                { label: "Payment History", action: () => router.push(`/admin/sellers/payouts?seller_id=${seller.id}`) },
+                                { label: "Hold",            action: () => handleToggle(seller, "is_active", false) },
+                                { label: seller.is_active ? "Ban this seller" : "Unban seller", action: () => handleToggle(seller, "is_active", !seller.is_active), danger: !seller.is_active ? false : true },
+                                { label: "Delete",          action: () => { setOpenMenu(null); handleDelete(seller.id); }, danger: true },
+                                { label: "Message Seller",  action: () => { setMessageModal(seller); setOpenMenu(null); } },
+                                { label: "Guarantee Money", action: () => { setGuaranteeModal(seller); setGuaranteeAmt(String(seller.guarantee_money ?? 0)); setOpenMenu(null); } },
+                                { label: "Set Package",     action: () => { setPackageModal(seller); setPackageVal(seller.package || ""); setOpenMenu(null); } },
+                                { label: "Update Balance",  action: () => { setRechargeModal(seller); setRechargeAmt(""); setOpenMenu(null); } },
+                              ].map(item => (
+                                <button key={item.label} onClick={() => { item.action(); setOpenMenu(null); }}
+                                  className={`block w-full text-left px-4 py-2 text-xs ${(item as { danger?: boolean }).danger ? "text-red-600 hover:bg-red-50" : "text-gray-700 hover:bg-gray-50"} transition-colors`}>
+                                  {item.label}
+                                </button>
+                              ))}
+                            </div>
                           )}
-                          {shop && (
-                            <button
-                              onClick={() => toggleShopVerify(shop.id, shop.is_verified, shop.name)}
-                              className={`p-1.5 rounded-lg ${shop.is_verified ? 'hover:bg-amber-50 text-amber-500' : 'hover:bg-emerald-50 text-emerald-500'}`}
-                              title={shop.is_verified ? 'Unverify' : 'Verify'}
-                            >
-                              <BadgeCheck className="size-3.5" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => toggleActive(s.id, s.is_active, s.full_name || '')}
-                            className={`p-1.5 rounded-lg ${s.is_active ? 'hover:bg-red-50 text-red-400' : 'hover:bg-emerald-50 text-emerald-500'}`}
-                            title={s.is_active ? 'Suspend' : 'Restore'}
-                          >
-                            {s.is_active ? <UserX className="size-3.5" /> : <UserCheck className="size-3.5" />}
-                          </button>
-                          <button onClick={() => deleteSeller(s.id, s.full_name || '')} className="p-1.5 rounded-lg hover:bg-red-50 text-red-400" title="Delete">
-                            <Trash2 className="size-3.5" />
-                          </button>
                         </div>
                       </td>
                     </tr>
@@ -323,207 +449,138 @@ export default function SellersPage() {
 
         {/* Pagination */}
         {pagination.pages > 1 && (
-          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-50">
-            <span className="text-xs text-gray-500">Showing {(page - 1) * pagination.limit + 1}–{Math.min(page * pagination.limit, pagination.total)} of {pagination.total}</span>
+          <div className="flex items-center justify-between px-5 py-3 border-t border-gray-100">
+            <span className="text-xs text-gray-500">
+              Showing {offset + 1}–{Math.min(page * pagination.limit, pagination.total)} of {pagination.total.toLocaleString()}
+            </span>
             <div className="flex items-center gap-1">
-              <button onClick={() => hp(page - 1)} disabled={page <= 1} className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30"><ChevronLeft className="size-4 text-gray-600" /></button>
+              <button onClick={() => { const p = page - 1; setPage(p); fetchSellers({ page: p }); }} disabled={page <= 1}
+                className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronLeft className="size-4 text-gray-600" />
+              </button>
               {Array.from({ length: Math.min(5, pagination.pages) }, (_, i) => {
-                const pg = Math.max(1, Math.min(page - 2, pagination.pages - 4)) + i;
-                return <button key={pg} onClick={() => hp(pg)} className={'w-7 h-7 text-xs rounded-lg font-medium ' + (pg === page ? 'bg-indigo-600 text-white' : 'hover:bg-gray-100 text-gray-600')}>{pg}</button>;
+                const p = Math.max(1, Math.min(page - 2, pagination.pages - 4)) + i;
+                return (
+                  <button key={p} onClick={() => { setPage(p); fetchSellers({ page: p }); }}
+                    className={`w-7 h-7 text-xs rounded-lg font-medium ${p === page ? "bg-orange-500 text-white" : "hover:bg-gray-100 text-gray-600"}`}>{p}</button>
+                );
               })}
-              <button onClick={() => hp(page + 1)} disabled={page >= pagination.pages} className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30"><ChevronRight className="size-4 text-gray-600" /></button>
+              <button onClick={() => { const p = page + 1; setPage(p); fetchSellers({ page: p }); }} disabled={page >= pagination.pages}
+                className="p-1.5 rounded-lg hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed">
+                <ChevronRight className="size-4 text-gray-600" />
+              </button>
             </div>
           </div>
         )}
       </div>
 
-      {/* ─── Modal ─────────────────────────────────────── */}
-      {modalMode && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setModalMode(null)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto m-4" onClick={(e) => e.stopPropagation()}>
+      {/* ── Guarantee Money Modal ── */}
+      {guaranteeModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-bold text-gray-900">
-                {modalMode === 'view' && 'Seller Details'}
-                {modalMode === 'edit' && 'Edit Seller'}
-                {modalMode === 'create' && 'Create Seller'}
-                {modalMode === 'email' && 'Send Email'}
-              </h2>
-              <button onClick={() => setModalMode(null)} className="p-1.5 rounded-lg hover:bg-gray-100"><X className="size-5 text-gray-400" /></button>
+              <h2 className="text-base font-bold text-gray-800">Guarantee Money</h2>
+              <button onClick={() => setGuaranteeModal(null)}><X className="size-4 text-gray-500" /></button>
             </div>
-
-            <div className="p-6">
-              {/* VIEW */}
-              {modalMode === 'view' && (
-                modalLoading ? (
-                  <div className="flex items-center justify-center py-12"><RefreshCw className="size-5 animate-spin text-indigo-400" /></div>
-                ) : selectedSeller ? (
-                  <div className="space-y-5">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xl font-bold">
-                        {(selectedSeller.full_name || '?')[0].toUpperCase()}
-                      </div>
-                      <div>
-                        <h3 className="text-base font-semibold text-gray-900">{selectedSeller.full_name || '—'}</h3>
-                        <p className="text-sm text-gray-500">{selectedSeller.email || '—'}</p>
-                        <div className="flex gap-1.5 mt-1">
-                          <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full ${selectedSeller.is_active ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
-                            {selectedSeller.is_active ? 'Active' : 'Suspended'}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Shop info */}
-                    {selectedSeller.shop && (
-                      <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-100">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Store className="size-4 text-amber-600" />
-                          <h4 className="text-sm font-semibold text-amber-900">{selectedSeller.shop.name}</h4>
-                          {selectedSeller.shop.is_verified ? (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 flex items-center gap-0.5"><CheckCircle className="size-2.5" /> Verified</span>
-                          ) : (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 flex items-center gap-0.5"><AlertCircle className="size-2.5" /> Pending</span>
-                          )}
-                        </div>
-                        <div className="grid grid-cols-3 gap-3 mt-3">
-                          <div className="text-center">
-                            <Package className="size-4 text-amber-500 mx-auto mb-1" />
-                            <p className="text-xs text-amber-700">{selectedSeller.shop.product_count} Products</p>
-                          </div>
-                          <div className="text-center">
-                            <Star className="size-4 text-amber-500 mx-auto mb-1" />
-                            <p className="text-xs text-amber-700">{selectedSeller.shop.rating} Rating</p>
-                          </div>
-                          <div className="text-center">
-                            <Calendar className="size-4 text-amber-500 mx-auto mb-1" />
-                            <p className="text-xs text-amber-700">Since {new Date(selectedSeller.shop.created_at).toLocaleDateString()}</p>
-                          </div>
-                        </div>
-                        {selectedSeller.shop.description && (
-                          <p className="text-xs text-amber-800 mt-3 line-clamp-2">{selectedSeller.shop.description}</p>
-                        )}
-                        <button
-                          onClick={() => toggleShopVerify(selectedSeller.shop!.id, selectedSeller.shop!.is_verified, selectedSeller.shop!.name)}
-                          disabled={actionLoading}
-                          className={`mt-3 text-xs font-medium px-3 py-1.5 rounded-lg transition-colors ${selectedSeller.shop.is_verified ? 'bg-amber-200 text-amber-800 hover:bg-amber-300' : 'bg-emerald-200 text-emerald-800 hover:bg-emerald-300'}`}
-                        >
-                          {selectedSeller.shop.is_verified ? 'Remove Verification' : 'Verify Shop'}
-                        </button>
-                      </div>
-                    )}
-
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2 text-sm">
-                        <Phone className="size-4 text-gray-400" />
-                        <span className="text-gray-600">{selectedSeller.phone || 'No phone'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Mail className="size-4 text-gray-400" />
-                        <span className="text-gray-600">{selectedSeller.email || 'No email'}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm">
-                        <Calendar className="size-4 text-gray-400" />
-                        <span className="text-gray-600">Joined {new Date(selectedSeller.created_at).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2 pt-2 border-t border-gray-100">
-                      <button
-                        onClick={() => { setFormData({ full_name: selectedSeller.full_name || '', email: selectedSeller.email || '', phone: selectedSeller.phone || '', password: '' }); setModalMode('edit'); }}
-                        className="flex-1 text-sm font-medium px-4 py-2 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        <Edit3 className="size-3.5" /> Edit
-                      </button>
-                      {selectedSeller.email && (
-                        <button
-                          onClick={() => { setEmailData({ subject: '', message: '' }); setModalMode('email'); }}
-                          className="flex-1 text-sm font-medium px-4 py-2 rounded-lg bg-purple-50 text-purple-600 hover:bg-purple-100 transition-colors flex items-center justify-center gap-1.5"
-                        >
-                          <Send className="size-3.5" /> Email
-                        </button>
-                      )}
-                      <button
-                        onClick={() => toggleActive(selectedSeller.id, selectedSeller.is_active, selectedSeller.full_name || '')}
-                        disabled={actionLoading}
-                        className={`flex-1 text-sm font-medium px-4 py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 ${selectedSeller.is_active ? 'bg-red-50 text-red-600 hover:bg-red-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
-                      >
-                        {selectedSeller.is_active ? <><UserX className="size-3.5" /> Suspend</> : <><UserCheck className="size-3.5" /> Restore</>}
-                      </button>
-                    </div>
-                  </div>
-                ) : <p className="text-center text-gray-400 py-8">Seller not found</p>
-              )}
-
-              {/* CREATE */}
-              {modalMode === 'create' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</label>
-                    <input type="text" value={formData.full_name} onChange={(e) => setFormData(p => ({ ...p, full_name: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Seller Name" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Email *</label>
-                    <input type="email" value={formData.email} onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="seller@example.com" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Password *</label>
-                    <input type="password" value={formData.password} onChange={(e) => setFormData(p => ({ ...p, password: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Min 6 characters" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</label>
-                    <input type="tel" value={formData.phone} onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="+1 234 567 890" />
-                  </div>
-                  <button onClick={createSeller} disabled={actionLoading} className="w-full text-sm font-medium px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                    {actionLoading ? <RefreshCw className="size-4 animate-spin" /> : <Plus className="size-4" />} Create Seller
-                  </button>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-xs text-gray-500">Seller: <span className="font-semibold text-gray-800">{guaranteeModal.full_name}</span></p>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Amount (USD)</label>
+                <div className="relative"><DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                  <input type="number" min="0" step="0.01" value={guaranteeAmt} onChange={e => setGuaranteeAmt(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:border-orange-400 bg-gray-50" />
                 </div>
-              )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setGuaranteeModal(null)} className="text-sm text-gray-600 px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={handleGuarantee} disabled={actionLoading} className="text-sm font-semibold bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white px-5 py-2 rounded-xl">
+                {actionLoading ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-              {/* EDIT */}
-              {modalMode === 'edit' && (
-                <div className="space-y-4">
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Full Name</label>
-                    <input type="text" value={formData.full_name} onChange={(e) => setFormData(p => ({ ...p, full_name: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</label>
-                    <input type="tel" value={formData.phone} onChange={(e) => setFormData(p => ({ ...p, phone: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
-                  </div>
-                  <div className="flex gap-2">
-                    <button onClick={editSeller} disabled={actionLoading} className="flex-1 text-sm font-medium px-4 py-2.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                      {actionLoading ? <RefreshCw className="size-4 animate-spin" /> : <Edit3 className="size-4" />} Save Changes
-                    </button>
-                    <button onClick={() => setModalMode(null)} className="px-4 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200">Cancel</button>
-                  </div>
+      {/* ── Update Balance (Recharge) Modal ── */}
+      {rechargeModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">Update Balance</h2>
+              <button onClick={() => setRechargeModal(null)}><X className="size-4 text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <div className="bg-gray-50 rounded-xl p-3 text-xs text-gray-600">
+                <p><span className="font-semibold">{rechargeModal.full_name}</span></p>
+                <p className="mt-1">Current wallet: <span className="font-bold text-emerald-600">${Number(rechargeModal.wallet_balance).toFixed(2)}</span></p>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1.5">Add Amount (USD)</label>
+                <div className="relative"><DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+                  <input type="number" min="0.01" step="0.01" value={rechargeAmt} onChange={e => setRechargeAmt(e.target.value)}
+                    placeholder="0.00" className="w-full border border-gray-200 rounded-xl pl-8 pr-3 py-2.5 text-sm focus:outline-none focus:border-orange-400 bg-gray-50" />
                 </div>
-              )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setRechargeModal(null)} className="text-sm text-gray-600 px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={handleRecharge} disabled={actionLoading} className="text-sm font-semibold bg-emerald-500 hover:bg-emerald-600 disabled:opacity-60 text-white px-5 py-2 rounded-xl">
+                {actionLoading ? "Saving…" : "Recharge"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-              {/* EMAIL */}
-              {modalMode === 'email' && (
-                <div className="space-y-4">
-                  <div className="bg-gray-50 rounded-lg p-3 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center text-white text-xs font-bold">
-                      {(selectedSeller?.full_name || '?')[0].toUpperCase()}
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">{selectedSeller?.full_name || '—'}</p>
-                      <p className="text-xs text-gray-500">{selectedSeller?.email}</p>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Subject</label>
-                    <input type="text" value={emailData.subject} onChange={(e) => setEmailData(p => ({ ...p, subject: e.target.value }))} className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Email subject..." />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wider">Message</label>
-                    <textarea value={emailData.message} onChange={(e) => setEmailData(p => ({ ...p, message: e.target.value }))} rows={5} className="mt-1 w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none" placeholder="Type your message..." />
-                  </div>
-                  <button onClick={sendEmailToSeller} disabled={actionLoading} className="w-full text-sm font-medium px-4 py-2.5 rounded-lg bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 flex items-center justify-center gap-2">
-                    {actionLoading ? <RefreshCw className="size-4 animate-spin" /> : <Send className="size-4" />} Send Email
-                  </button>
-                </div>
-              )}
+      {/* ── Set Package Modal ── */}
+      {packageModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">Set Package</h2>
+              <button onClick={() => setPackageModal(null)}><X className="size-4 text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-5">
+              <label className="block text-xs font-semibold text-gray-700 mb-1.5">Package</label>
+              <select value={packageVal} onChange={e => setPackageVal(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400 bg-gray-50 cursor-pointer">
+                <option value="">None</option>
+                <option value="Basic">Basic</option>
+                <option value="Standard">Standard</option>
+                <option value="Premium">Premium</option>
+                <option value="VIP">VIP</option>
+              </select>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setPackageModal(null)} className="text-sm text-gray-600 px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={handlePackage} disabled={actionLoading} className="text-sm font-semibold bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white px-5 py-2 rounded-xl">
+                {actionLoading ? "Saving…" : "Save"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Message Seller Modal ── */}
+      {messageModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">Message Seller</h2>
+              <button onClick={() => setMessageModal(null)}><X className="size-4 text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-xs text-gray-500">To: <span className="font-semibold text-gray-800">{messageModal.full_name}</span></p>
+              <textarea value={messageText} onChange={e => setMessageText(e.target.value)} rows={4}
+                placeholder="Write your message here…"
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-orange-400 bg-gray-50 resize-none" />
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setMessageModal(null)} className="text-sm text-gray-600 px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={handleMessage} disabled={actionLoading} className="flex items-center gap-2 text-sm font-semibold bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white px-5 py-2 rounded-xl">
+                <MessageSquare className="size-3.5" />{actionLoading ? "Sending…" : "Send"}
+              </button>
             </div>
           </div>
         </div>

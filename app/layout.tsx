@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Open_Sans } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
@@ -46,11 +45,6 @@ export default function RootLayout({
         <main className="min-h-screen pb-14 md:pb-0">{children}</main>
         <Footer />
         <MobileBottomNav />
-        <Script
-          id="chatway"
-          src="https://cdn.chatway.app/widget.js?id=Lupexu1I3vaV"
-          strategy="afterInteractive"
-        />
       </body>
     </html>
   );

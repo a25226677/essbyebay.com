@@ -5,11 +5,14 @@ import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import {
   Bell,
-  Search,
   ChevronDown,
   LogOut,
   User,
-  RefreshCw,
+  RotateCcw,
+  Printer,
+  Menu,
+  Trash2,
+  ShoppingBag,
 } from "lucide-react";
 
 const LANGUAGES = [
@@ -46,52 +49,68 @@ export function AdminHeader() {
     router.refresh();
   };
 
-  const refresh = async () => {
+  const clearCache = async () => {
     setRefreshing(true);
     router.refresh();
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((r) => setTimeout(r, 1200));
     setRefreshing(false);
   };
 
   return (
-    <header className="h-16 bg-white border-b border-gray-100 flex items-center px-6 gap-4 sticky top-0 z-30 shadow-sm">
-      {/* Search */}
-      <div className="flex-1 max-w-md">
-        <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 focus-within:border-indigo-400 focus-within:bg-white transition-all">
-          <Search className="size-4 text-gray-400 shrink-0" />
-          <input
-            type="text"
-            placeholder="Search anything…"
-            className="bg-transparent text-sm text-gray-700 placeholder:text-gray-400 outline-none w-full"
-          />
-        </div>
+    <header className="h-16 bg-white border-b border-gray-100 flex items-center px-4 gap-2 sticky top-0 z-30 shadow-sm">
+      {/* Left Actions */}
+      <div className="flex items-center gap-1">
+        <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500">
+          <Menu className="size-5" />
+        </button>
+        <button
+          onClick={() => router.refresh()}
+          className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+          title="Refresh"
+        >
+          <RotateCcw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
+        </button>
+        <button
+          onClick={() => window.print()}
+          className="p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500"
+          title="Print"
+        >
+          <Printer className="size-4" />
+        </button>
+        <button
+          onClick={clearCache}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-all ml-1 text-white"
+          style={{
+            background: refreshing
+              ? "#fca5a5"
+              : "linear-gradient(135deg,#fb7185,#f43f5e)",
+            opacity: refreshing ? 0.7 : 1,
+          }}
+        >
+          <Trash2 className="size-3.5" />
+          {refreshing ? "Clearing…" : "Clear Cache"}
+        </button>
       </div>
 
-      {/* Right Actions */}
-      <div className="flex items-center gap-2 ml-auto">
-        {/* Refresh */}
-        <button
-          onClick={refresh}
-          className="p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500 hover:text-indigo-600"
-          title="Refresh page"
-        >
-          <RefreshCw className={`size-4 ${refreshing ? "animate-spin" : ""}`} />
-        </button>
+      {/* Spacer */}
+      <div className="flex-1" />
 
+      {/* Right Actions */}
+      <div className="flex items-center gap-1">
         {/* Notifications */}
-        <button className="relative p-2 rounded-xl hover:bg-gray-100 transition-colors text-gray-500 hover:text-indigo-600">
-          <Bell className="size-4" />
-          <span className="absolute top-1 right-1 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
+        <button className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors text-gray-500">
+          <Bell className="size-5" />
+          <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-rose-500 ring-2 ring-white" />
         </button>
 
         {/* Language */}
         <div ref={langRef} className="relative">
           <button
             onClick={() => setLangOpen((o) => !o)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-xl hover:bg-gray-100 transition-colors text-sm text-gray-600"
+            className="flex items-center gap-1 px-2 py-2 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            <span className="text-base leading-none">{lang.flag}</span>
-            <span className="font-medium">{lang.label}</span>
+            <span className="text-lg leading-none">{lang.flag}</span>
             <ChevronDown className="size-3 text-gray-400" />
           </button>
           {langOpen && (
@@ -110,19 +129,21 @@ export function AdminHeader() {
           )}
         </div>
 
-        {/* User avatar */}
+        {/* User */}
         <div ref={userRef} className="relative">
           <button
             onClick={() => setUserOpen((o) => !o)}
-            className="flex items-center gap-2 pl-2 pr-3 py-1.5 rounded-xl hover:bg-gray-100 transition-colors"
+            className="flex items-center gap-2 pl-2 pr-2 py-1.5 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold shadow"
-              style={{ background: "linear-gradient(135deg,#4f46e5,#7c3aed)" }}>
-              A
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-white shadow"
+              style={{ background: "linear-gradient(135deg,#f43f5e,#fb923c)" }}
+            >
+              <ShoppingBag className="size-4" />
             </div>
             <div className="hidden md:block text-left">
               <p className="text-xs font-semibold text-gray-800 leading-tight">Admin</p>
-              <p className="text-[10px] text-gray-400 leading-tight">Administrator</p>
+              <p className="text-[10px] text-gray-400 leading-tight">admin</p>
             </div>
             <ChevronDown className="size-3 text-gray-400" />
           </button>

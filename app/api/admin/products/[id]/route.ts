@@ -16,6 +16,8 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if (typeof body.is_active === "boolean") updates.is_active = body.is_active;
     if (typeof body.isActive === "boolean") updates.is_active = body.isActive;
+    if (typeof body.today_deal === "boolean") updates.today_deal = body.today_deal;
+    if (typeof body.is_featured === "boolean") updates.is_featured = body.is_featured;
     if (typeof body.price === "number") updates.price = body.price;
     if (typeof body.stock_count === "number") updates.stock_count = body.stock_count;
     if (typeof body.stockCount === "number") updates.stock_count = body.stockCount;

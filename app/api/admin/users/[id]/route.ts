@@ -17,7 +17,7 @@ export async function GET(_request: Request, { params }: Params) {
 
   const { data: profile, error } = await db
     .from("profiles")
-    .select("id, full_name, phone, avatar_url, role, is_active, created_at, updated_at")
+    .select("id, full_name, phone, avatar_url, role, is_active, is_virtual, disable_login, wallet_balance, credit_score, package, created_at, updated_at")
     .eq("id", id)
     .maybeSingle();
 
@@ -85,6 +85,37 @@ export async function PATCH(request: Request, { params }: Params) {
     if (typeof body.phone === "string") updates.phone = body.phone;
     if (typeof body.is_active === "boolean") updates.is_active = body.is_active;
     if (typeof body.isActive === "boolean") updates.is_active = body.isActive;
+    if (typeof body.credit_score === "number") updates.credit_score = body.credit_score;
+    if (typeof body.package === "string") updates.package = body.package || null;
+    if (typeof body.disable_login === "boolean") updates.disable_login = body.disable_login;
+
+    // Seller-specific fields
+    if (typeof body.seller_approved === "boolean")     updates.seller_approved = body.seller_approved;
+    if (typeof body.guarantee_money === "number")      updates.guarantee_money = body.guarantee_money;
+    if (typeof body.pending_balance === "number")      updates.pending_balance = body.pending_balance;
+    if (typeof body.seller_views === "number")         updates.seller_views = body.seller_views;
+    if (typeof body.comment_permission === "boolean")  updates.comment_permission = body.comment_permission;
+    if (typeof body.home_display === "boolean")        updates.home_display = body.home_display;
+    if (typeof body.verification_info === "string")    updates.verification_info = body.verification_info || null;
+    if (typeof body.invitation_code === "string")      updates.invitation_code = body.invitation_code || null;
+    if (typeof body.identity_card_url === "string")    updates.identity_card_url = body.identity_card_url || null;
+    if (typeof body.total_recharge === "number")       updates.total_recharge = body.total_recharge;
+    if (typeof body.total_withdrawn === "number")      updates.total_withdrawn = body.total_withdrawn;
+
+    // Wallet recharge — adds amount to existing balance
+    if (typeof body.recharge_amount === "number" && body.recharge_amount > 0) {
+      const { data: current } = await db.from("profiles").select("wallet_balance").eq("id", id).maybeSingle();
+      const newBalance = Number(current?.wallet_balance ?? 0) + body.recharge_amount;
+      updates.wallet_balance = newBalance;
+      // Record transaction
+      await db.from("wallet_transactions").insert({
+        user_id: id, amount: body.recharge_amount, type: "recharge",
+        note: body.recharge_note || "Admin recharge",
+      }).throwOnError();
+    }
+
+    // Direct wallet_balance set
+    if (typeof body.wallet_balance === "number") updates.wallet_balance = body.wallet_balance;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
@@ -93,7 +124,7 @@ export async function PATCH(request: Request, { params }: Params) {
     // Get current profile for comparison
     const { data: currentProfile } = await db
       .from("profiles")
-      .select("full_name, role, is_active")
+      .select("full_name, role, is_active, wallet_balance")
       .eq("id", id)
       .maybeSingle();
 

@@ -7,30 +7,67 @@ export async function GET(request: NextRequest) {
   const { db } = context;
 
   const sp = request.nextUrl.searchParams;
-  const status = sp.get("status") || "";
-  const page = Math.max(1, parseInt(sp.get("page") || "1", 10));
+  const status    = sp.get("status") || "";
+  const sellerId  = sp.get("seller_id") || "";
+  const page  = Math.max(1, parseInt(sp.get("page") || "1", 10));
   const limit = Math.min(100, parseInt(sp.get("limit") || "20", 10));
   const offset = (page - 1) * limit;
 
   let query = db
     .from("withdrawals")
     .select(
-      `id, amount, status, method, notes, created_at, updated_at,
-       profiles!withdrawals_seller_id_fkey(id, full_name, phone, avatar_url)`,
+      `id, amount, status, method, withdraw_type, account_info, notes, created_at, updated_at,
+       profiles!withdrawals_seller_id_fkey(id, full_name, phone, avatar_url, wallet_balance)`,
       { count: "exact" },
     )
     .order("created_at", { ascending: false });
 
-  if (status) query = query.eq("status", status);
+  if (status)   query = query.eq("status", status);
+  if (sellerId) query = query.eq("seller_id", sellerId);
   query = query.range(offset, offset + limit - 1);
 
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Attach shop name for each withdrawal
+  const items = data || [];
+  const enriched = await Promise.all(
+    items.map(async (w: Record<string, unknown>) => {
+      const sellerId = (w.profiles as Record<string, unknown> | null)?.id as string | null;
+      let shopName: string | null = null;
+      if (sellerId) {
+        const { data: shop } = await db.from("shops").select("name").eq("owner_id", sellerId).maybeSingle();
+        shopName = shop?.name || null;
+      }
+      return { ...w, shop_name: shopName };
+    })
+  );
+
   return NextResponse.json({
-    items: data || [],
-    pagination: { page, limit, total: count || 0, pages: Math.ceil((count || 0) / limit) },
+    items: enriched,
+    pagination: { page, limit, total: count || 0, pages: Math.max(1, Math.ceil((count || 0) / limit)) },
   });
+}
+
+export async function POST(request: NextRequest) {
+  const context = await getAdminContext();
+  if (context instanceof NextResponse) return context;
+  const { db } = context;
+
+  const body = await request.json();
+  const { seller_id, amount, method, withdraw_type, account_info, notes } = body;
+  if (!seller_id || !amount) return NextResponse.json({ error: "seller_id and amount required" }, { status: 400 });
+
+  const { data, error } = await db.from("withdrawals").insert({
+    seller_id, amount, method: method || "bank",
+    withdraw_type: withdraw_type || "bank",
+    account_info: account_info || null,
+    notes: notes || null,
+    status: "pending",
+  }).select().single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ item: data });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -38,12 +75,31 @@ export async function PATCH(request: NextRequest) {
   if (context instanceof NextResponse) return context;
   const { db } = context;
 
-  const { id, status, notes } = await request.json();
+  const body = await request.json();
+  const { id, status, notes } = body;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
   const updates: Record<string, unknown> = {};
   if (status) updates.status = status;
   if (notes !== undefined) updates.notes = notes;
+  updates.updated_at = new Date().toISOString();
+
+  // If paid → deduct from seller wallet + record seller_payment
+  if (status === "paid") {
+    const { data: wd } = await db.from("withdrawals").select("seller_id, amount").eq("id", id).single();
+    if (wd) {
+      const { data: prof } = await db.from("profiles").select("wallet_balance").eq("id", wd.seller_id).single();
+      const newBal = Math.max(0, Number(prof?.wallet_balance ?? 0) - Number(wd.amount));
+      await db.from("profiles").update({ wallet_balance: newBal, total_withdrawn: db.rpc as unknown as number }).eq("id", wd.seller_id);
+      // Record seller payment entry
+      await db.from("seller_payments").insert({
+        seller_id: wd.seller_id,
+        amount: wd.amount,
+        payment_details: `Withdrawal payout (${body.withdraw_type || "bank"})`,
+        trx_id: `WD-${Date.now()}`,
+      });
+    }
+  }
 
   const { error } = await db.from("withdrawals").update(updates).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
