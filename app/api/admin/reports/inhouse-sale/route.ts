@@ -5,10 +5,10 @@ export async function GET(req: NextRequest) {
     const _ctx = await getAdminContext(); if (_ctx instanceof NextResponse) return _ctx; const { db } = _ctx;
     const { searchParams } = new URL(req.url);
     const categoryId = searchParams.get("category_id") || "";
-    let query = db.from("products").select("id, name, category_id, categories!products_category_id_fkey(name)", { count: "exact" })
-      .eq("is_active", true);
+    let query = db.from("products").select("id, title, category_id, categories!products_category_id_fkey(name)", { count: "exact" })
+      .is("seller_id", null);
     if (categoryId) query = query.eq("category_id", categoryId);
-    query = query.order("name");
+    query = query.order("title");
     const { data: products, error, count } = await query;
     if (error) throw error;
     // Get order item counts per product

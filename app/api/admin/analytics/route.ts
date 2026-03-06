@@ -50,9 +50,9 @@ export async function GET() {
     // Category distribution — just product counts (no 3-level nesting)
     db.from("categories").select("id,name,products(id)"),
     // Product stock per category for stock chart
-    db.from("products").select("category_id,stock").eq("is_active", true),
+    db.from("products").select("category_id,stock_count").eq("is_active", true),
     // Seller approval breakdown via shops
-    db.from("shops").select("id,is_approved"),
+    db.from("shops").select("id,is_verified"),
     // Admin vs seller products
     db.from("products").select("id,shop_id").eq("is_active", true),
     // Order items joined to products for sales-per-category
@@ -110,9 +110,9 @@ export async function GET() {
 
   // Category-wise stock (sum of stock per category)
   const stockMap: Record<string, number> = {};
-  (productStockData || []).forEach((p: { category_id: string | null; stock: number | null }) => {
+  (productStockData || []).forEach((p: { category_id: string | null; stock_count: number | null }) => {
     if (p.category_id) {
-      stockMap[p.category_id] = (stockMap[p.category_id] || 0) + Number(p.stock || 0);
+      stockMap[p.category_id] = (stockMap[p.category_id] || 0) + Number(p.stock_count || 0);
     }
   });
   const categoryStockDistribution = categoryDistribution.map((c) => ({
@@ -123,10 +123,10 @@ export async function GET() {
 
   // Seller approval breakdown
   const approvedSellers = (sellerApprovalData || []).filter(
-    (s: { id: string; is_approved: boolean | null }) => s.is_approved === true,
+    (s: { id: string; is_verified: boolean | null }) => s.is_verified === true,
   ).length;
   const pendingSellers = (sellerApprovalData || []).filter(
-    (s: { id: string; is_approved: boolean | null }) => s.is_approved !== true,
+    (s: { id: string; is_verified: boolean | null }) => s.is_verified !== true,
   ).length;
 
   // Admin vs seller products — use shop_id presence as indicator

@@ -14,9 +14,7 @@ export async function GET(req: NextRequest) {
 
     let query = db
       .from("offline_recharges")
-      .select("*, user:profiles!offline_recharges_user_id_fkey(full_name,avatar_url,phone), operator:profiles!offline_recharges_operator_id_fkey(full_name)", { count: "exact" });
-
-    if (search) query = query.ilike("profiles.full_name", `%${search}%`);
+      .select("*", { count: "exact" });
     if (date) {
       const start = new Date(date); start.setHours(0,0,0,0);
       const end = new Date(date); end.setHours(23,59,59,999);
@@ -26,7 +24,23 @@ export async function GET(req: NextRequest) {
 
     const { data, error, count } = await query;
     if (error) throw error;
-    return NextResponse.json({ data: data || [], total: count || 0 });
+    // Manually join profiles since offline_recharges FK references auth.users not profiles
+    const rows = data || [];
+    const allIds = [...new Set([...rows.map((r:any)=>r.user_id), ...rows.map((r:any)=>r.operator_id)].filter(Boolean))];
+    const profileMap = new Map<string,any>();
+    if (allIds.length > 0) {
+      const { data: profiles } = await db.from("profiles").select("id, full_name, avatar_url, phone").in("id", allIds);
+      (profiles||[]).forEach((p:any)=>profileMap.set(p.id, p));
+    }
+    const enriched = rows.map((r:any)=>{
+      const u = profileMap.get(r.user_id);
+      const o = profileMap.get(r.operator_id);
+      return { ...r, user: u ? { full_name: u.full_name, avatar_url: u.avatar_url, phone: u.phone } : null, operator: o ? { full_name: o.full_name } : null };
+    });
+    // Filter by search on joined profile name
+    let result = enriched;
+    if (search) result = enriched.filter((r:any)=>r.user?.full_name?.toLowerCase().includes(search.toLowerCase()));
+    return NextResponse.json({ data: result, total: search ? result.length : (count || 0) });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
@@ -51,9 +65,8 @@ export async function PATCH(req: NextRequest) {
         await db.from("wallet_transactions").insert({
           user_id: record.user_id,
           amount: record.amount,
-          type: "credit",
-          description: `Offline recharge approved (TXN: ${record.txn_id || "N/A"})`,
-          reference_id: id,
+          type: "recharge",
+          note: `Offline recharge approved (TXN: ${record.txn_id || "N/A"})`,
         });
       }
     }

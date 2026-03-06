@@ -16,8 +16,7 @@ export async function GET(request: NextRequest) {
   let query = db
     .from("withdrawals")
     .select(
-      `id, amount, status, method, withdraw_type, account_info, notes, created_at, updated_at,
-       profiles!withdrawals_seller_id_fkey(id, full_name, phone, avatar_url, wallet_balance)`,
+      `id, seller_id, amount, status, method, account_info, notes, created_at, updated_at`,
       { count: "exact" },
     )
     .order("created_at", { ascending: false });
@@ -31,17 +30,21 @@ export async function GET(request: NextRequest) {
 
   // Attach shop name for each withdrawal
   const items = data || [];
-  const enriched = await Promise.all(
-    items.map(async (w: Record<string, unknown>) => {
-      const sellerId = (w.profiles as Record<string, unknown> | null)?.id as string | null;
-      let shopName: string | null = null;
-      if (sellerId) {
-        const { data: shop } = await db.from("shops").select("name").eq("owner_id", sellerId).maybeSingle();
-        shopName = shop?.name || null;
-      }
-      return { ...w, shop_name: shopName };
-    })
-  );
+  // Batch-fetch seller profiles and shops
+  const sellerIds = [...new Set(items.map((w: any) => w.seller_id).filter(Boolean))];
+  const profileMap = new Map<string, any>();
+  const shopMap = new Map<string, string>();
+  if (sellerIds.length > 0) {
+    const { data: profiles } = await db.from("profiles").select("id, full_name, phone, avatar_url, wallet_balance").in("id", sellerIds);
+    (profiles || []).forEach((p: any) => profileMap.set(p.id, p));
+    const { data: shops } = await db.from("shops").select("name, owner_id").in("owner_id", sellerIds);
+    (shops || []).forEach((s: any) => shopMap.set(s.owner_id, s.name));
+  }
+  const enriched = items.map((w: any) => ({
+    ...w,
+    profiles: profileMap.get(w.seller_id) || null,
+    shop_name: shopMap.get(w.seller_id) || null,
+  }));
 
   return NextResponse.json({
     items: enriched,
@@ -55,12 +58,11 @@ export async function POST(request: NextRequest) {
   const { db } = context;
 
   const body = await request.json();
-  const { seller_id, amount, method, withdraw_type, account_info, notes } = body;
+  const { seller_id, amount, method, account_info, notes } = body;
   if (!seller_id || !amount) return NextResponse.json({ error: "seller_id and amount required" }, { status: 400 });
 
   const { data, error } = await db.from("withdrawals").insert({
     seller_id, amount, method: method || "bank",
-    withdraw_type: withdraw_type || "bank",
     account_info: account_info || null,
     notes: notes || null,
     status: "pending",
@@ -88,9 +90,10 @@ export async function PATCH(request: NextRequest) {
   if (status === "paid") {
     const { data: wd } = await db.from("withdrawals").select("seller_id, amount").eq("id", id).single();
     if (wd) {
-      const { data: prof } = await db.from("profiles").select("wallet_balance").eq("id", wd.seller_id).single();
+      const { data: prof } = await db.from("profiles").select("wallet_balance, total_withdrawn").eq("id", wd.seller_id).single();
       const newBal = Math.max(0, Number(prof?.wallet_balance ?? 0) - Number(wd.amount));
-      await db.from("profiles").update({ wallet_balance: newBal, total_withdrawn: db.rpc as unknown as number }).eq("id", wd.seller_id);
+      const newWithdrawn = Number(prof?.total_withdrawn ?? 0) + Number(wd.amount);
+      await db.from("profiles").update({ wallet_balance: newBal, total_withdrawn: newWithdrawn }).eq("id", wd.seller_id);
       // Record seller payment entry
       await db.from("seller_payments").insert({
         seller_id: wd.seller_id,

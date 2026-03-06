@@ -30,7 +30,7 @@ export async function GET(_request: Request, { params }: Params) {
   const productIds = sellerItems.map((item) => item.product_id);
   const { data: products } = await supabase
     .from("products")
-    .select("id, title, images, delivery_type")
+    .select("id, title, image_url")
     .in("id", productIds);
 
   const productMap = new Map((products || []).map((p) => [p.id, p]));
@@ -38,7 +38,7 @@ export async function GET(_request: Request, { params }: Params) {
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .select(
-      "id, order_code, status, payment_status, total_amount, shipping_fee, discount_amount, coupon_amount, tax_amount, payment_method, created_at, user_id, shipping_address"
+      "id, order_code, status, payment_status, total_amount, shipping_fee, discount_amount, coupon_amount, tax_amount, payment_method, created_at, user_id, shipping_address_id"
     )
     .eq("id", orderId)
     .single();
@@ -49,24 +49,32 @@ export async function GET(_request: Request, { params }: Params) {
 
   const { data: customer } = await supabase
     .from("profiles")
-    .select("full_name, email, phone")
+    .select("full_name, phone")
     .eq("id", order.user_id)
     .maybeSingle();
 
-  const shippingAddr = order.shipping_address as Record<string, string> | null;
+  // Fetch shipping address if available
+  let shippingAddr: Record<string, string> | null = null;
+  if (order.shipping_address_id) {
+    const { data: addr } = await supabase
+      .from("addresses")
+      .select("city, state, country")
+      .eq("id", order.shipping_address_id)
+      .maybeSingle();
+    shippingAddr = addr as Record<string, string> | null;
+  }
 
   const items = sellerItems.map((item) => {
     const product = productMap.get(item.product_id);
-    const images = product?.images as string[] | null;
     return {
       id: item.id,
       title: product?.title || "Unknown Product",
-      image_url: images?.[0] || null,
+      image_url: product?.image_url || null,
       quantity: item.quantity,
       unit_price: Number(item.unit_price || 0),
       line_total: Number(item.line_total || 0),
       storehouse_price: Number(item.storehouse_price || 0),
-      delivery_type: product?.delivery_type || "Home Delivery",
+      delivery_type: "Home Delivery",
     };
   });
 
@@ -93,9 +101,7 @@ export async function GET(_request: Request, { params }: Params) {
     payment_method: order.payment_method || "Cash on Delivery",
     customer: {
       name: customer?.full_name || "Customer",
-      email: customer?.email
-        ? customer.email.replace(/(.{2}).*(@.*)/, "$1***$2")
-        : "",
+      email: "",
       phone: customer?.phone
         ? customer.phone.replace(/(\d{3})\d+(\d{2})/, "$1****$2")
         : "",

@@ -20,6 +20,26 @@ interface WishlistItem {
   } | null;
 }
 
+type RawWishlistRow = {
+  id: string;
+  product:
+    | {
+        id: string;
+        title: string;
+        slug: string;
+        price: number;
+        image_url: string | null;
+      }
+    | Array<{
+        id: string;
+        title: string;
+        slug: string;
+        price: number;
+        image_url: string | null;
+      }>
+    | null;
+};
+
 export default function WishlistPage() {
   const router = useRouter();
   const supabase = useMemo(() => createClient(), []);
@@ -61,7 +81,15 @@ export default function WishlistPage() {
         return;
       }
 
-      setItems((data as WishlistItem[] | null) || []);
+      const normalized: WishlistItem[] = ((data as RawWishlistRow[] | null) || []).map((row) => {
+        const product = Array.isArray(row.product) ? (row.product[0] ?? null) : row.product;
+        return {
+          id: row.id,
+          product,
+        };
+      });
+
+      setItems(normalized);
     } catch {
       setError("Failed to load wishlist. Please try again.");
       setItems([]);

@@ -110,7 +110,7 @@ export async function POST(request: NextRequest) {
             credit_score: 100,
           })
           .eq("id", profileId)
-          .catch(() => {});
+          .then(() => {}, () => {});
 
         // Create US address
         const { error: addressErr } = await db.from("addresses").insert({

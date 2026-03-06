@@ -26,7 +26,7 @@ export default function Inhouse_Product_sale_reportPage() {
   }, [page, search, categoryId]);
 
   useEffect(() => {
-    fetch("/api/admin/products/categories").then(r=>r.json()).then(j=>setCategories(j.data||[]));
+    fetch("/api/admin/categories").then(r=>r.json()).then(j=>setCategories(j.items||[]));
     fetchData();
   }, [fetchData]);
 

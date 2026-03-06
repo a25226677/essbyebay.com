@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     .select(
       `id, full_name, phone, avatar_url, role, is_active, is_virtual, disable_login,
        wallet_balance, credit_score, package,
-       guarantee_money, pending_balance, seller_views, comment_permission, home_display,
+       pending_balance, seller_views, comment_permission, home_display,
        verification_info, invitation_code, salesman_id, identity_card_url,
        total_recharge, total_withdrawn, seller_approved,
        created_at, updated_at`,

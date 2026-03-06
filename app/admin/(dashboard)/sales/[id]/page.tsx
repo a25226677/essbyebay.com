@@ -4,9 +4,11 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import {
-  ArrowLeft, RefreshCw, QrCode, MapPin, Phone, User, Calendar,
+  ArrowLeft, RefreshCw, MapPin, Phone, User, Calendar,
   CreditCard, Package, CheckCircle2,
+  Printer,
 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 
 /* ─── Types ─────────────────────────────────────────── */
 type Address = {
@@ -51,6 +53,10 @@ const PAYMENT_OPTIONS = [
 
 function paymentLabel(status: string) {
   return PAYMENT_OPTIONS.find((o) => o.value === status)?.label ?? status;
+}
+
+function deliveryLabel(status: string) {
+  return status.replace(/_/g, " ").replace(/\b\w/g, (x) => x.toUpperCase());
 }
 
 function StatusBadge({ label, color }: { label: string; color: string }) {
@@ -120,6 +126,114 @@ export default function OrderDetailPage() {
       }
     } catch { setSaveMsg("Error saving changes."); }
     finally { setSaving(false); setTimeout(() => setSaveMsg(""), 3000); }
+  };
+
+  const handlePrint = () => {
+    if (!order) return;
+
+    const popup = window.open("", "_blank", "width=980,height=780");
+    if (!popup) return;
+
+    const itemsRows = (order.order_items || [])
+      .map(
+        (item, idx) => `
+          <tr>
+            <td>${idx + 1}</td>
+            <td>${(item.products?.title || "-").replace(/</g, "&lt;")}</td>
+            <td>${item.quantity}</td>
+            <td>$${Number(item.unit_price).toFixed(2)}</td>
+            <td>$${Number(item.line_total).toFixed(2)}</td>
+          </tr>`
+      )
+      .join("");
+
+    const html = `
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="utf-8" />
+          <title>Invoice ${order.order_code}</title>
+          <style>
+            body { font-family: Arial, sans-serif; color: #111827; margin: 0; padding: 24px; }
+            .sheet { max-width: 900px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; }
+            .header { background: linear-gradient(90deg, #1f2a44, #2f3b51); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: center; }
+            .brand { display: flex; gap: 12px; align-items: center; }
+            .brand img { width: 38px; height: 38px; object-fit: contain; border-radius: 8px; background: rgba(255,255,255,0.12); padding: 4px; }
+            .brand h1 { margin: 0; font-size: 18px; }
+            .muted { color: #6b7280; font-size: 12px; }
+            .section { padding: 20px 24px; border-top: 1px solid #f3f4f6; }
+            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+            table { width: 100%; border-collapse: collapse; font-size: 13px; }
+            th, td { border-bottom: 1px solid #f3f4f6; padding: 10px 8px; text-align: left; }
+            th { color: #6b7280; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+            .totals { width: 340px; margin-left: auto; margin-top: 12px; }
+            .totals .row { display: flex; justify-content: space-between; padding: 6px 0; font-size: 13px; }
+            .totals .total { border-top: 1px solid #e5e7eb; margin-top: 6px; padding-top: 10px; font-size: 16px; font-weight: 700; }
+            .badge { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 700; background: #e6fffa; color: #0d9488; }
+          </style>
+        </head>
+        <body>
+          <div class="sheet">
+            <div class="header">
+              <div class="brand">
+                <img src="${window.location.origin}/logo.png" alt="StoreBay" />
+                <div>
+                  <h1>StoreBay Invoice</h1>
+                  <div style="font-size:12px;opacity:.85;">Professional sales receipt</div>
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:11px;opacity:.85;">Order Code</div>
+                <div style="font-family:monospace;font-size:16px;font-weight:700;">${order.order_code}</div>
+              </div>
+            </div>
+
+            <div class="section grid">
+              <div>
+                <div class="muted">Customer</div>
+                <div style="font-weight:700; margin-top:4px;">${(order.profiles?.full_name || "-").replace(/</g, "&lt;")}</div>
+                <div class="muted" style="margin-top:6px;">${(addrLine || "No shipping address").replace(/</g, "&lt;")}</div>
+              </div>
+              <div>
+                <div class="muted">Order Date</div>
+                <div style="font-weight:700; margin-top:4px;">${new Date(order.created_at).toLocaleString()}</div>
+                <div style="margin-top:6px;" class="badge">${deliveryLabel(order.delivery_status)}</div>
+              </div>
+            </div>
+
+            <div class="section">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Description</th>
+                    <th>Qty</th>
+                    <th>Price</th>
+                    <th>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemsRows || "<tr><td colspan='5' class='muted'>No items found</td></tr>"}
+                </tbody>
+              </table>
+
+              <div class="totals">
+                <div class="row"><span>Subtotal</span><span>$${Number(order.subtotal).toFixed(2)}</span></div>
+                <div class="row"><span>Shipping</span><span>$${Number(order.shipping_fee).toFixed(2)}</span></div>
+                <div class="row"><span>Discount</span><span>-$${Number(order.discount_amount).toFixed(2)}</span></div>
+                <div class="row total"><span>Total</span><span>$${Number(order.total_amount).toFixed(2)}</span></div>
+              </div>
+            </div>
+          </div>
+          <script>
+            window.onload = function () { window.print(); };
+          </script>
+        </body>
+      </html>`;
+
+    popup.document.open();
+    popup.document.write(html);
+    popup.document.close();
   };
 
   if (loading) return (
@@ -198,6 +312,13 @@ export default function OrderDetailPage() {
             Save
           </button>
 
+          <button
+            onClick={handlePrint}
+            className="text-xs font-semibold bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-xl transition-colors flex items-center gap-1.5"
+          >
+            <Printer className="size-3.5" /> Print
+          </button>
+
           {saveMsg && <span className={`text-xs ${saveMsg.includes("Error") ? "text-red-500" : "text-green-500"}`}>{saveMsg}</span>}
         </div>
       </div>
@@ -210,7 +331,22 @@ export default function OrderDetailPage() {
           {/* QR Code card */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col items-center gap-3">
             <div className="w-28 h-28 bg-gray-100 rounded-xl flex items-center justify-center border-2 border-dashed border-gray-200">
-              <QrCode className="size-14 text-gray-300" />
+              <QRCodeSVG
+                value={`order:${order.order_code}|id:${order.id}`}
+                size={96}
+                bgColor="#ffffff"
+                fgColor="#111827"
+                level="H"
+                includeMargin
+                imageSettings={{
+                  src: "/logo.png",
+                  x: undefined,
+                  y: undefined,
+                  height: 20,
+                  width: 20,
+                  excavate: true,
+                }}
+              />
             </div>
             <div className="text-center">
               <p className="text-xs text-gray-500 font-medium">Order Code</p>
@@ -263,7 +399,7 @@ export default function OrderDetailPage() {
               <div>
                 <p className="text-gray-400 mb-0.5">Order Status</p>
                 <StatusBadge
-                  label={order.delivery_status.replace(/_/g, " ").replace(/\b\w/g, (x) => x.toUpperCase())}
+                  label={deliveryLabel(order.delivery_status)}
                   color={order.delivery_status === "delivered" ? "green" : order.delivery_status === "on_the_way" ? "blue" : "orange"} />
               </div>
               <div>
