@@ -5,6 +5,112 @@ import { sendOrderStatusEmail } from "@/lib/email";
 
 type Params = { params: Promise<{ id: string }> };
 
+export async function GET(_request: Request, { params }: Params) {
+  const context = await getSellerContext();
+  if (context instanceof NextResponse) return context;
+
+  const { supabase, userId } = context;
+  const { id: orderId } = await params;
+
+  // Verify this order has items belonging to this seller
+  const { data: sellerItems, error: itemsError } = await supabase
+    .from("order_items")
+    .select("id, product_id, quantity, unit_price, line_total, storehouse_price")
+    .eq("order_id", orderId)
+    .eq("seller_id", userId);
+
+  if (itemsError) {
+    return NextResponse.json({ error: itemsError.message }, { status: 500 });
+  }
+
+  if (!sellerItems || sellerItems.length === 0) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
+  const productIds = sellerItems.map((item) => item.product_id);
+  const { data: products } = await supabase
+    .from("products")
+    .select("id, title, images, delivery_type")
+    .in("id", productIds);
+
+  const productMap = new Map((products || []).map((p) => [p.id, p]));
+
+  const { data: order, error: orderError } = await supabase
+    .from("orders")
+    .select(
+      "id, order_code, status, payment_status, total_amount, shipping_fee, discount_amount, coupon_amount, tax_amount, payment_method, created_at, user_id, shipping_address"
+    )
+    .eq("id", orderId)
+    .single();
+
+  if (orderError || !order) {
+    return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  }
+
+  const { data: customer } = await supabase
+    .from("profiles")
+    .select("full_name, email, phone")
+    .eq("id", order.user_id)
+    .maybeSingle();
+
+  const shippingAddr = order.shipping_address as Record<string, string> | null;
+
+  const items = sellerItems.map((item) => {
+    const product = productMap.get(item.product_id);
+    const images = product?.images as string[] | null;
+    return {
+      id: item.id,
+      title: product?.title || "Unknown Product",
+      image_url: images?.[0] || null,
+      quantity: item.quantity,
+      unit_price: Number(item.unit_price || 0),
+      line_total: Number(item.line_total || 0),
+      storehouse_price: Number(item.storehouse_price || 0),
+      delivery_type: product?.delivery_type || "Home Delivery",
+    };
+  });
+
+  const subtotal = items.reduce((sum, item) => sum + item.line_total, 0);
+  const storehouseTotal = items.reduce(
+    (sum, item) => sum + item.storehouse_price * item.quantity,
+    0
+  );
+  const profit = subtotal - storehouseTotal;
+
+  return NextResponse.json({
+    id: order.id,
+    order_code: order.order_code || order.id.slice(0, 8).toUpperCase(),
+    status: order.status,
+    payment_status: order.payment_status,
+    delivery_status: order.status,
+    created_at: order.created_at,
+    total_amount: Number(order.total_amount || 0),
+    subtotal,
+    shipping_fee: Number(order.shipping_fee || 0),
+    discount_amount: Number(order.discount_amount || 0),
+    coupon_amount: Number(order.coupon_amount || 0),
+    tax_amount: Number(order.tax_amount || 0),
+    payment_method: order.payment_method || "Cash on Delivery",
+    customer: {
+      name: customer?.full_name || "Customer",
+      email: customer?.email
+        ? customer.email.replace(/(.{2}).*(@.*)/, "$1***$2")
+        : "",
+      phone: customer?.phone
+        ? customer.phone.replace(/(\d{3})\d+(\d{2})/, "$1****$2")
+        : "",
+      address: shippingAddr
+        ? [shippingAddr.city, shippingAddr.state, shippingAddr.country]
+            .filter(Boolean)
+            .join(", ")
+        : "",
+    },
+    items,
+    storehouse_total: storehouseTotal,
+    profit,
+  });
+}
+
 const validStatuses = new Set([
   "pending",
   "paid",

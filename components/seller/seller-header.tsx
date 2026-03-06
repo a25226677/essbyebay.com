@@ -83,6 +83,13 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
           <span>💰</span>
           Balance: ${balance.toFixed(2)}
         </Link>
+        <Link
+          href="/seller/withdraw"
+          className="flex items-center gap-1.5 text-sm text-amber-600 font-medium"
+        >
+          <span>🛡️</span>
+          Guarantee Money: ${(profile.guaranteeMoney ?? 0).toFixed(2)}
+        </Link>
         <button className="relative p-2 rounded-full hover:bg-gray-100 text-gray-600">
           <Bell className="size-5" />
         </button>

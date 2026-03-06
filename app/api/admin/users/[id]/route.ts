@@ -117,7 +117,13 @@ export async function PATCH(request: Request, { params }: Params) {
     // Direct wallet_balance set
     if (typeof body.wallet_balance === "number") updates.wallet_balance = body.wallet_balance;
 
-    if (Object.keys(updates).length === 0) {
+    // Seller shop verification — update shops.is_verified
+    let shopVerified: boolean | undefined;
+    if (typeof body.is_verified === "boolean") {
+      shopVerified = body.is_verified;
+    }
+
+    if (Object.keys(updates).length === 0 && shopVerified === undefined) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
     }
 
@@ -132,6 +138,11 @@ export async function PATCH(request: Request, { params }: Params) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Update shop verification status if requested
+    if (shopVerified !== undefined) {
+      await db.from("shops").update({ is_verified: shopVerified }).eq("owner_id", id);
     }
 
     // Send email notifications for status/role changes

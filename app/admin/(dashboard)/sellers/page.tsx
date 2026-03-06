@@ -14,7 +14,7 @@ type Seller = {
   pending_balance: number; seller_views: number; comment_permission: boolean; home_display: boolean;
   verification_info: string | null; invitation_code: string | null; salesman_id: string | null;
   identity_card_url: string | null; total_recharge: number; total_withdrawn: number;
-  created_at: string; shops: { name: string; product_count: number }[];
+  created_at: string; shops: { name: string; product_count: number; is_verified?: boolean }[];
 };
 type Pagination = { page: number; limit: number; total: number; pages: number };
 
@@ -278,7 +278,7 @@ export default function SellersListPage() {
                     <input type="checkbox" checked={selected.size === sellers.length && sellers.length > 0}
                       onChange={toggleAll} className="rounded border-gray-300 text-orange-500 cursor-pointer" />
                   </th>
-                  {["Name","Phone","Email Address","Credit Score","Verification Info","Approval",
+                  {["Name","Phone","Email Address","Credit Score","Verification Info","Approval","Verified",
                     "Num. of Products","Pending Balance","Wallet Balance","Guarantee Money","Views",
                     "Comment Permission","Home Display","Total recharge","Total withdrawal amount",
                     "Recharge difference","Salesman","Invitation Code","Identity Cards","Options"]
@@ -340,6 +340,18 @@ export default function SellersListPage() {
                         <button onClick={() => handleToggle(seller, "seller_approved", !seller.seller_approved)}
                           className={`w-9 h-5 rounded-full transition-colors relative ${seller.seller_approved ? "bg-emerald-500" : "bg-gray-200"}`}>
                           <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${seller.seller_approved ? "translate-x-4" : "translate-x-0.5"}`} />
+                        </button>
+                      </td>
+
+                      {/* Verified toggle */}
+                      <td className="px-3 py-3">
+                        <button onClick={async () => {
+                          const isVerified = !(seller.shops?.[0]?.is_verified ?? false);
+                          await patch(seller.id, { is_verified: isVerified });
+                          fetchSellers(); showToast(isVerified ? "Seller verified" : "Verification removed");
+                        }}
+                          className={`w-9 h-5 rounded-full transition-colors relative ${seller.shops?.[0]?.is_verified ? "bg-blue-500" : "bg-gray-200"}`}>
+                          <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${seller.shops?.[0]?.is_verified ? "translate-x-4" : "translate-x-0.5"}`} />
                         </button>
                       </td>
 

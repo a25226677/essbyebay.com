@@ -66,7 +66,7 @@ export async function GET() {
     // Shop info
     supabase
       .from("shops")
-      .select("id,name,is_verified,product_count,logo_url")
+      .select("id,name,is_verified,product_count,logo_url,rating")
       .eq("owner_id", userId)
       .maybeSingle(),
 
@@ -74,6 +74,15 @@ export async function GET() {
 
   const productCount = productsCountResult.count ?? 0;
   const shop = shopResult.data;
+
+  // Get seller views from profile
+  const { data: sellerProfile } = await supabase
+    .from("profiles")
+    .select("seller_views")
+    .eq("id", userId)
+    .maybeSingle();
+  const sellerViews = sellerProfile?.seller_views ?? 0;
+  const shopRating = Number(shop?.rating ?? 0);
 
   // Available balance: earned payouts minus completed withdrawals
   const totalPayouts = (payoutsResult.data ?? []).reduce(
@@ -148,6 +157,8 @@ export async function GET() {
       balance,
       totalOrders: orderIds.length,
       totalSales,
+      views: sellerViews,
+      rating: shopRating,
     },
     orders: orderBreakdown,
     categoryProducts,

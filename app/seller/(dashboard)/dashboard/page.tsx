@@ -11,11 +11,8 @@ import {
   Star,
   PlusCircle,
   ArrowUpRight,
-  Wallet,
-  Settings,
-  CreditCard,
-  PackagePlus,
   ShieldCheck,
+  ShieldX,
   ChevronLeft,
   ChevronRight,
   RefreshCw,
@@ -23,8 +20,8 @@ import {
 import { useEffect, useState } from "react";
 
 type DashboardData = {
-  shop: { id: string; name: string; is_verified: boolean; product_count: number; logo_url: string | null } | null;
-  stats: { productCount: number; balance: number; totalOrders: number; totalSales: number };
+  shop: { id: string; name: string; is_verified: boolean; product_count: number; logo_url: string | null; rating: number } | null;
+  stats: { productCount: number; balance: number; totalOrders: number; totalSales: number; views: number; rating: number };
   orders: { newOrder: number; cancelled: number; onDelivery: number; delivered: number };
   categoryProducts: { name: string; count: number }[];
   salesData: { month: string; amount: number }[];
@@ -73,9 +70,16 @@ export default function SellerDashboardPage() {
 
   const statCards = data
     ? [
-        { label: "Products", value: data.stats.productCount.toLocaleString(), icon: Package, color: "bg-sky-500", extra: true },
+        { label: "Products", value: data.stats.productCount.toLocaleString(), icon: Package, color: "bg-sky-500", extraContent: (
+          <div className="flex items-center gap-4 mt-3 text-xs opacity-90">
+            <span className="flex items-center gap-1"><Eye className="size-3" /> Views <strong className="ml-0.5">{(data.stats.views ?? 0).toLocaleString()}</strong></span>
+            <span className="flex items-center gap-1"><Star className="size-3" /> Ratings
+              <span className="flex gap-0.5 ml-1">{Array.from({ length: 5 }).map((_, i) => (<Star key={i} className={`size-3 ${i < Math.round(data.stats.rating ?? 0) ? "fill-yellow-300 text-yellow-300" : "text-white/50"}`} />))}</span>
+            </span>
+          </div>
+        ) },
         { label: "Total Shop Balance", value: formatCurrency(data.stats.balance), icon: DollarSign, color: "bg-green-500" },
-        { label: "Total Orders", value: data.stats.totalOrders.toLocaleString(), icon: ShoppingCart, color: "bg-sky-400" },
+        { label: "Total Order", value: data.stats.totalOrders.toLocaleString(), icon: ShoppingCart, color: "bg-sky-400" },
         { label: "Total Sales", value: formatCurrency(data.stats.totalSales), icon: TrendingUp, color: "bg-sky-600" },
       ]
     : [];
@@ -110,14 +114,7 @@ export default function SellerDashboardPage() {
                   <div>
                     <p className="text-sm font-medium opacity-90">{stat.label}</p>
                     <p className="text-2xl font-bold mt-1">{stat.value}</p>
-                    {stat.extra && (
-                      <div className="flex items-center gap-3 mt-2 text-xs opacity-80">
-                        <span className="flex items-center gap-1"><Eye className="size-3" /> Active</span>
-                        <span className="flex items-center gap-1">
-                          <ShieldCheck className="size-3" /> {data?.shop?.is_verified ? "Verified" : "Pending"}
-                        </span>
-                      </div>
-                    )}
+                    {"extraContent" in stat && stat.extraContent}
                   </div>
                   <Icon className="size-10 opacity-30" />
                 </div>
@@ -178,7 +175,7 @@ export default function SellerDashboardPage() {
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-sky-600 mb-1">Orders</h3>
-            <p className="text-xs text-gray-500 mb-4">All time summary</p>
+            <p className="text-xs text-gray-500 mb-4">This Month</p>
             {loading ? (
               <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
             ) : (
@@ -209,43 +206,26 @@ export default function SellerDashboardPage() {
           <div className="bg-white rounded-xl border border-gray-200 p-5 flex items-center justify-center">
             {loading ? (
               <Skeleton className="size-16 rounded-full" />
+            ) : data?.shop?.is_verified ? (
+              <div className="text-center">
+                <ShieldCheck className="size-20 text-amber-500 mx-auto" />
+                <div className="mt-2 px-4 py-1 bg-amber-50 border border-amber-200 rounded-full">
+                  <span className="text-sm font-bold text-amber-700 tracking-wider uppercase flex items-center gap-1.5 justify-center">
+                    <Star className="size-3.5 fill-amber-500 text-amber-500" />
+                    VERIFIED
+                    <Star className="size-3.5 fill-amber-500 text-amber-500" />
+                  </span>
+                </div>
+              </div>
             ) : (
               <div className="text-center">
-                <ShieldCheck className={`size-16 mx-auto ${data?.shop?.is_verified ? "text-green-500" : "text-gray-300"}`} />
-                <p className={`text-sm font-semibold mt-2 ${data?.shop?.is_verified ? "text-green-600" : "text-gray-400"}`}>
-                  {data?.shop?.is_verified ? "VERIFIED" : "PENDING VERIFICATION"}
-                </p>
+                <ShieldX className="size-16 text-gray-300 mx-auto" />
+                <p className="text-sm font-semibold text-red-400 mt-2">UNVERIFIED</p>
+                <p className="text-xs text-gray-400 mt-1">Awaiting admin verification</p>
               </div>
             )}
           </div>
         </div>
-      </div>
-
-      {/* ── Action Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[
-          { label: "Money Withdraw", icon: Wallet, href: "/seller/withdraw" },
-          { label: "Add New Product", icon: PackagePlus, href: "/seller/products/new" },
-          { label: "Shop Settings", icon: Settings, href: "/seller/settings", button: "Go to settings" },
-          { label: "Payment History", icon: CreditCard, href: "/seller/payments", button: "View History" },
-        ].map((card) => {
-          const Icon = card.icon;
-          return (
-            <Link
-              key={card.label}
-              href={card.href}
-              className="bg-white rounded-xl border border-gray-200 p-6 flex flex-col items-center text-center hover:shadow-md transition-shadow"
-            >
-              <Icon className="size-10 text-sky-500 mb-3" />
-              <p className="text-sm font-semibold text-gray-700">{card.label}</p>
-              {card.button && (
-                <span className="mt-3 px-4 py-1.5 bg-sky-500 text-white text-xs font-medium rounded-md">
-                  {card.button}
-                </span>
-              )}
-            </Link>
-          );
-        })}
       </div>
 
       {/* ── Top Products ── */}

@@ -9,6 +9,7 @@ export type UserData = {
   avatarUrl: string | null;
   creditScore: number;
   balance: number;
+  guaranteeMoney: number;
   shopName: string;
   isVerified: boolean;
 };
@@ -19,6 +20,7 @@ const DEFAULT: UserData = {
   avatarUrl: null,
   creditScore: 0,
   balance: 0,
+  guaranteeMoney: 0,
   shopName: "",
   isVerified: false,
 };
@@ -41,7 +43,7 @@ export function useUserData(): { user: UserData; loading: boolean } {
       const [{ data: profile }, { data: shop }] = await Promise.all([
         supabase
           .from("profiles")
-          .select("full_name, avatar_url, credit_score, balance")
+          .select("full_name, avatar_url, credit_score, balance, guarantee_money")
           .eq("id", authUser.id)
           .maybeSingle(),
         supabase
@@ -60,6 +62,7 @@ export function useUserData(): { user: UserData; loading: boolean } {
         avatarUrl: profile?.avatar_url || null,
         creditScore: profile?.credit_score ?? 0,
         balance: profile?.balance ?? 0,
+        guaranteeMoney: profile?.guarantee_money ?? 0,
         shopName: shop?.name || "",
         isVerified: shop?.is_verified ?? false,
       });

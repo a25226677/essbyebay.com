@@ -1,14 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   ShoppingCart,
   Search,
   Eye,
-  X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
-import { useEffect } from "react";
 
 type OrderItem = {
   id: string;
@@ -30,11 +29,11 @@ const statusColors: Record<string, string> = {
 };
 
 export default function OrdersPage() {
+  const router = useRouter();
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
   const [orders, setOrders] = useState<OrderItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [viewOrder, setViewOrder] = useState<OrderItem | null>(null);
 
   const tabs = [
     { label: "All", value: "all" },
@@ -219,7 +218,7 @@ export default function OrdersPage() {
                     <td className="px-4 py-3 text-gray-500">{order.date}</td>
                     <td className="px-4 py-3 text-right">
                       <button
-                        onClick={() => setViewOrder(order)}
+                        onClick={() => router.push(`/seller/orders/${order.id}`)}
                         className="size-7 rounded-full bg-sky-50 text-sky-600 inline-flex items-center justify-center hover:bg-sky-100"
                       >
                         <Eye className="size-3.5" />
@@ -233,23 +232,7 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      {/* Order Detail Modal */}
-      {viewOrder && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => setViewOrder(null)}>
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setViewOrder(null)} className="absolute top-3 right-3 p-1 rounded hover:bg-gray-100"><X className="size-4" /></button>
-            <h3 className="text-lg font-bold mb-4">Order Details</h3>
-            <dl className="space-y-2 text-sm">
-              <div className="flex justify-between"><dt className="text-gray-500">Order Code</dt><dd className="font-mono text-sky-600">{viewOrder.code}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Customer</dt><dd>{viewOrder.customer}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Amount</dt><dd className="font-semibold">${viewOrder.amount.toFixed(2)}</dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Delivery Status</dt><dd><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[viewOrder.deliveryStatus] || ""}`}>{viewOrder.deliveryStatus}</span></dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Payment Status</dt><dd><span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[viewOrder.paymentStatus] || ""}`}>{viewOrder.paymentStatus}</span></dd></div>
-              <div className="flex justify-between"><dt className="text-gray-500">Date</dt><dd>{viewOrder.date}</dd></div>
-            </dl>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 }
