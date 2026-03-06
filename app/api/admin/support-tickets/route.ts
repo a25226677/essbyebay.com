@@ -48,3 +48,30 @@ export async function PATCH(request: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
 }
+
+export async function POST(request: NextRequest) {
+  const context = await getAdminContext();
+  if (context instanceof NextResponse) return context;
+  const { db, userId } = context;
+
+  const body = await request.json();
+  const { seller_id, subject, message } = body;
+  if (!subject || !message) {
+    return NextResponse.json({ error: "subject and message required" }, { status: 400 });
+  }
+
+  const { data, error } = await db
+    .from("support_tickets")
+    .insert({
+      user_id: userId,
+      seller_id: seller_id || null,
+      subject,
+      message,
+      status: "open",
+    })
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true, ticket: data }, { status: 201 });
+}

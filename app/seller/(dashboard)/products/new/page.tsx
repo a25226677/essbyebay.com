@@ -371,19 +371,42 @@ export default function AddNewProductPage() {
                 <div className="border border-gray-200 rounded-md overflow-hidden">
                   {/* Toolbar */}
                   <div className="flex flex-wrap gap-1 p-2 border-b border-gray-100 bg-gray-50">
-                    {["B", "U", "I", "🔗", "≡", "≡", "≡", "⋮", "A▾", "⊞▾"].map(
-                      (btn, i) => (
-                        <button
-                          key={i}
-                          type="button"
-                          className="size-7 flex items-center justify-center text-xs text-gray-600 hover:bg-gray-200 rounded"
-                        >
-                          {btn}
-                        </button>
-                      )
-                    )}
+                    {[
+                      { label: "B", wrap: ["<b>", "</b>"] },
+                      { label: "U", wrap: ["<u>", "</u>"] },
+                      { label: "I", wrap: ["<i>", "</i>"] },
+                      { label: "🔗", wrap: ['<a href="">', "</a>"] },
+                      { label: "• List", wrap: ["<ul>\n<li>", "</li>\n</ul>"] },
+                      { label: "1. List", wrap: ["<ol>\n<li>", "</li>\n</ol>"] },
+                      { label: "H2", wrap: ["<h2>", "</h2>"] },
+                      { label: "P", wrap: ["<p>", "</p>"] },
+                    ].map((btn, i) => (
+                      <button
+                        key={i}
+                        type="button"
+                        className="px-2 h-7 flex items-center justify-center text-xs text-gray-600 hover:bg-gray-200 rounded font-medium"
+                        onClick={() => {
+                          const el = document.querySelector<HTMLTextAreaElement>("#product-desc");
+                          if (!el) return;
+                          const start = el.selectionStart;
+                          const end = el.selectionEnd;
+                          const text = formData.description;
+                          const selected = text.slice(start, end) || "text";
+                          const updated = text.slice(0, start) + btn.wrap[0] + selected + btn.wrap[1] + text.slice(end);
+                          handleChange("description", updated);
+                          setTimeout(() => {
+                            el.focus();
+                            const cursor = start + btn.wrap[0].length + selected.length + btn.wrap[1].length;
+                            el.setSelectionRange(cursor, cursor);
+                          }, 0);
+                        }}
+                      >
+                        {btn.label}
+                      </button>
+                    ))}
                   </div>
                   <textarea
+                    id="product-desc"
                     rows={6}
                     className="w-full p-3 text-sm resize-none outline-none"
                     placeholder="Write product description..."

@@ -105,6 +105,10 @@ export async function PATCH(request: Request, { params }: Params) {
       updates.is_featured = body.isFeatured;
     }
 
+    if (typeof body.isPromoted === "boolean") {
+      updates.is_promoted = body.isPromoted;
+    }
+
     if (typeof body.categoryName === "string" && body.categoryName.trim()) {
       updates.category_id = await getOrCreateCategoryId(supabase, body.categoryName);
     }

@@ -106,7 +106,7 @@ export default function SellerLoginPage() {
               <Input
                 id="email"
                 type="email"
-                placeholder="a25226677@gmail.com"
+                placeholder="seller@ecommerce-demo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

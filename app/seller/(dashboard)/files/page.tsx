@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { FileUploadDropzone } from "@/components/seller/file-upload-dropzone";
+import { toast } from "sonner";
 
 type StoredFile = {
   id: string;
@@ -280,6 +281,7 @@ export default function UploadedFilesPage() {
                         <button
                           onClick={() => {
                             navigator.clipboard.writeText(file.url);
+                            toast.success("URL copied to clipboard");
                           }}
                           className="p-1.5 text-gray-400 hover:text-sky-600 rounded-lg hover:bg-sky-50"
                           title="Copy URL"

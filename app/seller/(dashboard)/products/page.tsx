@@ -26,6 +26,7 @@ type ProductItem = {
   stock_count: number;
   is_active: boolean;
   is_featured: boolean;
+  is_promoted: boolean;
   image_url: string | null;
   categories?: { name: string } | null;
 };
@@ -129,6 +130,19 @@ export default function SellerProductsPage() {
     setProducts((prev) =>
       prev.map((item) =>
         item.id === product.id ? { ...item, is_featured: next } : item,
+      ),
+    );
+  };
+
+  const togglePromoted = async (product: ProductItem, next: boolean) => {
+    await fetch(`/api/seller/products/${product.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPromoted: next }),
+    });
+    setProducts((prev) =>
+      prev.map((item) =>
+        item.id === product.id ? { ...item, is_promoted: next } : item,
       ),
     );
   };
@@ -331,7 +345,7 @@ export default function SellerProductsPage() {
                       <ToggleSwitch active={product.is_featured || false} onChange={(next) => toggleFeatured(product, next)} />
                     </td>
                     <td className="px-4 py-3 text-center">
-                      <ToggleSwitch active={false} onChange={() => {}} />
+                      <ToggleSwitch active={product.is_promoted || false} onChange={(next) => togglePromoted(product, next)} />
                     </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-end gap-1">

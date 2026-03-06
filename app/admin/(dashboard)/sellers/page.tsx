@@ -184,9 +184,25 @@ export default function SellersListPage() {
   const handleMessage = async () => {
     if (!messageModal || !messageText.trim()) return;
     setActionLoading(true);
-    // message functionality - using support/notification
+    try {
+      const res = await fetch("/api/admin/support-tickets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          seller_id: messageModal.id,
+          subject: `Admin message to ${messageModal.full_name || "Seller"}`,
+          message: messageText.trim(),
+        }),
+      });
+      if (res.ok) {
+        showToast("Message sent to seller");
+      } else {
+        showToast("Failed to send message", false);
+      }
+    } catch {
+      showToast("Failed to send message", false);
+    }
     setActionLoading(false);
-    showToast("Message feature coming soon");
     setMessageModal(null); setMessageText("");
   };
 
