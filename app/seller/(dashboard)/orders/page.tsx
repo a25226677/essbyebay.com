@@ -1,31 +1,26 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import {
-  ShoppingCart,
-  Search,
-  Eye,
-} from "lucide-react";
-import { Input } from "@/components/ui/input";
+import { ShoppingCart, Eye, X } from "lucide-react";
 
 type OrderItem = {
   id: string;
   code: string;
+  num_products: number;
   customer: string;
   amount: number;
+  profit: number;
+  pickupStatus: string;
   deliveryStatus: string;
   paymentStatus: string;
   date: string;
 };
 
-const statusColors: Record<string, string> = {
-  Pending: "bg-amber-100 text-amber-700",
-  Delivered: "bg-green-100 text-green-700",
-  "On delivery": "bg-sky-100 text-sky-700",
-  Cancelled: "bg-red-100 text-red-700",
-  Paid: "bg-green-100 text-green-700",
-  Unpaid: "bg-red-100 text-red-700",
+type Stats = {
+  totalOrders: number;
+  totalTurnover: number;
+  totalProfit: number;
 };
 
 export default function OrdersPage() {

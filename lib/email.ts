@@ -389,3 +389,21 @@ export async function sendSupportTicketEmail(to: string, name: string, ticketId:
     `),
   });
 }
+
+// ─── OTP verification email ──────────────────────────────────
+export async function sendOtpEmail(to: string, code: string) {
+  return sendEmail({
+    to,
+    subject: `Your Verification Code – ${SITE_NAME}`,
+    html: emailLayout(`
+      <h2 style="margin:0 0 16px;color:#111827;font-size:20px">Email Verification</h2>
+      <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">
+        Use the following code to verify your email address. This code expires in 10 minutes.
+      </p>
+      <div style="background:#f5f3ff;border:1px solid #ddd6fe;border-radius:8px;padding:24px;margin:0 0 16px;text-align:center">
+        <p style="margin:0;font-size:32px;font-weight:700;letter-spacing:8px;color:#4f46e5">${code}</p>
+      </div>
+      <p style="color:#9ca3af;font-size:13px;margin:16px 0 0">If you didn't request this code, please ignore this email.</p>
+    `),
+  });
+}

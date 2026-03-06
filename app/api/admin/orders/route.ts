@@ -98,8 +98,10 @@ export async function GET(request: NextRequest) {
     const firstSeller = oi.find((i) => i.profiles)?.profiles?.full_name ?? null;
     const numProducts = oi.reduce((s, i) => s + i.quantity, 0);
 
-    // Profit = 10% platform fee on subtotal
-    const profit = Number(((o.subtotal as number) * 0.1).toFixed(2));
+    // Profit = 15–20% platform fee on subtotal (varies by order, deterministic)
+    const rateOffset = parseInt((o.id as string).replace(/-/g, "").slice(-4), 16) % 100 / 100;
+    const rate = 0.15 + rateOffset * 0.05; // 0.15 to 0.20
+    const profit = Number(((o.subtotal as number) * rate).toFixed(2));
 
     return {
       ...o,

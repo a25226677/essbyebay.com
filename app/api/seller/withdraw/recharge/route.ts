@@ -1,4 +1,5 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
+import { createAdminServiceClient } from "@/lib/supabase/admin-client";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -6,6 +7,9 @@ export async function POST(request: Request) {
   if (context instanceof NextResponse) return context;
 
   const { supabase, userId } = context;
+  // Service-role client bypasses RLS for trusted server-side inserts.
+  // The seller's identity is already verified above via getSellerContext.
+  const adminDb = createAdminServiceClient();
 
   try {
     const formData = await request.formData();
@@ -34,7 +38,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const { error } = await supabase.from("offline_recharges").insert({
+    const { error } = await adminDb.from("offline_recharges").insert({
       user_id: userId,
       amount,
       method,

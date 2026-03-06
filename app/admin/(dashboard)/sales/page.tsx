@@ -63,11 +63,14 @@ function DeliveryBadge({ status }: { status: string }) {
 function PaymentBadge({ status }: { status: string }) {
   const map: Record<string, { bg: string; color: string; label: string }> = {
     pending:   { bg: "#fee2e2", color: "#dc2626", label: "Un-Paid" },
+    unpaid:    { bg: "#fee2e2", color: "#dc2626", label: "Un-Paid" },
+    "un-paid": { bg: "#fee2e2", color: "#dc2626", label: "Un-Paid" },
     succeeded: { bg: "#d1fae5", color: "#059669", label: "Paid" },
+    paid:      { bg: "#d1fae5", color: "#059669", label: "Paid" },
     failed:    { bg: "#fee2e2", color: "#dc2626", label: "Failed" },
     refunded:  { bg: "#e0e7ff", color: "#4338ca", label: "Refunded" },
   };
-  const c = map[status] ?? { bg: "#f3f4f6", color: "#6b7280", label: status };
+  const c = map[status] ?? { bg: "#fee2e2", color: "#dc2626", label: "Un-Paid" };
   return (
     <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1 rounded-full whitespace-nowrap"
       style={{ background: c.bg, color: c.color }}>
@@ -273,7 +276,7 @@ export default function AllOrdersPage() {
                       <DeliveryBadge status={order.delivery_status || "pending"} />
                     </td>
                     <td className="px-4 py-3">
-                      <PaymentBadge status={order.payment_status || "pending"} />
+                      <PaymentBadge status={order.payment_status || "unpaid"} />
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-500">No Refund</td>
                     <td className="px-4 py-3">
