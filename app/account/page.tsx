@@ -1,14 +1,13 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { Button } from "@/components/ui/button";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import Link from "next/link";
+import { AccountSignOutButton } from "@/components/account/signout-button";
 import {
   User,
   Package,
   Heart,
   MapPin,
-  LogOut,
   ChevronRight,
 } from "lucide-react";
 
@@ -22,6 +21,16 @@ export default async function AccountPage() {
 
   if (!user) {
     redirect("/users/login");
+  }
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profile?.role === "admin") {
+    redirect("/admin/dashboard");
   }
 
   const fullName = user.user_metadata?.full_name || "Customer";
@@ -92,19 +101,9 @@ export default async function AccountPage() {
       </div>
 
       {/* Logout */}
-      <form
-        action={async () => {
-          "use server";
-          const supabase = await createClient();
-          await supabase.auth.signOut();
-          redirect("/users/login");
-        }}
-        className="mt-6"
-      >
-        <Button variant="outline" className="w-full gap-2 text-destructive">
-          <LogOut size={16} /> Sign Out
-        </Button>
-      </form>
+      <div className="mt-6">
+        <AccountSignOutButton />
+      </div>
     </div>
   );
 }

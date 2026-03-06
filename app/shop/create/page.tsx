@@ -86,11 +86,12 @@ export default function BecomeSellerPage() {
         return;
       }
 
-      // Create the shop
+      // Create the shop (seller_id = owner_id for migration-000012 compatibility)
       const { error: shopErr } = await supabase
         .from("shops")
         .insert({
           owner_id: user.id,
+          seller_id: user.id,
           name: form.shopName,
           slug,
           description: form.description || null,

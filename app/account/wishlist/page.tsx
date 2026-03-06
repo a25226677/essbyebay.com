@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { ArrowLeft, Heart, RefreshCw, Trash2 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
+import { toast } from "sonner";
 
 interface WishlistItem {
   id: string;
@@ -21,30 +22,64 @@ interface WishlistItem {
 
 export default function WishlistPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [items, setItems] = useState<WishlistItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { router.push("/users/login"); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/users/login?next=/account/wishlist");
+        return;
+      }
 
-    const { data } = await supabase
-      .from("wishlists")
-      .select("id, product:products(id, title, slug, price, image_url)")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: false });
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
 
-    setItems((data as WishlistItem[] | null) || []);
-    setLoading(false);
+      if (profile?.role === "admin") {
+        router.replace("/admin/dashboard");
+        return;
+      }
+
+      const { data, error: loadError } = await supabase
+        .from("wishlists")
+        .select("id, product:products(id, title, slug, price, image_url)")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+
+      if (loadError) {
+        setError(loadError.message || "Failed to load wishlist");
+        setItems([]);
+        return;
+      }
+
+      setItems((data as WishlistItem[] | null) || []);
+    } catch {
+      setError("Failed to load wishlist. Please try again.");
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
   }, [supabase, router]);
 
   useEffect(() => { load(); }, [load]);
 
   const handleRemove = async (id: string) => {
-    await supabase.from("wishlists").delete().eq("id", id);
+    const { error: deleteError } = await supabase.from("wishlists").delete().eq("id", id);
+    if (deleteError) {
+      toast.error(deleteError.message || "Failed to remove item");
+      return;
+    }
     setItems((prev) => prev.filter((i) => i.id !== id));
+    toast.success("Removed from wishlist");
   };
 
   if (loading) {
@@ -65,7 +100,20 @@ export default function WishlistPage() {
         </button>
         <h1 className="text-xl font-bold">Wishlist</h1>
         <span className="text-sm text-muted-foreground">({items.length})</span>
+        <button
+          onClick={load}
+          className="ml-1 p-2 rounded-lg hover:bg-gray-100"
+          title="Refresh wishlist"
+        >
+          <RefreshCw className="size-4 text-gray-500" />
+        </button>
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {items.length === 0 ? (
         <div className="text-center py-16 bg-white border rounded-lg">

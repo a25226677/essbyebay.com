@@ -16,5 +16,23 @@ export async function GET() {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  return NextResponse.json({ customers: data || [] });
+  const rows = data || [];
+
+  // Ensure POS dropdown always has a visible display name for each customer.
+  const customers = await Promise.all(
+    rows.map(async (c) => {
+      if (c.full_name && c.full_name.trim()) return c;
+
+      try {
+        const res = await db.auth.admin.getUserById(c.id);
+        const email = res.data.user?.email || "";
+        const fallbackName = email ? email.split("@")[0] : "Customer";
+        return { ...c, full_name: fallbackName };
+      } catch {
+        return { ...c, full_name: "Customer" };
+      }
+    }),
+  );
+
+  return NextResponse.json({ customers });
 }

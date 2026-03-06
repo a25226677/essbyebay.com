@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Plus, MapPin, Trash2, RefreshCw, Edit2 } from "lucide-react";
+import { toast } from "sonner";
 
 interface Address {
   id: string;
@@ -37,27 +38,56 @@ const emptyAddress = {
 
 export default function AddressesPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const [form, setForm] = useState(emptyAddress);
 
   const loadAddresses = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { router.push("/users/login"); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        router.replace("/users/login?next=/account/addresses");
+        return;
+      }
 
-    const { data } = await supabase
-      .from("addresses")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("is_default", { ascending: false });
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
 
-    setAddresses(data || []);
-    setLoading(false);
+      if (profile?.role === "admin") {
+        router.replace("/admin/dashboard");
+        return;
+      }
+
+      const { data, error: loadError } = await supabase
+        .from("addresses")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("is_default", { ascending: false });
+
+      if (loadError) {
+        setError(loadError.message || "Failed to load addresses");
+        setAddresses([]);
+        return;
+      }
+
+      setAddresses(data || []);
+    } catch {
+      setError("Failed to load addresses. Please try again.");
+      setAddresses([]);
+    } finally {
+      setLoading(false);
+    }
   }, [supabase, router]);
 
   useEffect(() => { loadAddresses(); }, [loadAddresses]);
@@ -65,9 +95,14 @@ export default function AddressesPage() {
   const handleSave = async () => {
     if (!form.full_name || !form.line_1 || !form.city || !form.state || !form.postal_code) return;
     setSaving(true);
+    setError("");
 
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) {
+      setSaving(false);
+      router.replace("/users/login?next=/account/addresses");
+      return;
+    }
 
     const record = {
       user_id: user.id,
@@ -83,9 +118,21 @@ export default function AddressesPage() {
     };
 
     if (editId) {
-      await supabase.from("addresses").update(record).eq("id", editId);
+      const { error: updateError } = await supabase.from("addresses").update(record).eq("id", editId);
+      if (updateError) {
+        setError(updateError.message || "Failed to update address");
+        setSaving(false);
+        return;
+      }
+      toast.success("Address updated");
     } else {
-      await supabase.from("addresses").insert(record);
+      const { error: insertError } = await supabase.from("addresses").insert(record);
+      if (insertError) {
+        setError(insertError.message || "Failed to save address");
+        setSaving(false);
+        return;
+      }
+      toast.success("Address saved");
     }
 
     setShowForm(false);
@@ -96,7 +143,12 @@ export default function AddressesPage() {
   };
 
   const handleDelete = async (id: string) => {
-    await supabase.from("addresses").delete().eq("id", id);
+    const { error: deleteError } = await supabase.from("addresses").delete().eq("id", id);
+    if (deleteError) {
+      toast.error(deleteError.message || "Failed to delete address");
+      return;
+    }
+    toast.success("Address deleted");
     loadAddresses();
   };
 
@@ -120,9 +172,18 @@ export default function AddressesPage() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     // Remove default from all
-    await supabase.from("addresses").update({ is_default: false }).eq("user_id", user.id);
+    const { error: resetError } = await supabase.from("addresses").update({ is_default: false }).eq("user_id", user.id);
+    if (resetError) {
+      toast.error(resetError.message || "Failed to set default address");
+      return;
+    }
     // Set new default
-    await supabase.from("addresses").update({ is_default: true }).eq("id", id);
+    const { error: setErrorValue } = await supabase.from("addresses").update({ is_default: true }).eq("id", id);
+    if (setErrorValue) {
+      toast.error(setErrorValue.message || "Failed to set default address");
+      return;
+    }
+    toast.success("Default address updated");
     loadAddresses();
   };
 
@@ -151,6 +212,12 @@ export default function AddressesPage() {
           </Button>
         )}
       </div>
+
+      {error && (
+        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          {error}
+        </div>
+      )}
 
       {showForm && (
         <div className="bg-white border rounded-lg p-6 mb-6 space-y-4">

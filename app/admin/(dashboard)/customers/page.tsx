@@ -145,7 +145,19 @@ export default function CustomersListPage() {
     const json = await res.json();
     setVirtualLoading(false);
     if (json.created) {
-      showToast(`${json.created} virtual customers created!`);
+      const hasErrors = Array.isArray(json.errors) && json.errors.length > 0;
+      showToast(
+        hasErrors
+          ? `${json.created} virtual customers created (some rows failed)`
+          : `${json.created} virtual customers created!`,
+        !hasErrors,
+      );
+
+      if (hasErrors) {
+        // Surface the first backend error for faster troubleshooting.
+        showToast(String(json.errors[0]), false);
+      }
+
       setShowVirtualModal(false);
       fetchCustomers();
     } else {

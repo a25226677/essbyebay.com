@@ -5,6 +5,7 @@ import { useState, useRef, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 const languages = [
   { code: "en", name: "English", flag: "🇺🇸" },
@@ -64,6 +65,7 @@ export function TopBar() {
     await supabase.auth.signOut();
     setUserRole(null);
     setIsLoggedIn(false);
+    toast.success("Signed out successfully");
     router.push("/");
     router.refresh();
   };
@@ -71,6 +73,7 @@ export function TopBar() {
   // Derive helper flags
   const isAdmin = userRole === "admin";
   const isSeller = userRole === "seller" || userRole === "admin";
+  const showSellLink = userRole !== "admin";
   const dashboardHref = isAdmin
     ? "/admin/dashboard"
     : isSeller
@@ -150,12 +153,14 @@ export function TopBar() {
 
         {/* Right - Links */}
         <div className="flex items-center gap-6 text-[12px]">
-          <Link 
-            href={isSeller ? "/seller/dashboard" : "/shop/create"} 
-            className="hover:text-white transition-colors"
-          >
-            Sell
-          </Link>
+          {showSellLink && (
+            <Link 
+              href={isSeller ? "/seller/dashboard" : "/shop/create"} 
+              className="hover:text-white transition-colors"
+            >
+              Sell
+            </Link>
+          )}
           {isLoggedIn ? (
             <>
               <Link

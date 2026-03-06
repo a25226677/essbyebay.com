@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
@@ -11,7 +11,7 @@ import { ArrowLeft, Save, RefreshCw } from "lucide-react";
 
 export default function ProfileSettingsPage() {
   const router = useRouter();
-  const supabase = createClient();
+  const supabase = useMemo(() => createClient(), []);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -26,24 +26,45 @@ export default function ProfileSettingsPage() {
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        router.push("/users/login");
-        return;
+      setLoading(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) {
+          router.replace("/users/login?next=/account/settings");
+          return;
+        }
+
+        const { data: roleProfile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (roleProfile?.role === "admin") {
+          router.replace("/admin/dashboard");
+          return;
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from("profiles")
+          .select("full_name, phone")
+          .eq("id", user.id)
+          .maybeSingle();
+
+        if (profileError) {
+          setError(profileError.message || "Failed to load profile");
+        }
+
+        setForm({
+          full_name: profile?.full_name || user.user_metadata?.full_name || "",
+          email: user.email || "",
+          phone: profile?.phone || "",
+        });
+      } catch {
+        setError("Failed to load profile settings");
+      } finally {
+        setLoading(false);
       }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("full_name, phone")
-        .eq("id", user.id)
-        .single();
-
-      setForm({
-        full_name: profile?.full_name || user.user_metadata?.full_name || "",
-        email: user.email || "",
-        phone: profile?.phone || "",
-      });
-      setLoading(false);
     }
     load();
   }, [supabase, router]);
@@ -55,7 +76,10 @@ export default function ProfileSettingsPage() {
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) {
+        setError("Your session has expired. Please login again.");
+        return;
+      }
 
       // Update profile table
       const { error: profErr } = await supabase
@@ -69,9 +93,14 @@ export default function ProfileSettingsPage() {
       }
 
       // Update auth metadata
-      await supabase.auth.updateUser({
+      const { error: updateUserError } = await supabase.auth.updateUser({
         data: { full_name: form.full_name.trim() },
       });
+
+      if (updateUserError) {
+        setError(updateUserError.message || "Failed to update profile");
+        return;
+      }
 
       setSuccess("Profile updated successfully!");
     } catch {

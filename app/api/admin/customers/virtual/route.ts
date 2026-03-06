@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     const initBalance  = Math.max(0, parseFloat(body.initial_balance || "0"));
     const disableLogin = Boolean(body.disable_login);
 
-    const created: string[] = [];
+    const created: Array<{ id: string; full_name: string; email: string }> = [];
     const errors: string[]  = [];
 
     for (let i = 0; i < quantity; i++) {
@@ -82,20 +82,38 @@ export async function POST(request: NextRequest) {
 
         const profileId = authData.user.id;
 
-        // Update profile with virtual fields
-        await db.from("profiles").update({
-          full_name:     fullName,
-          phone,
-          role:          "customer",
-          is_active:     !disableLogin,
-          is_virtual:    true,
-          disable_login: disableLogin,
-          wallet_balance: initBalance,
-          credit_score:  100,
-        }).eq("id", profileId);
+        // Always persist required profile fields first.
+        // Optional virtual-specific fields are updated separately for compatibility.
+        const { error: coreProfileErr } = await db
+          .from("profiles")
+          .update({
+            full_name: fullName,
+            phone,
+            role: "customer",
+            is_active: !disableLogin,
+          })
+          .eq("id", profileId);
+
+        if (coreProfileErr) {
+          await db.auth.admin.deleteUser(profileId).catch(() => {});
+          errors.push(`Row ${i + 1}: ${coreProfileErr.message}`);
+          continue;
+        }
+
+        // Optional columns may not exist in outdated DBs; keep non-blocking.
+        await db
+          .from("profiles")
+          .update({
+            is_virtual: true,
+            disable_login: disableLogin,
+            wallet_balance: initBalance,
+            credit_score: 100,
+          })
+          .eq("id", profileId)
+          .catch(() => {});
 
         // Create US address
-        await db.from("addresses").insert({
+        const { error: addressErr } = await db.from("addresses").insert({
           user_id:     profileId,
           label:       "Home",
           full_name:   fullName,
@@ -108,6 +126,12 @@ export async function POST(request: NextRequest) {
           is_default:  true,
         });
 
+        if (addressErr) {
+          await db.auth.admin.deleteUser(profileId).catch(() => {});
+          errors.push(`Row ${i + 1}: ${addressErr.message}`);
+          continue;
+        }
+
         // Seed wallet transaction if initial balance > 0
         if (initBalance > 0) {
           await db.from("wallet_transactions").insert({
@@ -119,7 +143,7 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        created.push(profileId);
+        created.push({ id: profileId, full_name: fullName, email });
       } catch (e) {
         errors.push(`Row ${i + 1}: ${e instanceof Error ? e.message : "unknown"}`);
       }
@@ -128,6 +152,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       created: created.length,
+      customers: created,
       errors:  errors.length > 0 ? errors.slice(0, 5) : undefined,
     });
   } catch {

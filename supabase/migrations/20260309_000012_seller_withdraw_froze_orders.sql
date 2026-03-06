@@ -14,6 +14,22 @@ END $$;
 -- Sync seller_id from owner_id
 UPDATE public.shops SET seller_id = owner_id WHERE seller_id IS NULL;
 
+-- Auto-sync seller_id = owner_id on new shop insert
+CREATE OR REPLACE FUNCTION public.sync_shop_seller_id()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.seller_id IS NULL THEN
+    NEW.seller_id := NEW.owner_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_shops_sync_seller_id ON public.shops;
+CREATE TRIGGER trg_shops_sync_seller_id
+  BEFORE INSERT ON public.shops
+  FOR EACH ROW EXECUTE FUNCTION public.sync_shop_seller_id();
+
 -- 2. Add is_verified and credit_score to profiles if not exists
 ALTER TABLE public.profiles
   ADD COLUMN IF NOT EXISTS is_verified       boolean       NOT NULL DEFAULT false,
@@ -82,18 +98,31 @@ ALTER TABLE public.orders
 ALTER TABLE public.froze_orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.guarantee_recharges ENABLE ROW LEVEL SECURITY;
 
+-- Helper function to check if current user is an admin
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS boolean AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.profiles
+    WHERE id = auth.uid() AND role = 'admin'
+  );
+$$ LANGUAGE sql SECURITY DEFINER STABLE;
+
 DROP POLICY IF EXISTS "sellers_own_froze_orders" ON public.froze_orders;
 CREATE POLICY "sellers_own_froze_orders" ON public.froze_orders
+  FOR ALL TO authenticated
   USING (seller_id = auth.uid()) WITH CHECK (seller_id = auth.uid());
 
 DROP POLICY IF EXISTS "admin_froze_orders" ON public.froze_orders;
 CREATE POLICY "admin_froze_orders" ON public.froze_orders
-  USING (true) WITH CHECK (true);
+  FOR ALL TO authenticated
+  USING (public.is_admin()) WITH CHECK (public.is_admin());
 
 DROP POLICY IF EXISTS "sellers_own_guarantee" ON public.guarantee_recharges;
 CREATE POLICY "sellers_own_guarantee" ON public.guarantee_recharges
+  FOR ALL TO authenticated
   USING (seller_id = auth.uid()) WITH CHECK (seller_id = auth.uid());
 
 DROP POLICY IF EXISTS "admin_guarantee" ON public.guarantee_recharges;
 CREATE POLICY "admin_guarantee" ON public.guarantee_recharges
-  USING (true) WITH CHECK (true);
+  FOR ALL TO authenticated
+  USING (public.is_admin()) WITH CHECK (public.is_admin());

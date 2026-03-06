@@ -49,7 +49,7 @@ export function useUserData(): { user: UserData; loading: boolean } {
         supabase
           .from("shops")
           .select("name, is_verified")
-          .eq("seller_id", authUser.id)
+          .eq("owner_id", authUser.id)
           .maybeSingle(),
       ]);
 

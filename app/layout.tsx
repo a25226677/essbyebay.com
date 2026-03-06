@@ -4,6 +4,7 @@ import "./globals.css";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { MobileBottomNav } from "@/components/header/mobile-bottom-nav";
+import { Toaster } from "sonner";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -45,6 +46,7 @@ export default function RootLayout({
         <main className="min-h-screen pb-14 md:pb-0">{children}</main>
         <Footer />
         <MobileBottomNav />
+        <Toaster position="top-right" richColors />
       </body>
     </html>
   );
