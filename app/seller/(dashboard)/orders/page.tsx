@@ -25,199 +25,200 @@ type Stats = {
 
 export default function OrdersPage() {
   const router = useRouter();
+  const [searchInput, setSearchInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
+  const [deliveryFilter, setDeliveryFilter] = useState("all");
   const [orders, setOrders] = useState<OrderItem[]>([]);
+  const [stats, setStats] = useState<Stats>({ totalOrders: 0, totalTurnover: 0, totalProfit: 0 });
   const [loading, setLoading] = useState(false);
 
-  const tabs = [
-    { label: "All", value: "all" },
-    { label: "Pending", value: "Pending" },
-    { label: "On Delivery", value: "On delivery" },
-    { label: "Delivered", value: "Delivered" },
-    { label: "Cancelled", value: "Cancelled" },
-  ];
-
-  useEffect(() => {
-    let active = true;
-
-    async function loadOrders() {
+  const fetchOrders = useCallback(
+    async (search: string, payment: string, delivery: string) => {
       setLoading(true);
-      const params = new URLSearchParams({
-        search: searchQuery,
-        status: activeTab,
-      });
-      const response = await fetch(`/api/seller/orders?${params.toString()}`, {
-        cache: "no-store",
-      });
-      const data = await response.json();
-
-      if (!active) return;
-
-      if (response.ok) {
+      const params = new URLSearchParams({ search, payment_status: payment, delivery_status: delivery });
+      const res = await fetch(`/api/seller/orders?${params.toString()}`, { cache: "no-store" });
+      const data = await res.json();
+      if (res.ok) {
         setOrders(data.items || []);
+        setStats(data.stats || { totalOrders: 0, totalTurnover: 0, totalProfit: 0 });
       } else {
         setOrders([]);
+        setStats({ totalOrders: 0, totalTurnover: 0, totalProfit: 0 });
       }
       setLoading(false);
-    }
+    },
+    []
+  );
 
-    loadOrders();
-    return () => {
-      active = false;
-    };
-  }, [searchQuery, activeTab]);
+  useEffect(() => {
+    fetchOrders(searchQuery, paymentFilter, deliveryFilter);
+  }, [fetchOrders, searchQuery, paymentFilter, deliveryFilter]);
 
-  const nextDeliveryStatus = (status: string) => {
-    if (status === "Pending") return "processing";
-    if (status === "Processing") return "shipped";
-    if (status === "On delivery") return "delivered";
-    return null;
+  const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") setSearchQuery(searchInput);
   };
 
-  const togglePaymentStatus = (status: string) =>
-    status === "Paid" ? "failed" : "succeeded";
-
-  const updateOrder = async (id: string, updates: Record<string, string>) => {
-    const response = await fetch(`/api/seller/orders/${id}`, {
+  const cancelOrder = async (id: string) => {
+    if (!confirm("Are you sure you want to cancel this order?")) return;
+    const res = await fetch(`/api/seller/orders/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updates),
+      body: JSON.stringify({ status: "cancelled" }),
     });
-
-    if (response.ok) {
-      const params = new URLSearchParams({
-        search: searchQuery,
-        status: activeTab,
-      });
-      const fresh = await fetch(`/api/seller/orders?${params.toString()}`, {
-        cache: "no-store",
-      });
-      const data = await fresh.json();
-      if (fresh.ok) setOrders(data.items || []);
-    }
+    if (res.ok) fetchOrders(searchQuery, paymentFilter, deliveryFilter);
   };
+
+  const statCards = [
+    { label: "Total orders", value: stats.totalOrders.toString() },
+    { label: "Total Turnover", value: `$${stats.totalTurnover.toFixed(2)}` },
+    { label: "Total Profit", value: `$${stats.totalProfit.toFixed(2)}` },
+  ];
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-semibold text-gray-800">Orders</h1>
-
-      {/* Tabs */}
-      <div className="flex gap-1 overflow-x-auto">
-        {tabs.map((tab) => (
-          <button
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            className={`px-4 py-2 text-sm font-medium rounded-t-lg whitespace-nowrap transition-colors ${
-              activeTab === tab.value
-                ? "bg-sky-500 text-white"
-                : "bg-white text-gray-600 hover:bg-gray-50 border border-gray-200"
-            }`}
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {statCards.map((card) => (
+          <div
+            key={card.label}
+            className="rounded-xl p-6 text-white text-center"
+            style={{ background: "linear-gradient(135deg, #7c3aed 0%, #db2777 100%)" }}
           >
-            {tab.label}
-          </button>
+            <div className="flex justify-center mb-3">
+              <div className="w-10 h-10 rounded-full border-2 border-white/50 flex items-center justify-center">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 11l5-5m0 0l5 5m-5-5v12" />
+                </svg>
+              </div>
+            </div>
+            <p className="text-2xl font-bold">{card.value}</p>
+            <p className="text-sm text-white/80 mt-1">{card.label}</p>
+          </div>
         ))}
       </div>
 
+      {/* Orders Table */}
       <div className="bg-white rounded-xl border border-gray-200">
-        <div className="flex items-center justify-between p-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-800">
-            Order List
-          </h2>
-          <div className="relative w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
-            <Input
-              placeholder="Search by order code..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-9 text-sm"
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 p-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-800">Orders</h2>
+          <div className="flex flex-wrap gap-2">
+            <select
+              value={paymentFilter}
+              onChange={(e) => setPaymentFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+            >
+              <option value="all">Filter by Payment Status</option>
+              <option value="Paid">Paid</option>
+              <option value="Un-Paid">Un-Paid</option>
+            </select>
+            <select
+              value={deliveryFilter}
+              onChange={(e) => setDeliveryFilter(e.target.value)}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400"
+            >
+              <option value="all">Filter by Deliver Status</option>
+              <option value="Pending">Pending</option>
+              <option value="On Delivery">On Delivery</option>
+              <option value="Delivered">Delivered</option>
+            </select>
+            <input
+              type="text"
+              placeholder="Type Order code & hit Enter"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              onKeyDown={handleSearchKeyDown}
+              className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 w-56"
             />
           </div>
         </div>
 
+        {/* Table */}
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 text-gray-500">
-                <th className="text-left px-4 py-3 font-medium">Order Code</th>
+              <tr className="border-b border-gray-100 bg-gray-50 text-gray-500">
+                <th className="text-left px-4 py-3 font-medium">#</th>
+                <th className="text-left px-4 py-3 font-medium">Order Code:</th>
+                <th className="text-left px-4 py-3 font-medium">Num. of Products</th>
                 <th className="text-left px-4 py-3 font-medium">Customer</th>
                 <th className="text-left px-4 py-3 font-medium">Amount</th>
-                <th className="text-left px-4 py-3 font-medium">
-                  Delivery Status
-                </th>
-                <th className="text-left px-4 py-3 font-medium">
-                  Payment Status
-                </th>
-                <th className="text-left px-4 py-3 font-medium">Date</th>
+                <th className="text-left px-4 py-3 font-medium">Profit</th>
+                <th className="text-left px-4 py-3 font-medium">Pick Up Status</th>
+                <th className="text-left px-4 py-3 font-medium">Delivery Status</th>
+                <th className="text-left px-4 py-3 font-medium">Payment Status</th>
                 <th className="text-right px-4 py-3 font-medium">Options</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-16 text-gray-500">
+                  <td colSpan={10} className="text-center py-16 text-gray-500">
                     Loading orders...
                   </td>
                 </tr>
               ) : orders.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="text-center py-16">
+                  <td colSpan={10} className="text-center py-16">
                     <ShoppingCart className="size-16 text-gray-300 mx-auto mb-4" />
-                    <p className="text-xl text-gray-500 font-medium">
-                      No orders found
-                    </p>
+                    <p className="text-xl text-gray-500 font-medium">No orders found</p>
                   </td>
                 </tr>
               ) : (
-                orders.map((order) => (
-                  <tr
-                    key={order.id}
-                    className="border-b border-gray-50 hover:bg-gray-50/50"
-                  >
-                    <td className="px-4 py-3 text-sky-600 font-medium">
-                      {order.code}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">
-                      {order.customer}
-                    </td>
-                    <td className="px-4 py-3 text-gray-700">${order.amount.toFixed(2)}</td>
+                orders.map((order, index) => (
+                  <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-4 py-3 text-gray-500">{index + 1}</td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = nextDeliveryStatus(order.deliveryStatus);
-                          if (next) updateOrder(order.id, { status: next });
-                        }}
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          statusColors[order.deliveryStatus] || ""
+                      <span
+                        className="text-sky-600 font-medium cursor-pointer hover:underline"
+                        onClick={() => router.push(`/seller/orders/${order.id}`)}
+                      >
+                        {order.code}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-700">{order.num_products}</td>
+                    <td className="px-4 py-3 text-gray-700">{order.customer}</td>
+                    <td className="px-4 py-3 text-gray-700">${order.amount.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-gray-700">${order.profit.toFixed(2)}</td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold text-white ${
+                          order.pickupStatus === "Picked Up" ? "bg-green-500" : "bg-red-500"
                         }`}
                       >
-                        {order.deliveryStatus}
-                      </button>
+                        {order.pickupStatus}
+                      </span>
                     </td>
+                    <td className="px-4 py-3 text-gray-700">{order.deliveryStatus}</td>
                     <td className="px-4 py-3">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          updateOrder(order.id, {
-                            paymentStatus: togglePaymentStatus(order.paymentStatus),
-                          })
-                        }
-                        className={`px-2 py-0.5 rounded text-xs font-medium ${
-                          statusColors[order.paymentStatus] || ""
+                      <span
+                        className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold text-white ${
+                          order.paymentStatus === "Paid" ? "bg-green-500" : "bg-red-500"
                         }`}
                       >
                         {order.paymentStatus}
-                      </button>
+                      </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-500">{order.date}</td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        onClick={() => router.push(`/seller/orders/${order.id}`)}
-                        className="size-7 rounded-full bg-sky-50 text-sky-600 inline-flex items-center justify-center hover:bg-sky-100"
-                      >
-                        <Eye className="size-3.5" />
-                      </button>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1.5">
+                        <button
+                          onClick={() => router.push(`/seller/orders/${order.id}`)}
+                          className="w-8 h-8 flex items-center justify-center rounded border border-sky-300 text-sky-500 hover:bg-sky-50 transition-colors"
+                          title="View"
+                        >
+                          <Eye className="size-4" />
+                        </button>
+                        {order.pickupStatus === "Unpicked Up" && (
+                          <button
+                            onClick={() => cancelOrder(order.id)}
+                            className="w-8 h-8 flex items-center justify-center rounded border border-red-300 text-red-500 hover:bg-red-50 transition-colors"
+                            title="Cancel"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -226,8 +227,6 @@ export default function OrdersPage() {
           </table>
         </div>
       </div>
-
-
     </div>
   );
 }
