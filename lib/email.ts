@@ -3,10 +3,10 @@ import { Resend } from "resend";
 // Initialize Resend client
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-const FROM_EMAIL = "eSeller Store Bay <noreply@Essbyebay.com>";
-const ADMIN_EMAIL = "admin@Essbyebay.com";
+const FROM_EMAIL = "eSeller Store Bay <noreply@esellersstorebay.com>";
+const ADMIN_EMAIL = "admin@esellersstorebay.com";
 const SITE_NAME = "eSeller Store Bay";
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://essbyebay.com";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://esellersstorebay.com";
 
 // ─── Email wrapper ────────────────────────────────────────────
 async function sendEmail({

@@ -56,9 +56,9 @@ const nextConfig: NextConfig = {
         hostname: "t3.gstatic.com",
       },
       {
-        // Official brand logos hosted on esellerstorebay.com
+        // Official brand logos hosted on esellersstorebay.com
         protocol: "https",
-        hostname: "esellerstorebay.com",
+        hostname: "esellersstorebay.com",
         pathname: "/public/uploads/**",
       },
       {

@@ -10,7 +10,7 @@ export default function SupportPolicyPage() {
       <div className="prose prose-sm max-w-none text-muted-foreground space-y-4">
         <p>
           Our support team is here to help you with any questions or concerns regarding your orders,
-          account, or any other matter related to Seller Store.
+          account, or any other matter related to eSeller Store Bay.
         </p>
 
         <h2 className="text-lg font-semibold text-foreground">Support Hours</h2>
@@ -21,7 +21,7 @@ export default function SupportPolicyPage() {
 
         <h2 className="text-lg font-semibold text-foreground">Contact Methods</h2>
         <ul className="list-disc pl-5 space-y-2">
-          <li><strong>Email:</strong> support@sellerstore.com</li>
+          <li><strong>Email:</strong> support@esellersstorebay.com</li>
           <li><strong>Phone:</strong> +1 (408) 555-0123</li>
           <li><strong>Live Chat:</strong> Available on our website during business hours</li>
         </ul>

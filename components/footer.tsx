@@ -49,7 +49,7 @@ export function Footer() {
               products across multiple categories, offering quality, convenience, and choice.
             </p>
             <p className="text-sm text-gray-400 leading-relaxed mb-8">
-              Built to support both buyers and sellers, Seller Store combines secure
+              Built to support both buyers and sellers, eSeller Store Bay combines secure
               technology, transparent reviews, and reliable service to deliver a refined online
               shopping experience. Our mission is to empower businesses and elevate everyday shopping through trust, innovation, and simplicity.
             </p>
@@ -142,7 +142,7 @@ export function Footer() {
               </div>
               <div>
                 <p className="text-gray-500 mb-1">Email:</p>
-                <p className="text-gray-400">info@esellerstorebay.com</p>
+                <p className="text-gray-400">info@esellersstorebay.com</p>
               </div>
             </div>
           </div>
@@ -208,7 +208,7 @@ export function Footer() {
       <div className="border-t border-[#1e2735]">
         <div className="max-w-[1340px] mx-auto px-4 py-5 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-gray-400">
-            Copyright &copy; {new Date().getFullYear()} Seller Store. All Rights Reserved.
+            Copyright &copy; {new Date().getFullYear()} eSeller Store Bay. All Rights Reserved.
           </p>
           <div className="flex items-center gap-1.5 flex-wrap justify-center">
             {([

@@ -173,7 +173,7 @@ export function BrandCard({ brand }: BrandCardProps) {
   if (
     brand.logo?.startsWith("http") &&
     !brand.logo.includes("logo.clearbit.com") &&
-    !brand.logo.includes("esellerstorebay.com") &&
+    !brand.logo.includes("esellersstorebay.com") &&
     !brand.logo.includes("cdn.simpleicons.org")
   ) {
     sources.push(brand.logo);

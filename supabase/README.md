@@ -12,10 +12,11 @@ Run the SQL migration in your Supabase project:
 
 In Supabase Dashboard → Authentication → URL Configuration:
 
-- Site URL: your app base URL (e.g. `http://localhost:3000`)
+- Site URL: `https://esellersstorebay.com`
 - Additional Redirect URLs should include:
   - `http://localhost:3000/auth/callback`
-  - `https://your-domain.com/auth/callback`
+  - `https://esellersstorebay.com/auth/callback`
+  - `https://www.esellersstorebay.com/auth/callback`
 
 Password reset now uses:
 
@@ -26,11 +27,30 @@ Password reset now uses:
 In `.env.local`:
 
 ```env
+NEXT_PUBLIC_SITE_URL=https://esellersstorebay.com
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
+RESEND_API_KEY=...
 ```
 
-## 4) Promote a user to seller/admin
+## 4) Hostinger deployment notes
+
+For Hostinger Node.js hosting:
+
+- Node version: use a current LTS release supported by Next.js 16
+- Install command: `npm install`
+- Build command: `npm run build`
+- Start command: `npm run start`
+- Application URL / public domain: `https://esellersstorebay.com`
+
+Make sure these environment variables are added in Hostinger:
+
+- `NEXT_PUBLIC_SITE_URL=https://esellersstorebay.com`
+- `NEXT_PUBLIC_SUPABASE_URL=...`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...`
+- `RESEND_API_KEY=...`
+
+## 5) Promote a user to seller/admin
 
 When a user signs up, a `profiles` row is auto-created by trigger with default role `customer`.
 
@@ -50,7 +70,7 @@ set role = 'admin'
 where id = 'USER_UUID_HERE';
 ```
 
-## 5) What is now protected
+## 6) What is now protected
 
 - `/account` requires login
 - Seller dashboard routes under `/seller/*` (except `/seller/login` and `/seller/create`) require login + `seller/admin` role

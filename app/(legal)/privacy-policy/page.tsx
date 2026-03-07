@@ -9,7 +9,7 @@ export default function PrivacyPolicyPage() {
       <h1 className="text-2xl font-bold mb-6">Privacy Policy</h1>
       <div className="prose prose-sm max-w-none text-muted-foreground space-y-4">
         <p>
-          At Seller Store, we take your privacy seriously. This Privacy Policy describes how we
+          At eSeller Store Bay, we take your privacy seriously. This Privacy Policy describes how we
           collect, use, and share information about you when you use our services.
         </p>
 
@@ -45,7 +45,7 @@ export default function PrivacyPolicyPage() {
         <h2 className="text-lg font-semibold text-foreground">Contact Us</h2>
         <p>
           If you have any questions about this Privacy Policy, please contact us at
-          privacy@sellerstore.com.
+          privacy@esellersstorebay.com.
         </p>
       </div>
     </div>

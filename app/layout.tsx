@@ -7,9 +7,11 @@ import { MobileBottomNav } from "@/components/header/mobile-bottom-nav";
 import { Toaster } from "sonner";
 import { ChatwayWidget } from "@/components/chatway-widget";
 
-const defaultUrl = process.env.VERCEL_URL
-  ? `https://${process.env.VERCEL_URL}`
-  : "http://localhost:3000";
+const defaultUrl = process.env.NEXT_PUBLIC_SITE_URL || (
+  process.env.NODE_ENV === "development"
+    ? "http://localhost:3000"
+    : "https://esellersstorebay.com"
+);
 
 export const metadata: Metadata = {
   metadataBase: new URL(defaultUrl),
