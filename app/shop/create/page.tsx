@@ -171,13 +171,17 @@ export default function RegisterShopPage() {
     userId: string,
     folder: string
   ): Promise<string | null> => {
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+    if (!allowedTypes.includes(file.type)) return null;
+    if (file.size > 5 * 1024 * 1024) return null;
+
     const supabase = createClient();
     const ext = file.name.split(".").pop();
     const path = `${userId}/${folder}/${Date.now()}.${ext}`;
 
     const { error } = await supabase.storage
       .from("seller-files")
-      .upload(path, file, { upsert: true });
+      .upload(path, file, { upsert: false });
 
     if (error) return null;
 
@@ -208,8 +212,8 @@ export default function RegisterShopPage() {
       setError("Phone number is required");
       return;
     }
-    if (form.password.length < 6) {
-      setError("Password must be at least 6 characters");
+    if (form.password.length < 8) {
+      setError("Password must be at least 8 characters");
       return;
     }
     if (form.password !== form.confirmPassword) {
@@ -283,8 +287,6 @@ export default function RegisterShopPage() {
           certificate_type: form.certificateType,
           certificate_front_url: certFrontUrl,
           certificate_back_url: certBackUrl,
-          invitation_code: form.invitationCode || null,
-          seller_approved: false,
         })
         .eq("id", user.id);
 

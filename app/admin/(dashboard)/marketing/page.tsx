@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Megaphone, Tag, ImageIcon, Plus, ToggleLeft, ToggleRight, Calendar, Trash2, RefreshCw } from "lucide-react";
+import { Megaphone, Tag, ImageIcon, Plus, ToggleLeft, ToggleRight, Trash2, RefreshCw, Edit, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -15,20 +17,26 @@ interface Banner {
   id: string; title: string; image_url: string; link_url: string | null;
   position: string; is_active: boolean; sort_order: number;
 }
+interface Campaign {
+  id: string; name: string; type: string; discount: string; start: string; end: string; status: "Active" | "Scheduled" | "Ended";
+}
 
-const campaigns = [
-  { id: "C001", name: "Spring Sale 2026", type: "Discount", discount: "20%", start: "Mar 1, 2026", end: "Mar 31, 2026", status: "Scheduled" },
-  { id: "C002", name: "Flash Friday Deals", type: "Flash Sale", discount: "30-50%", start: "Feb 28, 2026", end: "Mar 2, 2026", status: "Active" },
-  { id: "C003", name: "New User Promo", type: "Welcome", discount: "10%", start: "Jan 1, 2026", end: "Dec 31, 2026", status: "Active" },
-  { id: "C004", name: "Holiday Clearance", type: "Clearance", discount: "40%", start: "Jan 15, 2026", end: "Feb 15, 2026", status: "Ended" },
+const defaultCampaigns: Campaign[] = [
+  { id: "C001", name: "Spring Sale 2026", type: "Discount", discount: "20%", start: "2026-03-01", end: "2026-03-31", status: "Scheduled" },
+  { id: "C002", name: "Flash Friday Deals", type: "Flash Sale", discount: "30-50%", start: "2026-02-28", end: "2026-03-02", status: "Active" },
+  { id: "C003", name: "New User Promo", type: "Welcome", discount: "10%", start: "2026-01-01", end: "2026-12-31", status: "Active" },
+  { id: "C004", name: "Holiday Clearance", type: "Clearance", discount: "40%", start: "2026-01-15", end: "2026-02-15", status: "Ended" },
 ];
 
 export default function MarketingPage() {
   const [active, setActive] = useState<"campaigns" | "coupons" | "banners">("campaigns");
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [banners, setBanners] = useState<Banner[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>(defaultCampaigns);
   const [loadingCoupons, setLoadingCoupons] = useState(false);
   const [loadingBanners, setLoadingBanners] = useState(false);
+  const [campaignModal, setCampaignModal] = useState<Campaign | null>(null);
+  const [showCampaignForm, setShowCampaignForm] = useState(false);
 
   const fetchCoupons = useCallback(async () => {
     setLoadingCoupons(true);
@@ -71,10 +79,42 @@ export default function MarketingPage() {
     fetchCoupons();
   };
 
+  const saveCampaign = (data: Campaign) => {
+    if (campaigns.find(c => c.id === data.id)) {
+      setCampaigns(prev => prev.map(c => c.id === data.id ? data : c));
+      toast.success("Campaign updated");
+    } else {
+      setCampaigns(prev => [...prev, data]);
+      toast.success("Campaign created");
+    }
+    setShowCampaignForm(false);
+    setCampaignModal(null);
+  };
+
+  const deleteCampaign = (id: string) => {
+    if (!confirm("Delete this campaign?")) return;
+    setCampaigns(prev => prev.filter(c => c.id !== id));
+    toast.success("Campaign deleted");
+  };
+
+  const toggleCampaignStatus = (id: string) => {
+    setCampaigns(prev => prev.map(c => {
+      if (c.id !== id) return c;
+      const next = c.status === "Active" ? "Ended" : "Active";
+      return { ...c, status: next };
+    }));
+    toast.success("Campaign status updated");
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold text-gray-800">Marketing</h1>
+        {active === "campaigns" && (
+          <Button size="sm" className="gap-2" onClick={() => { setCampaignModal(null); setShowCampaignForm(true); }}>
+            <Plus className="size-4" /> New Campaign
+          </Button>
+        )}
         {active === "coupons" && (
           <Link href="/admin/marketing/coupons">
             <Button size="sm" className="gap-2"><Plus className="size-4" /> Manage Coupons</Button>
@@ -113,12 +153,21 @@ export default function MarketingPage() {
       {/* Campaigns Tab */}
       {active === "campaigns" && (
         <>
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 flex items-start gap-2">
-            <Megaphone className="size-4 text-amber-600 mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-amber-800">Sample Data</p>
-              <p className="text-xs text-amber-600">Campaigns are sample data for preview. Automated campaign scheduling will be available in a future update.</p>
+          {showCampaignForm && (
+            <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" onClick={() => { setShowCampaignForm(false); setCampaignModal(null); }}>
+              <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={e => e.stopPropagation()}>
+                <div className="flex items-center justify-between">
+                  <h3 className="font-bold text-gray-800">{campaignModal ? "Edit Campaign" : "New Campaign"}</h3>
+                  <button onClick={() => { setShowCampaignForm(false); setCampaignModal(null); }} className="p-1 hover:bg-gray-100 rounded-lg"><X className="size-4 text-gray-400" /></button>
+                </div>
+                <CampaignForm initial={campaignModal} onSave={saveCampaign} onCancel={() => { setShowCampaignForm(false); setCampaignModal(null); }} />
+              </div>
             </div>
+          )}
+          <div className="flex justify-end">
+            <Button size="sm" className="gap-2" onClick={() => { setCampaignModal(null); setShowCampaignForm(true); }}>
+              <Plus className="size-4" /> New Campaign
+            </Button>
           </div>
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
@@ -130,6 +179,7 @@ export default function MarketingPage() {
                     <th className="px-4 py-3 text-left">Discount</th>
                     <th className="px-4 py-3 text-left">Duration</th>
                     <th className="px-4 py-3 text-left">Status</th>
+                    <th className="px-4 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -138,17 +188,32 @@ export default function MarketingPage() {
                       <td className="px-4 py-3 text-xs font-semibold text-gray-800">{c.name}</td>
                       <td className="px-4 py-3 text-xs text-gray-600">{c.type}</td>
                       <td className="px-4 py-3 text-xs font-bold text-orange-600">{c.discount}</td>
-                      <td className="px-4 py-3 text-xs text-gray-500">
-                        <span className="flex items-center gap-1"><Calendar className="size-3" />{c.start} → {c.end}</span>
+                      <td className="px-4 py-3 text-xs text-gray-500 whitespace-nowrap">
+                        {new Date(c.start).toLocaleDateString()} → {new Date(c.end).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3">
-                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${
+                        <button onClick={() => toggleCampaignStatus(c.id)} className={`text-[10px] px-2 py-0.5 rounded-full font-medium cursor-pointer ${
                           c.status === "Active" ? "bg-green-100 text-green-700" :
                           c.status === "Scheduled" ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"
-                        }`}>{c.status}</span>
+                        }`}>{c.status}</button>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex items-center justify-end gap-1">
+                          <button onClick={() => { setCampaignModal(c); setShowCampaignForm(true); }} className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg" title="Edit">
+                            <Edit className="size-3.5" />
+                          </button>
+                          <button onClick={() => deleteCampaign(c.id)} className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg" title="Delete">
+                            <Trash2 className="size-3.5" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
+                  {campaigns.length === 0 && (
+                    <tr><td colSpan={6} className="py-12 text-center text-gray-400 text-sm">
+                      <Megaphone className="size-8 mx-auto mb-2 opacity-30" />No campaigns yet
+                    </td></tr>
+                  )}
                 </tbody>
               </table>
             </div>
@@ -259,5 +324,61 @@ export default function MarketingPage() {
         </div>
       )}
     </div>
+  );
+}
+
+function CampaignForm({ initial, onSave, onCancel }: { initial: Campaign | null; onSave: (c: Campaign) => void; onCancel: () => void }) {
+  const [form, setForm] = useState<Campaign>(initial || {
+    id: `C${String(Date.now()).slice(-4)}`,
+    name: "", type: "Discount", discount: "", start: "", end: "", status: "Scheduled",
+  });
+  const set = (key: keyof Campaign, val: string) => setForm(p => ({ ...p, [key]: val }));
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!form.name || !form.discount || !form.start || !form.end) {
+      toast.error("All fields are required");
+      return;
+    }
+    onSave(form);
+  };
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3">
+      <div className="space-y-1">
+        <Label>Campaign Name</Label>
+        <Input value={form.name} onChange={e => set("name", e.target.value)} placeholder="Spring Sale 2026" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Type</Label>
+          <select value={form.type} onChange={e => set("type", e.target.value)} className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white">
+            <option>Discount</option><option>Flash Sale</option><option>Welcome</option><option>Clearance</option><option>Seasonal</option>
+          </select>
+        </div>
+        <div className="space-y-1">
+          <Label>Discount</Label>
+          <Input value={form.discount} onChange={e => set("discount", e.target.value)} placeholder="20%" />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-1">
+          <Label>Start Date</Label>
+          <Input type="date" value={form.start} onChange={e => set("start", e.target.value)} />
+        </div>
+        <div className="space-y-1">
+          <Label>End Date</Label>
+          <Input type="date" value={form.end} onChange={e => set("end", e.target.value)} />
+        </div>
+      </div>
+      <div className="space-y-1">
+        <Label>Status</Label>
+        <select value={form.status} onChange={e => set("status", e.target.value as Campaign["status"])} className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm bg-white">
+          <option value="Scheduled">Scheduled</option><option value="Active">Active</option><option value="Ended">Ended</option>
+        </select>
+      </div>
+      <div className="flex gap-2 pt-2">
+        <Button type="button" variant="outline" onClick={onCancel} className="flex-1">Cancel</Button>
+        <Button type="submit" className="flex-1 bg-orange-500 hover:bg-orange-600 text-white">{initial ? "Update" : "Create"}</Button>
+      </div>
+    </form>
   );
 }

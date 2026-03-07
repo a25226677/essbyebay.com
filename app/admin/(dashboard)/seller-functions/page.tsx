@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Settings2, Percent, Globe, Bell, Truck, Package, CreditCard, Lock, X } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -28,25 +28,108 @@ export default function SellerFunctionsPage() {
   const [commissions, setCommissions] = useState<CommissionItem[]>(defaultCommissions);
   const [editingKey, setEditingKey] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
+  const [loadingSettings, setLoadingSettings] = useState(true);
+  const [savingSettings, setSavingSettings] = useState(false);
+  const [applyToAll, setApplyToAll] = useState(true);
+
+  const loadSettings = async () => {
+    setLoadingSettings(true);
+    try {
+      const res = await fetch("/api/admin/seller-functions/commission", {
+        cache: "no-store",
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load settings");
+
+      const settings = json.data as {
+        defaultRate: number;
+        vipRate: number;
+        newSellerRate: number;
+      };
+
+      setCommissions([
+        {
+          label: "Default Commission Rate",
+          value: `${settings.defaultRate}%`,
+          description: "Applied to all sellers",
+          key: "default",
+        },
+        {
+          label: "VIP Seller Rate",
+          value: `${settings.vipRate}%`,
+          description: "For sellers with >$50k monthly",
+          key: "vip",
+        },
+        {
+          label: "New Seller Rate",
+          value: `${settings.newSellerRate}%`,
+          description: "First 3 months of activity",
+          key: "new",
+        },
+      ]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load settings");
+    } finally {
+      setLoadingSettings(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadSettings();
+  }, []);
 
   const openEdit = (item: CommissionItem) => {
     setEditingKey(item.key);
     setEditValue(item.value.replace("%", ""));
   };
 
-  const saveEdit = () => {
+  const saveEdit = async () => {
     if (!editingKey) return;
     const num = parseFloat(editValue);
     if (isNaN(num) || num < 0 || num > 100) {
       toast.error("Enter a valid percentage (0-100)");
       return;
     }
-    setCommissions(prev => prev.map(c =>
-      c.key === editingKey ? { ...c, value: `${num}%` } : c
-    ));
-    toast.success("Commission rate updated");
-    setEditingKey(null);
-    setEditValue("");
+
+    const next = commissions.map((c) =>
+      c.key === editingKey ? { ...c, value: `${num}%` } : c,
+    );
+
+    const toNumber = (key: string, fallback: number) => {
+      const item = next.find((x) => x.key === key);
+      if (!item) return fallback;
+      const parsed = Number(item.value.replace("%", ""));
+      return Number.isNaN(parsed) ? fallback : parsed;
+    };
+
+    setSavingSettings(true);
+    try {
+      const res = await fetch("/api/admin/seller-functions/commission", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          defaultRate: toNumber("default", 5),
+          vipRate: toNumber("vip", 3),
+          newSellerRate: toNumber("new", 7),
+          applyToAllSellers: applyToAll,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to save settings");
+
+      setCommissions(next);
+      toast.success(
+        applyToAll
+          ? `Commission rates updated. Applied to ${json?.data?.affectedPayouts ?? 0} unpaid payouts.`
+          : "Commission rates updated",
+      );
+      setEditingKey(null);
+      setEditValue("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update rate");
+    } finally {
+      setSavingSettings(false);
+    }
   };
 
   return (
@@ -82,10 +165,14 @@ export default function SellerFunctionsPage() {
               <p className="text-2xl font-bold text-blue-600 my-1">{item.value}</p>
               <p className="text-[10px] text-gray-400">{item.description}</p>
               <button onClick={() => openEdit(item)}
-                className="mt-2 text-xs text-blue-500 hover:underline">Edit</button>
+                disabled={loadingSettings || savingSettings}
+                className="mt-2 text-xs text-blue-500 hover:underline disabled:opacity-40">Edit</button>
             </div>
           ))}
         </div>
+        {loadingSettings && (
+          <p className="text-xs text-gray-400 mt-3">Loading saved commission settings...</p>
+        )}
       </div>
 
       {/* Edit Commission Modal */}
@@ -111,10 +198,18 @@ export default function SellerFunctionsPage() {
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm">%</span>
               </div>
+              <label className="flex items-center gap-2 text-xs text-gray-600 pt-1">
+                <input
+                  type="checkbox"
+                  checked={applyToAll}
+                  onChange={(e) => setApplyToAll(e.target.checked)}
+                />
+                Apply default commission to all sellers (unpaid payouts)
+              </label>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
               <button onClick={() => setEditingKey(null)} className="text-sm text-gray-600 px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50">Cancel</button>
-              <button onClick={saveEdit} className="text-sm font-semibold bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-xl">Save</button>
+              <button onClick={saveEdit} disabled={savingSettings} className="text-sm font-semibold bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-xl disabled:opacity-60">{savingSettings ? "Saving..." : "Save"}</button>
             </div>
           </div>
         </div>

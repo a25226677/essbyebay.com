@@ -39,6 +39,11 @@ export default function BannersPage() {
   useEffect(() => { load(); }, [load]);
 
   const handleFile = (f: File | null) => {
+    if (f) {
+      const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+      if (!allowedTypes.includes(f.type)) { alert("Only JPEG, PNG, WebP, or GIF images are allowed."); return; }
+      if (f.size > 5 * 1024 * 1024) { alert("Image must be under 5MB."); return; }
+    }
     setFile(f);
     if (f) { const r = new FileReader(); r.onload = () => setPreview(r.result as string); r.readAsDataURL(f); }
     else setPreview("");
@@ -48,7 +53,7 @@ export default function BannersPage() {
     const supabase = createClient();
     const ext = f.name.split(".").pop();
     const path = `banners/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-    const { error } = await supabase.storage.from("product-images").upload(path, f, { contentType: f.type, upsert: true });
+    const { error } = await supabase.storage.from("product-images").upload(path, f, { contentType: f.type, upsert: false });
     if (error) throw error;
     const { data } = supabase.storage.from("product-images").getPublicUrl(path);
     return data.publicUrl;

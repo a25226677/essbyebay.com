@@ -214,7 +214,11 @@ export default function SellerOrdersPage() {
                       {(order.payment_method || "—").replace(/_/g, " ")}
                     </td>
                     <td className="px-4 py-3"><PaymentBadge status={order.payment_status || "pending"} /></td>
-                    <td className="px-4 py-3 text-xs text-gray-400">No Refund</td>
+                    <td className="px-4 py-3 text-xs">
+                      {order.status === "refunded" || order.payment_status === "refunded"
+                        ? <span className="text-purple-600 font-medium">Refunded</span>
+                        : <span className="text-gray-400">No Refund</span>}
+                    </td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         <button onClick={() => router.push(`/admin/sales/${order.id}`)} title="View"

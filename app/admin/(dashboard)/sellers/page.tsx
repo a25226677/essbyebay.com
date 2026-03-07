@@ -2,18 +2,22 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import {
-  RefreshCw, ChevronLeft, ChevronRight, Eye, EyeOff, Trash2, X,
-  Plus, DollarSign, MoreVertical, MessageSquare, Check, Ban
+  RefreshCw, ChevronLeft, ChevronRight, X,
+  Plus, DollarSign, MoreVertical, MessageSquare
 } from "lucide-react";
 
 type Seller = {
   id: string; full_name: string | null; email: string | null; phone: string | null;
-  avatar_url: string | null; is_active: boolean; is_virtual: boolean; seller_approved: boolean;
-  wallet_balance: number; credit_score: number; package: string | null; guarantee_money: number;
-  pending_balance: number; seller_views: number; comment_permission: boolean; home_display: boolean;
-  verification_info: string | null; invitation_code: string | null; salesman_id: string | null;
-  identity_card_url: string | null; total_recharge: number; total_withdrawn: number;
+  avatar_url: string | null; is_active: boolean; is_virtual: boolean;
+  seller_approved?: boolean; is_verified?: boolean;
+  wallet_balance: number; credit_score: number; package: string | null;
+  guarantee_money?: number; pending_balance?: number; seller_views?: number;
+  comment_permission?: boolean; home_display?: boolean;
+  verification_info?: string | null; invitation_code?: string | null;
+  salesman_id?: string | null; identity_card_url?: string | null;
+  total_recharge?: number; total_withdrawn?: number;
   created_at: string; shops: { name: string; product_count: number; is_verified?: boolean }[];
 };
 type Pagination = { page: number; limit: number; total: number; pages: number };
@@ -41,14 +45,13 @@ export default function SellersListPage() {
   const [guaranteeModal, setGuaranteeModal] = useState<Seller | null>(null);
   const [rechargeModal,  setRechargeModal]  = useState<Seller | null>(null);
   const [messageModal,   setMessageModal]   = useState<Seller | null>(null);
-  const [balanceModal,   setBalanceModal]   = useState<Seller | null>(null);
   const [packageModal,   setPackageModal]   = useState<Seller | null>(null);
   const [guaranteeAmt, setGuaranteeAmt]     = useState("");
   const [rechargeAmt,  setRechargeAmt]      = useState("");
   const [messageText,  setMessageText]      = useState("");
-  const [balanceAmt,   setBalanceAmt]       = useState("");
   const [packageVal,   setPackageVal]       = useState("");
   const [actionLoading, setActionLoading]   = useState(false);
+  const [loginAsSellerId, setLoginAsSellerId] = useState<string | null>(null);
 
   // Toast
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -88,7 +91,7 @@ export default function SellersListPage() {
   }, []);
 
   const toggleSelect = (id: string) => {
-    setSelected(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    setSelected(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   };
   const toggleAll = () => {
     if (selected.size === sellers.length) setSelected(new Set());
@@ -163,16 +166,6 @@ export default function SellersListPage() {
     setRechargeModal(null); setRechargeAmt(""); fetchSellers();
   };
 
-  const handleBalance = async () => {
-    if (!balanceModal) return;
-    const amt = parseFloat(balanceAmt);
-    if (isNaN(amt)) return;
-    setActionLoading(true);
-    await patch(balanceModal.id, { wallet_balance: amt });
-    setActionLoading(false); showToast("Balance updated");
-    setBalanceModal(null); setBalanceAmt(""); fetchSellers();
-  };
-
   const handlePackage = async () => {
     if (!packageModal) return;
     setActionLoading(true);
@@ -204,6 +197,35 @@ export default function SellersListPage() {
     }
     setActionLoading(false);
     setMessageModal(null); setMessageText("");
+  };
+
+  const handleLoginAsSeller = async (seller: Seller) => {
+    setLoginAsSellerId(seller.id);
+    try {
+      showToast("Preparing seller session...");
+      const res = await fetch("/api/admin/sellers/login-as", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerId: seller.id }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        showToast(json.error || "Unable to login as seller", false);
+        return;
+      }
+
+      if (!json.actionLink) {
+        showToast("Seller login link was not generated", false);
+        return;
+      }
+
+      window.location.assign(json.actionLink);
+    } catch {
+      showToast("Unable to login as seller", false);
+    } finally {
+      setLoginAsSellerId(null);
+    }
   };
 
   const offset = (page - 1) * pagination.limit;
@@ -304,7 +326,7 @@ export default function SellersListPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50">
-                {sellers.map((seller, idx) => {
+                {sellers.map((seller) => {
                   const shopName = seller.shops?.[0]?.name || null;
                   const productCount = seller.shops?.[0]?.product_count ?? 0;
                   const rechargeDiff = Number(seller.total_recharge ?? 0) - Number(seller.total_withdrawn ?? 0);
@@ -431,7 +453,7 @@ export default function SellersListPage() {
                       {/* Identity Cards */}
                       <td className="px-3 py-3">
                         {seller.identity_card_url ? (
-                          <img src={seller.identity_card_url} alt="ID" className="w-10 h-8 object-cover rounded border border-gray-200" />
+                          <Image src={seller.identity_card_url} alt="ID" width={40} height={32} className="w-10 h-8 object-cover rounded border border-gray-200" />
                         ) : (
                           <div className="w-10 h-8 rounded border border-dashed border-gray-200 bg-gray-50 flex items-center justify-center text-gray-300 text-[10px]">ID</div>
                         )}
@@ -447,6 +469,7 @@ export default function SellersListPage() {
                           {openMenu === seller.id && (
                             <div className="absolute right-0 top-8 z-50 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 min-w-[170px]">
                               {[
+                                { label: "Login as this seller", action: () => handleLoginAsSeller(seller) },
                                 { label: "Profile",         action: () => router.push(`/admin/sellers/${seller.id}`) },
                                 { label: "Go to Payment",   action: () => router.push(`/admin/sellers/payout-requests?seller_id=${seller.id}`) },
                                 { label: "Payment History", action: () => router.push(`/admin/sellers/payouts?seller_id=${seller.id}`) },
@@ -459,8 +482,9 @@ export default function SellersListPage() {
                                 { label: "Update Balance",  action: () => { setRechargeModal(seller); setRechargeAmt(""); setOpenMenu(null); } },
                               ].map(item => (
                                 <button key={item.label} onClick={() => { item.action(); setOpenMenu(null); }}
+                                  disabled={item.label === "Login as this seller" && loginAsSellerId === seller.id}
                                   className={`block w-full text-left px-4 py-2 text-xs ${(item as { danger?: boolean }).danger ? "text-red-600 hover:bg-red-50" : "text-gray-700 hover:bg-gray-50"} transition-colors`}>
-                                  {item.label}
+                                  {item.label === "Login as this seller" && loginAsSellerId === seller.id ? "Logging in..." : item.label}
                                 </button>
                               ))}
                             </div>

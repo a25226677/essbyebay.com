@@ -154,10 +154,12 @@ export default function MoneyWithdrawPage() {
     try {
       const amt = parseFloat(rAmount);
       if (!amt || amt <= 0) throw new Error("Enter a valid amount");
+      if (!rPhoto) throw new Error("Payment proof image is required");
+
       const formData = new FormData();
       formData.append("amount", String(amt));
       formData.append("method", rSelectedMethod);
-      if (rPhoto) formData.append("photo", rPhoto);
+      formData.append("photo", rPhoto);
 
       const res = await fetch("/api/seller/withdraw/recharge", {
         method: "POST",
@@ -165,7 +167,11 @@ export default function MoneyWithdrawPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed");
-      showMsg("Recharge request submitted!");
+      showMsg(
+        json.txn_id
+          ? `Recharge request submitted! Transaction ID: ${json.txn_id}`
+          : "Recharge request submitted!",
+      );
       setShowRechargeModal(false);
       setRAmount(""); setRPhoto(null);
       await loadData();

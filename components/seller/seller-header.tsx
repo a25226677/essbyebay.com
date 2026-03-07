@@ -26,9 +26,18 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
 
   const handleSignOut = async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/seller/login");
+    const { error } = await supabase.auth.signOut({ scope: "global" });
+
+    if (error) {
+      toast.error(error.message || "Failed to sign out");
+      return;
+    }
+
+    setUserMenuOpen(false);
+    router.replace("/seller/login");
     router.refresh();
+    // Force a full navigation to avoid stale authenticated UI state.
+    setTimeout(() => window.location.assign("/seller/login"), 50);
   };
 
   // Close dropdown on outside click

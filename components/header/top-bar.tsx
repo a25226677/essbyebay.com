@@ -7,6 +7,15 @@ import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
+type UserRole = "admin" | "seller" | "customer";
+
+function normalizeRole(role: unknown): UserRole | null {
+  if (role === "admin" || role === "seller" || role === "customer") {
+    return role;
+  }
+  return null;
+}
+
 const languages = [
   { code: "en", name: "English", flag: "🇺🇸" },
   { code: "pt-pt", name: "Portuguese (Portugal)", flag: "🇵🇹" },
@@ -24,38 +33,52 @@ export function TopBar() {
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [selectedLang, setSelectedLang] = useState(languages[0]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
+  const [roleResolved, setRoleResolved] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const supabase = createClient();
 
+    const resolveRole = async (userId: string, metadataRole: unknown) => {
+      const fallbackRole = normalizeRole(metadataRole);
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", userId)
+        .maybeSingle();
+
+      return normalizeRole(profile?.role) ?? fallbackRole;
+    };
+
+    const syncAuthState = async (
+      session: Awaited<ReturnType<typeof supabase.auth.getSession>>["data"]["session"]
+    ) => {
+      if (!session?.user) {
+        setIsLoggedIn(false);
+        setUserRole(null);
+        setRoleResolved(true);
+        return;
+      }
+
+      setIsLoggedIn(true);
+      setRoleResolved(false);
+      const role = await resolveRole(
+        session.user.id,
+        session.user.user_metadata?.role ?? session.user.app_metadata?.role
+      );
+      setUserRole(role);
+      setRoleResolved(true);
+    };
+
     const loadSession = async () => {
       const { data } = await supabase.auth.getSession();
-      setIsLoggedIn(!!data.session);
-      if (data.session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", data.session.user.id)
-          .maybeSingle();
-        setUserRole(profile?.role ?? null);
-      }
+      await syncAuthState(data.session);
     };
-    loadSession();
+    void loadSession();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setIsLoggedIn(!!session);
-      if (session?.user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("role")
-          .eq("id", session.user.id)
-          .maybeSingle();
-        setUserRole(profile?.role ?? null);
-      } else {
-        setUserRole(null);
-      }
+      await syncAuthState(session);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -73,7 +96,9 @@ export function TopBar() {
   // Derive helper flags
   const isAdmin = userRole === "admin";
   const isSeller = userRole === "seller" || userRole === "admin";
-  const showSellLink = userRole !== "admin";
+  const showSellLink =
+    !isLoggedIn ||
+    (roleResolved && (userRole === "customer" || userRole === "seller"));
   const dashboardHref = isAdmin
     ? "/admin/dashboard"
     : isSeller

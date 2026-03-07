@@ -53,7 +53,25 @@ export async function POST(request: NextRequest) {
   const { db } = context;
 
   const body = await request.json();
-  const { data, error } = await db.from("products").insert(body).select().single();
+
+  // Whitelist allowed fields to prevent injection of arbitrary columns
+  const allowed: Record<string, unknown> = {};
+  const ALLOWED_KEYS = [
+    "title", "slug", "sku", "price", "compare_at_price", "stock_count",
+    "category_id", "brand_id", "seller_id", "shop_id",
+    "image_url", "gallery_urls", "description", "short_description",
+    "is_active", "today_deal", "is_featured", "meta_title", "meta_description",
+    "tags", "unit", "min_purchase_qty", "refundable", "free_shipping",
+  ] as const;
+  for (const key of ALLOWED_KEYS) {
+    if (body[key] !== undefined) allowed[key] = body[key];
+  }
+
+  if (!allowed.title) {
+    return NextResponse.json({ error: "Product title is required." }, { status: 400 });
+  }
+
+  const { data, error } = await db.from("products").insert(allowed).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ item: data }, { status: 201 });
 }

@@ -5,6 +5,7 @@ import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { MobileBottomNav } from "@/components/header/mobile-bottom-nav";
 import { Toaster } from "sonner";
+import { ChatwayWidget } from "@/components/chatway-widget";
 
 const defaultUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
@@ -47,6 +48,7 @@ export default function RootLayout({
         <Footer />
         <MobileBottomNav />
         <Toaster position="top-right" richColors />
+        <ChatwayWidget />
       </body>
     </html>
   );

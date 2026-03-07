@@ -23,10 +23,10 @@ export async function POST(request: Request) {
 
     if (photo && photo.size > 0) {
       const ext = photo.name.split(".").pop() || "jpg";
-      const path = `guarantee/${userId}/${Date.now()}.${ext}`;
+      const path = `${userId}/guarantee/${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
         .from("seller-files")
-        .upload(path, photo, { contentType: photo.type });
+        .upload(path, photo, { contentType: photo.type, upsert: false });
 
       if (!uploadError) {
         const { data: urlData } = supabase.storage

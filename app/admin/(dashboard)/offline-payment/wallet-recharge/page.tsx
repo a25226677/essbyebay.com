@@ -125,7 +125,22 @@ export default function OfflineWalletRechargePage() {
                   <td className="px-3 py-3 text-gray-500 font-mono text-xs">{item.txn_id || "—"}</td>
                   <td className="px-3 py-3">
                     {item.photo_url ? (
-                      <a href={item.photo_url} target="_blank" rel="noopener" className="text-orange-500 text-xs font-medium hover:underline">Open Reciept</a>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setViewItem(item)}
+                          className="inline-flex items-center gap-1 text-sky-600 text-xs font-medium hover:underline"
+                        >
+                          <Eye className="size-3.5" /> View
+                        </button>
+                        <a
+                          href={item.photo_url}
+                          target="_blank"
+                          rel="noopener"
+                          className="text-orange-500 text-xs font-medium hover:underline"
+                        >
+                          Open Receipt
+                        </a>
+                      </div>
                     ) : <span className="text-gray-300 text-xs">—</span>}
                   </td>
                   <td className="px-3 py-3">
@@ -152,6 +167,42 @@ export default function OfflineWalletRechargePage() {
           </div>
         )}
       </div>
+
+      {viewItem && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
+          onClick={() => setViewItem(null)}
+        >
+          <div
+            className="w-full max-w-2xl bg-white rounded-xl shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-semibold text-gray-800">Recharge Proof</h3>
+                <p className="text-xs text-gray-500 mt-0.5">TXN ID: {viewItem.txn_id || "—"}</p>
+              </div>
+              <button
+                onClick={() => setViewItem(null)}
+                className="px-2.5 py-1.5 text-xs rounded-md border border-gray-200 hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
+            <div className="p-4 bg-gray-50">
+              {viewItem.photo_url ? (
+                <img
+                  src={viewItem.photo_url}
+                  alt="Recharge proof"
+                  className="max-h-[70vh] w-full object-contain rounded-lg border border-gray-200 bg-white"
+                />
+              ) : (
+                <div className="text-sm text-gray-500">No receipt image available.</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

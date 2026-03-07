@@ -205,10 +205,7 @@ export default function AdminOrdersPage() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
-                      onClick={() => {
-                        const d = document.getElementById(`order-detail-${item.id}`);
-                        if (d) d.classList.toggle("hidden");
-                      }}
+                      onClick={() => window.location.href = `/admin/sales/${item.id}`}
                       className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
                       title="View order"
                     >

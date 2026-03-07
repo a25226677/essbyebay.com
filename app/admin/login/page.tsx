@@ -27,13 +27,13 @@ export default function AdminLoginPage() {
   useEffect(() => {
     const supabase = createClient();
     supabase.auth
-      .getSession()
+      .getUser()
       .then(async ({ data }) => {
-        if (data.session?.user) {
+        if (data.user) {
           const { data: profile } = await supabase
             .from("profiles")
             .select("role")
-            .eq("id", data.session.user.id)
+            .eq("id", data.user.id)
             .maybeSingle();
 
           if (profile?.role === "admin") {
@@ -45,7 +45,7 @@ export default function AdminLoginPage() {
           const errParam = searchParams.get("error");
           if (errParam === "not_admin" || profile?.role) {
             setNonAdminUser({
-              email: data.session.user.email || "",
+              email: data.user.email || "",
               role: profile?.role || "user",
             });
           }

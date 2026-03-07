@@ -63,6 +63,17 @@ export default function AddProductPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Validate file type and size
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) {
+      setError("Only JPEG, PNG, WebP, and GIF images are allowed.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError("Image must be under 5MB.");
+      return;
+    }
+
     // Preview
     const reader = new FileReader();
     reader.onloadend = () => setImagePreview(reader.result as string);

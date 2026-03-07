@@ -33,8 +33,7 @@ export function useUserData(): { user: UserData; loading: boolean } {
     const supabase = createClient();
 
     const load = async () => {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const authUser = sessionData.session?.user;
+      const { data: { user: authUser } } = await supabase.auth.getUser();
       if (!authUser) {
         setLoading(false);
         return;
@@ -43,7 +42,7 @@ export function useUserData(): { user: UserData; loading: boolean } {
       const [{ data: profile }, { data: shop }] = await Promise.all([
         supabase
           .from("profiles")
-          .select("full_name, avatar_url, credit_score, balance, guarantee_money")
+          .select("full_name, avatar_url, credit_score, wallet_balance, balance, is_verified")
           .eq("id", authUser.id)
           .maybeSingle(),
         supabase
@@ -61,10 +60,10 @@ export function useUserData(): { user: UserData; loading: boolean } {
         email: authUser.email || "",
         avatarUrl: profile?.avatar_url || null,
         creditScore: profile?.credit_score ?? 0,
-        balance: profile?.balance ?? 0,
-        guaranteeMoney: profile?.guarantee_money ?? 0,
+        balance: profile?.balance ?? profile?.wallet_balance ?? 0,
+        guaranteeMoney: 0,
         shopName: shop?.name || "",
-        isVerified: shop?.is_verified ?? false,
+        isVerified: shop?.is_verified ?? profile?.is_verified ?? false,
       });
       setLoading(false);
     };

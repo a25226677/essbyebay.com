@@ -27,12 +27,12 @@ export default function LoginPage() {
   // Redirect already-logged-in users away
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session?.user) {
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (data.user) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("role")
-          .eq("id", data.session.user.id)
+          .eq("id", data.user.id)
           .maybeSingle();
         if (profile?.role === "admin") router.replace("/admin/dashboard");
         else if (profile?.role === "seller") router.replace("/seller/dashboard");

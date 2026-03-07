@@ -69,18 +69,25 @@ export default function CategoriesPage() {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+    if (!allowedTypes.includes(file.type)) { setError("Only JPEG, PNG, WebP, or GIF images are allowed."); return; }
+    if (file.size > 5 * 1024 * 1024) { setError("Image must be under 5MB."); return; }
     setUploading(true);
     try {
       const supabase = createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Please login again and retry upload.");
       const ext = file.name.split(".").pop();
-      const fileName = `categories/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-      const { error } = await supabase.storage.from("product-images").upload(fileName, file, { cacheControl: "3600", upsert: false });
+      const fileName = `${user.id}/categories/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+      const { error } = await supabase.storage.from("product-images").upload(fileName, file, { cacheControl: "3600", upsert: false, contentType: file.type });
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from("product-images").getPublicUrl(fileName);
       setFormImage(publicUrl);
     } catch (err) {
       setError(`Upload failed: ${err instanceof Error ? err.message : "Unknown error"}`);
     } finally { setUploading(false); }
+
+    e.currentTarget.value = "";
   };
 
   const handleSave = async () => {

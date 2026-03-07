@@ -63,8 +63,8 @@ export default function AddNewProductPage() {
   const [metaImage, setMetaImage] = useState<UploadedFile[]>([]);
 
   useEffect(() => {
-    fetch("/api/admin/categories").then(r => r.json()).then(d => setDbCategories(d.items || [])).catch(() => {});
-    fetch("/api/admin/brands").then(r => r.json()).then(d => setDbBrands(d.items || [])).catch(() => {});
+    fetch("/api/shop/categories").then(r => r.json()).then(d => setDbCategories(d.items || [])).catch(() => {});
+    fetch("/api/shop/brands").then(r => r.json()).then(d => setDbBrands(d.items || [])).catch(() => {});
   }, []);
 
   const handleChange = (field: string, value: string | boolean) => {

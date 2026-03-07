@@ -14,6 +14,7 @@ import {
   Trash2,
   ShoppingBag,
 } from "lucide-react";
+import { toast } from "sonner";
 
 const LANGUAGES = [
   { code: "en", label: "EN", flag: "🇺🇸" },
@@ -44,9 +45,18 @@ export function AdminHeader() {
 
   const signOut = async () => {
     const supabase = createClient();
-    await supabase.auth.signOut();
-    router.push("/admin/login");
+    const { error } = await supabase.auth.signOut({ scope: "global" });
+
+    if (error) {
+      toast.error(error.message || "Failed to sign out");
+      return;
+    }
+
+    setUserOpen(false);
+    router.replace("/admin/login");
     router.refresh();
+    // Force a full navigation to avoid stale authenticated UI state.
+    setTimeout(() => window.location.assign("/admin/login"), 50);
   };
 
   const clearCache = async () => {

@@ -43,7 +43,7 @@ export async function GET() {
     // Top 12 products by review_count
     db
       .from("products")
-      .select("id,title,price,image_url,review_count,rating,is_active,shops(name)")
+      .select("id,title,slug,price,image_url,review_count,rating,is_active,shops(name)")
       .eq("is_active", true)
       .order("review_count", { ascending: false })
       .limit(12),
@@ -174,6 +174,7 @@ export async function GET() {
     topProducts: (topProducts || []).map((p) => ({
       id: p.id,
       title: p.title,
+      slug: p.slug,
       price: p.price,
       image_url: p.image_url,
       review_count: p.review_count,

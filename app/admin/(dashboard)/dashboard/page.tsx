@@ -14,7 +14,7 @@ type CategoryStock = { id: string; name: string; stock: number };
 type ProductBreakdown = { published: number; sellerProducts: number; adminProducts: number };
 type SellerBreakdown = { total: number; approved: number; pending: number };
 type TopProduct = {
-  id: string; title: string; price: number; image_url: string | null;
+  id: string; title: string; slug: string; price: number; image_url: string | null;
   review_count: number; rating: number; shop: string;
 };
 type Analytics = {
@@ -303,7 +303,7 @@ function BarChart({
 function ProductCard({ product, index }: { product: TopProduct; index: number }) {
   return (
     <Link
-      href={`/admin/products`}
+      href={`/product/${product.slug}`}
       className="shrink-0 w-44 bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow group"
     >
       <div className="relative h-40 bg-gray-50 overflow-hidden">

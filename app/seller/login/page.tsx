@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import ReCAPTCHA from "react-google-recaptcha";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,10 +14,12 @@ import { Eye, EyeOff } from "lucide-react";
 export default function SellerLoginPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const recaptchaRef = useRef<ReCAPTCHA>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [captchaVerified, setCaptchaVerified] = useState(false);
   const [error, setError] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
   const [loading, setLoading] = useState(false);
@@ -24,12 +27,12 @@ export default function SellerLoginPage() {
   // Redirect already-logged-in sellers/admins
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getSession().then(async ({ data }) => {
-      if (data.session?.user) {
+    supabase.auth.getUser().then(async ({ data }) => {
+      if (data.user) {
         const { data: profile } = await supabase
           .from("profiles")
           .select("role")
-          .eq("id", data.session.user.id)
+          .eq("id", data.user.id)
           .maybeSingle();
         if (profile?.role === "seller" || profile?.role === "admin") {
           router.replace("/seller/dashboard");
@@ -53,6 +56,12 @@ export default function SellerLoginPage() {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (!captchaVerified) {
+      setError("Please complete the CAPTCHA verification.");
+      return;
+    }
+
     setLoading(true);
     const supabase = createClient();
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -157,19 +166,15 @@ export default function SellerLoginPage() {
               </Link>
             </div>
 
-            {/* reCAPTCHA placeholder */}
-            <div className="border border-gray-200 rounded-md p-3 bg-gray-50 flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="size-6 border-2 border-gray-300 rounded-sm" />
-                <span className="text-sm text-gray-700">
-                  I&apos;m not a robot
-                </span>
-              </div>
-              <div className="text-right">
-                <p className="text-[10px] text-gray-500">reCAPTCHA</p>
-                <p className="text-[8px] text-gray-400">Privacy - Terms</p>
-              </div>
-            </div>
+            {/* reCAPTCHA */}
+            {process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY && (
+              <ReCAPTCHA
+                ref={recaptchaRef}
+                sitekey={process.env.NEXT_PUBLIC_RECAPTCHA_SITE_KEY}
+                onChange={(token) => setCaptchaVerified(!!token)}
+                onExpired={() => setCaptchaVerified(false)}
+              />
+            )}
 
             <Button
               type="submit"

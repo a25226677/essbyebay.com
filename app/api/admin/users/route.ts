@@ -19,27 +19,22 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(100, parseInt(sp.get("limit") || "20", 10));
   const offset = (page - 1) * limit;
 
-  const seller_approved = sp.get("seller_approved") || "";
-
   let query = db
     .from("profiles")
     .select(
       `id, full_name, phone, avatar_url, role, is_active, is_virtual, disable_login,
-       wallet_balance, credit_score, package,
-       pending_balance, seller_views, comment_permission, home_display,
-       verification_info, invitation_code, salesman_id, identity_card_url,
-       total_recharge, total_withdrawn, seller_approved,
+       wallet_balance, credit_score, package, is_verified, balance,
+       certificate_type, certificate_front_url, certificate_back_url,
        created_at, updated_at`,
       { count: "exact" },
     )
     .order("created_at", { ascending: false });
 
   if (search) {
-    query = query.ilike("full_name", `%${search}%`);
+    query = query.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
   }
   if (role) query = query.eq("role", role);
   if (is_active !== "") query = query.eq("is_active", is_active === "true");
-  if (seller_approved !== "") query = query.eq("seller_approved", seller_approved === "true");
 
   query = query.range(offset, offset + limit - 1);
 
