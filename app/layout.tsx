@@ -34,6 +34,14 @@ export const metadata: Metadata = {
   twitter: buildMetadata().twitter,
   robots: buildMetadata().robots,
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      { url: "/favicon.ico" },
+      { url: "/icon", type: "image/png", sizes: "32x32" },
+    ],
+    apple: [{ url: "/apple-icon", type: "image/png", sizes: "180x180" }],
+    shortcut: ["/favicon.ico"],
+  },
   other: {
     "apple-mobile-web-app-title": seoConfig.name,
   },
