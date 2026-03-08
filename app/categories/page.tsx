@@ -1,8 +1,15 @@
 import { CategoryCard } from "@/components/category-card";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { getStorefrontCategories } from "@/lib/storefront-data";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = { title: "All Categories" };
+export const metadata = buildMetadata({
+  title: "Shop All Categories",
+  description:
+    "Browse every shopping category on Ess by Ebay, from fashion and electronics to beauty and home essentials.",
+  path: "/categories",
+  keywords: ["product categories", "shop by category", "fashion", "electronics"],
+});
 
 export default async function CategoriesPage() {
   const categories = await getStorefrontCategories();

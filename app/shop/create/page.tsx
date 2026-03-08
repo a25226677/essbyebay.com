@@ -165,32 +165,6 @@ export default function RegisterShopPage() {
     }
   }, [form.email, otpCode]);
 
-  // ── Upload certificate file ──
-  const uploadCertificate = async (
-    file: File,
-    userId: string,
-    folder: string
-  ): Promise<string | null> => {
-    const allowedTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
-    if (!allowedTypes.includes(file.type)) return null;
-    if (file.size > 5 * 1024 * 1024) return null;
-
-    const supabase = createClient();
-    const ext = file.name.split(".").pop();
-    const path = `${userId}/${folder}/${Date.now()}.${ext}`;
-
-    const { error } = await supabase.storage
-      .from("seller-files")
-      .upload(path, file, { upsert: false });
-
-    if (error) return null;
-
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("seller-files").getPublicUrl(path);
-    return publicUrl;
-  };
-
   // ── Submit form ──
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,106 +214,36 @@ export default function RegisterShopPage() {
     setLoading(true);
 
     try {
-      const supabase = createClient();
+      const formData = new FormData();
+      formData.set("fullName", form.fullName);
+      formData.set("email", form.email);
+      formData.set("phone", form.phone);
+      formData.set("password", form.password);
+      formData.set("transactionPassword", form.transactionPassword);
+      formData.set("shopName", form.shopName);
+      formData.set("address", form.address);
+      formData.set("certificateType", form.certificateType);
+      formData.set("invitationCode", form.invitationCode);
 
-      // 1. Sign up the user
-      const { data: signUpData, error: signUpErr } =
-        await supabase.auth.signUp({
-          email: form.email,
-          password: form.password,
-          options: { data: { full_name: form.fullName } },
-        });
+      if (certFrontFile) {
+        formData.set("certFrontFile", certFrontFile);
+      }
 
-      if (signUpErr) {
-        setError(signUpErr.message);
-        setLoading(false);
+      if (certBackFile) {
+        formData.set("certBackFile", certBackFile);
+      }
+
+      const response = await fetch("/api/shop/register", {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await response.json().catch(() => null)) as { error?: string } | null;
+
+      if (!response.ok) {
+        setError(data?.error || "Failed to create shop. Please try again.");
         recaptchaRef.current?.reset();
         setCaptchaVerified(false);
         return;
-      }
-
-      const user = signUpData.user;
-      if (!user) {
-        setError("Failed to create account. Please try again.");
-        setLoading(false);
-        return;
-      }
-
-      // 2. Upload certificates
-      let certFrontUrl: string | null = null;
-      let certBackUrl: string | null = null;
-
-      if (certFrontFile) {
-        certFrontUrl = await uploadCertificate(certFrontFile, user.id, "certificate-front");
-      }
-      if (certBackFile) {
-        certBackUrl = await uploadCertificate(certBackFile, user.id, "certificate-back");
-      }
-
-      // 3. Update profile with seller fields (unverified default)
-      const { error: profileErr } = await supabase
-        .from("profiles")
-        .update({
-          full_name: form.fullName,
-          role: "seller",
-          phone: form.phone,
-          transaction_password: form.transactionPassword,
-          certificate_type: form.certificateType,
-          certificate_front_url: certFrontUrl,
-          certificate_back_url: certBackUrl,
-        })
-        .eq("id", user.id);
-
-      if (profileErr) {
-        setError("Failed to update profile: " + profileErr.message);
-        setLoading(false);
-        return;
-      }
-
-      // 4. Create the shop (is_verified = false by default)
-      const slug =
-        form.shopName
-          .toLowerCase()
-          .replace(/[^a-z0-9]+/g, "-")
-          .replace(/^-|-$/g, "") +
-        "-" +
-        Date.now().toString(36);
-
-      const { error: shopErr } = await supabase.from("shops").insert({
-        owner_id: user.id,
-        seller_id: user.id,
-        name: form.shopName,
-        slug,
-        address: form.address || null,
-        is_verified: false,
-      });
-
-      if (shopErr) {
-        if (
-          shopErr.message.includes("unique") ||
-          shopErr.message.includes("duplicate")
-        ) {
-          setError("You already have a shop or this shop name is taken.");
-        } else {
-          setError("Failed to create shop: " + shopErr.message);
-        }
-        setLoading(false);
-        return;
-      }
-
-      // 5. Send notification emails (non-blocking)
-      try {
-        await fetch("/api/shop/apply", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            shopName: form.shopName,
-            sellerName: form.fullName,
-            sellerEmail: form.email,
-          }),
-        });
-      } catch {
-        // Email failure is not critical
       }
 
       setSuccess(true);

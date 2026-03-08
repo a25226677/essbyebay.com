@@ -2,8 +2,15 @@ import Image from "next/image";
 import Link from "next/link";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { getBlogPosts } from "@/lib/storefront-data";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Blog" };
+export const metadata = buildMetadata({
+  title: "Shopping Blog and Marketplace News",
+  description:
+    "Read shopping guides, seller tips, product trends, and marketplace updates from Ess by Ebay.",
+  path: "/blog",
+  keywords: ["shopping blog", "marketplace news", "product guides", "seller tips"],
+});
 
 export default async function BlogListingPage() {
   const blogPosts = await getBlogPosts();

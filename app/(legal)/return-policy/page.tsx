@@ -1,6 +1,12 @@
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Return Policy" };
+export const metadata = buildMetadata({
+  title: "Return Policy",
+  description:
+    "Review the Ess by Ebay return policy, eligibility rules, shipping terms, and refund process for marketplace purchases.",
+  path: "/return-policy",
+});
 
 export default function ReturnPolicyPage() {
   return (

@@ -3,8 +3,15 @@ import { ProductCard } from "@/components/product-card";
 import { Badge } from "@/components/ui/badge";
 import { CountdownBanner } from "@/components/flash-deals/countdown-banner";
 import { getFlashDeals } from "@/lib/storefront-data";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Today's Deals" };
+export const metadata = buildMetadata({
+  title: "Today’s Deals and Flash Sale Offers",
+  description:
+    "Shop limited-time discounts and flash sale offers from top sellers on Ess by Ebay.",
+  path: "/today-deals",
+  keywords: ["today's deals", "flash sale", "limited-time offers", "discount shopping"],
+});
 
 export default async function TodaysDealsPage() {
   const flashDeals = await getFlashDeals();

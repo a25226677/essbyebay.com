@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import type { Metadata } from "next";
 import { getBlogPostBySlug } from "@/lib/storefront-data";
+import { buildMetadata, truncateDescription } from "@/lib/seo";
 
 interface Props {
   params: Promise<{ slug: string }>;
@@ -11,9 +12,34 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const post = await getBlogPostBySlug(slug);
+
+  if (!post) {
+    return buildMetadata({
+      title: "Post Not Found",
+      description: "The article you are looking for is unavailable or no longer exists.",
+      path: `/blog/${slug}`,
+      noIndex: true,
+      type: "article",
+    });
+  }
+
+  const metadata = buildMetadata({
+    title: post.title,
+    description: truncateDescription(post.excerpt || post.title),
+    path: `/blog/${post.slug}`,
+    images: [post.image],
+    keywords: [post.author, "shopping blog", post.title],
+    type: "article",
+  });
+
   return {
-    title: post ? post.title : "Post Not Found",
-    description: post?.excerpt,
+    ...metadata,
+    openGraph: {
+      ...metadata.openGraph,
+      type: "article",
+      publishedTime: post.date,
+      authors: [post.author],
+    },
   };
 }
 

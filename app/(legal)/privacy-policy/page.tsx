@@ -1,6 +1,12 @@
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Privacy Policy" };
+export const metadata = buildMetadata({
+  title: "Privacy Policy",
+  description:
+    "Read the privacy policy for Ess by Ebay and learn how customer and seller information is collected, used, and protected.",
+  path: "/privacy-policy",
+});
 
 export default function PrivacyPolicyPage() {
   return (

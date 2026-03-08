@@ -1,8 +1,15 @@
 import { BrandCard } from "@/components/brand-card";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { getStorefrontBrands } from "@/lib/storefront-data";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = { title: "All Brands" };
+export const metadata = buildMetadata({
+  title: "Shop All Brands",
+  description:
+    "Explore featured brands and discover trusted sellers across fashion, electronics, beauty, and more.",
+  path: "/brands",
+  keywords: ["popular brands", "featured brands", "shop brands"],
+});
 
 export default async function BrandsPage() {
   const brands = await getStorefrontBrands();

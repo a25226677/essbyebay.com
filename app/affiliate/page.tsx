@@ -2,8 +2,15 @@ import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Users, DollarSign, TrendingUp, Gift } from "lucide-react";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Affiliate Program" };
+export const metadata = buildMetadata({
+  title: "Affiliate Program",
+  description:
+    "Join the Ess by Ebay affiliate program and earn commissions by promoting products from trusted marketplace sellers.",
+  path: "/affiliate",
+  keywords: ["affiliate program", "earn commissions", "referral marketing"],
+});
 
 export default function AffiliatePage() {
   return (

@@ -10,6 +10,15 @@ import { TopBrandsRow } from "@/components/home/top-brands-row";
 import { SectionHeader } from "@/components/section-header";
 import { CategoryCard } from "@/components/category-card";
 import { ProductCard } from "@/components/product-card";
+import { buildMetadata } from "@/lib/seo";
+
+export const metadata = buildMetadata({
+  title: "Multi-Vendor Marketplace for Fashion, Electronics and More",
+  description:
+    "Discover trending products, flash deals, top brands, and trusted sellers on Ess by Ebay.",
+  path: "/",
+  keywords: ["flash deals", "top brands", "trusted sellers", "online marketplace"],
+});
 
 export default async function HomePage() {
   const { categories, products, flashDeals, brands, bannerSlides } =

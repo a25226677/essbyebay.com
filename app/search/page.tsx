@@ -1,14 +1,31 @@
 import Link from "next/link";
+import type { Metadata } from "next";
 import { searchStoreProducts } from "@/lib/storefront-data";
 import { ProductCard } from "@/components/product-card";
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { Search as SearchIcon, ChevronLeft, ChevronRight } from "lucide-react";
+import { buildMetadata } from "@/lib/seo";
 
 const PER_PAGE = 24;
 
 type SearchProps = {
   searchParams: Promise<{ q?: string; page?: string }>;
 };
+
+export async function generateMetadata({ searchParams }: SearchProps): Promise<Metadata> {
+  const params = await searchParams;
+  const query = (params.q || "").trim();
+  const suffix = query ? `: ${query}` : "";
+
+  return buildMetadata({
+    title: `Search${suffix}`,
+    description: query
+      ? `Search results for ${query} on Ess by Ebay.`
+      : "Search products on Ess by Ebay.",
+    path: query ? `/search?q=${encodeURIComponent(query)}` : "/search",
+    noIndex: true,
+  });
+}
 
 export default async function SearchPage({ searchParams }: SearchProps) {
   const params = await searchParams;

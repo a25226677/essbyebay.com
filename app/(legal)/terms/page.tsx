@@ -1,6 +1,12 @@
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Terms & Conditions" };
+export const metadata = buildMetadata({
+  title: "Terms and Conditions",
+  description:
+    "Read the marketplace terms and conditions for using Ess by Ebay, including account, pricing, and product policies.",
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (

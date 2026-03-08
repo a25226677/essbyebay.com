@@ -1,6 +1,12 @@
 import { BreadcrumbNav } from "@/components/breadcrumb-nav";
+import { buildMetadata } from "@/lib/seo";
 
-export const metadata = { title: "Support Policy" };
+export const metadata = buildMetadata({
+  title: "Support Policy",
+  description:
+    "Learn how Ess by Ebay handles customer support, response times, dispute resolution, and support contact channels.",
+  path: "/support-policy",
+});
 
 export default function SupportPolicyPage() {
   return (
