@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import {
   RefreshCw, ChevronLeft, ChevronRight, X,
-  Plus, DollarSign, MoreVertical, MessageSquare
+  Plus, DollarSign, MoreVertical, MessageSquare, Eye, ExternalLink
 } from "lucide-react";
 
 type Seller = {
@@ -17,6 +17,7 @@ type Seller = {
   comment_permission?: boolean; home_display?: boolean;
   verification_info?: string | null; invitation_code?: string | null;
   salesman_id?: string | null; identity_card_url?: string | null;
+  certificate_type?: string | null; certificate_front_url?: string | null; certificate_back_url?: string | null;
   total_recharge?: number; total_withdrawn?: number;
   created_at: string; shops: { name: string; product_count: number; is_verified?: boolean }[];
 };
@@ -46,6 +47,7 @@ export default function SellersListPage() {
   const [rechargeModal,  setRechargeModal]  = useState<Seller | null>(null);
   const [messageModal,   setMessageModal]   = useState<Seller | null>(null);
   const [packageModal,   setPackageModal]   = useState<Seller | null>(null);
+  const [docsModal,      setDocsModal]      = useState<Seller | null>(null);
   const [guaranteeAmt, setGuaranteeAmt]     = useState("");
   const [rechargeAmt,  setRechargeAmt]      = useState("");
   const [messageText,  setMessageText]      = useState("");
@@ -229,6 +231,15 @@ export default function SellersListPage() {
   };
 
   const offset = (page - 1) * pagination.limit;
+
+  const getSellerDocs = (seller: Seller) => {
+    const docs = [
+      { label: "Identity card", url: seller.identity_card_url },
+      { label: "Certificate front", url: seller.certificate_front_url },
+      { label: "Certificate back", url: seller.certificate_back_url },
+    ];
+    return docs.filter((d): d is { label: string; url: string } => Boolean(d.url));
+  };
 
   return (
     <div className="space-y-4">
@@ -452,11 +463,19 @@ export default function SellersListPage() {
 
                       {/* Identity Cards */}
                       <td className="px-3 py-3">
-                        {seller.identity_card_url ? (
-                          <Image src={seller.identity_card_url} alt="ID" width={40} height={32} className="w-10 h-8 object-cover rounded border border-gray-200" />
-                        ) : (
-                          <div className="w-10 h-8 rounded border border-dashed border-gray-200 bg-gray-50 flex items-center justify-center text-gray-300 text-[10px]">ID</div>
-                        )}
+                        {(() => {
+                          const docs = getSellerDocs(seller);
+                          return (
+                            <button
+                              onClick={() => setDocsModal(seller)}
+                              disabled={docs.length === 0}
+                              title={docs.length > 0 ? "View seller documents" : "No documents uploaded"}
+                              className={`inline-flex items-center justify-center w-9 h-8 rounded-lg border transition-colors ${docs.length > 0 ? "border-gray-200 bg-white hover:bg-gray-50 text-gray-600" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"}`}
+                            >
+                              <Eye className="size-4" />
+                            </button>
+                          );
+                        })()}
                       </td>
 
                       {/* Options Dropdown */}
@@ -633,6 +652,42 @@ export default function SellersListPage() {
               <button onClick={handleMessage} disabled={actionLoading} className="flex items-center gap-2 text-sm font-semibold bg-orange-500 hover:bg-orange-600 disabled:opacity-60 text-white px-5 py-2 rounded-xl">
                 <MessageSquare className="size-3.5" />{actionLoading ? "Sending…" : "Send"}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Seller Documents Modal ── */}
+      {docsModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-base font-bold text-gray-800">Seller Documents</h2>
+                <p className="text-xs text-gray-500 mt-0.5">{docsModal.full_name || docsModal.email || "Seller"}</p>
+              </div>
+              <button onClick={() => setDocsModal(null)}><X className="size-4 text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-5 overflow-y-auto max-h-[calc(85vh-72px)]">
+              {getSellerDocs(docsModal).length === 0 ? (
+                <p className="text-sm text-gray-500">No documents uploaded for this seller.</p>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {getSellerDocs(docsModal).map((doc) => (
+                    <div key={doc.label} className="border border-gray-200 rounded-xl p-3 space-y-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-gray-800">{doc.label}</h3>
+                        <a href={doc.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-semibold">
+                          Open <ExternalLink className="size-3" />
+                        </a>
+                      </div>
+                      <div className="relative w-full h-44 rounded-lg overflow-hidden bg-gray-50 border border-gray-100">
+                        <Image src={doc.url} alt={doc.label} fill className="object-contain" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
