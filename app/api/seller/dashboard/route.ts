@@ -78,21 +78,12 @@ export async function GET() {
   // Get seller views from profile
   const { data: sellerProfile } = await supabase
     .from("profiles")
-    .select("seller_views")
+    .select("seller_views,wallet_balance")
     .eq("id", userId)
     .maybeSingle();
   const sellerViews = sellerProfile?.seller_views ?? 0;
   const shopRating = Number(shop?.rating ?? 0);
-
-  // Available balance: earned payouts minus completed withdrawals
-  const totalPayouts = (payoutsResult.data ?? []).reduce(
-    (s, p) => s + Number(p.net_amount),
-    0,
-  );
-  const totalWithdrawn = (withdrawalsResult.data ?? [])
-    .filter((w) => w.status === "completed" || w.status === "approved")
-    .reduce((s, w) => s + Number(w.amount), 0);
-  const balance = Math.max(0, totalPayouts - totalWithdrawn);
+  const balance = Number(sellerProfile?.wallet_balance ?? 0);
 
   // Unique order IDs
   const orderItemRows = orderItemsResult.data ?? [];

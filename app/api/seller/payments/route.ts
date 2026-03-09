@@ -10,8 +10,8 @@ export async function GET(request: Request) {
   const search = (searchParams.get("search") || "").trim().toLowerCase();
 
   const { data, error } = await supabase
-    .from("seller_payouts")
-    .select("id,created_at,net_amount,paid_at")
+    .from("seller_payments")
+    .select("id,amount,payment_details,trx_id,created_at")
     .eq("seller_id", userId)
     .order("created_at", { ascending: false });
 
@@ -21,15 +21,26 @@ export async function GET(request: Request) {
 
   const items = (data || []).map((row) => ({
     id: row.id,
-    date: new Date(row.created_at).toISOString().slice(0, 10),
-    amount: Number(row.net_amount || 0),
-    method: "Order Payout",
-    status: row.paid_at ? "Completed" : "Pending",
+    date: new Date(row.created_at).toLocaleDateString("en-US", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    }),
+    amount: Number(row.amount || 0),
+    method: row.payment_details?.match(/\(([^)]+)\)/)?.[1] || (row.trx_id ? "Transaction" : "Admin"),
+    status: "Completed",
+    payment_details: row.payment_details || "Seller payment",
+    trx_id: row.trx_id || null,
   }));
 
   const filtered =
     search.length > 0
-      ? items.filter((item) => item.id.toLowerCase().includes(search))
+      ? items.filter((item) =>
+          item.id.toLowerCase().includes(search) ||
+          item.method.toLowerCase().includes(search) ||
+          item.payment_details.toLowerCase().includes(search) ||
+          (item.trx_id || "").toLowerCase().includes(search),
+        )
       : items;
 
   return NextResponse.json({ items: filtered });

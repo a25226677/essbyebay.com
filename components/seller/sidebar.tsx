@@ -124,27 +124,26 @@ export function SellerSidebar() {
     return false;
   });
 
+  const sellerImage = profile.shopLogoUrl || profile.avatarUrl || "/logo.png";
+  const sellerName = profile.shopName || profile.fullName || "Seller";
+
   return (
     <aside className="w-[240px] min-h-screen bg-white border-r border-gray-200 flex flex-col shrink-0">
       {/* Shop info */}
       <div className="p-4 text-center border-b border-gray-100">
         <Link href="/seller/dashboard">
-          {profile.avatarUrl ? (
+          <div className="h-14 w-14 rounded-full mx-auto mb-2 bg-white overflow-hidden border-2 border-sky-100 flex items-center justify-center">
             <Image
-              src={profile.avatarUrl}
-              alt={profile.fullName}
+              src={sellerImage}
+              alt={sellerName}
               width={56}
               height={56}
-              className="h-14 w-14 rounded-full mx-auto mb-2 object-cover border-2 border-sky-100"
+              className="h-14 w-14 object-cover"
             />
-          ) : (
-            <div className="h-14 w-14 rounded-full mx-auto mb-2 bg-sky-100 flex items-center justify-center text-sky-600 text-xl font-bold">
-              {profile.fullName[0]?.toUpperCase() ?? "S"}
-            </div>
-          )}
+          </div>
         </Link>
         <h3 className="text-sm font-semibold text-sky-700">
-          {profile.fullName}
+          {sellerName}
         </h3>
         <p className="text-xs text-gray-500 truncate px-2">{profile.email}</p>
         <span className="inline-block mt-1 px-3 py-0.5 bg-green-500 text-white text-[10px] font-semibold rounded-full">

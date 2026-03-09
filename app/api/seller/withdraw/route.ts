@@ -2,14 +2,26 @@ import { getSellerContext } from "@/lib/supabase/seller-api";
 import { NextResponse } from "next/server";
 import { sendWithdrawalRequestEmail } from "@/lib/email";
 
+function toTitleCase(value: string | null | undefined, fallback: string) {
+  if (!value) return fallback;
+  return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function formatDate(value: string) {
+  return new Date(value).toLocaleDateString("en-US", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}
+
 export async function GET() {
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
 
   const { supabase, userId } = context;
 
-  const [payoutsResult, withdrawalsResult, profileResult, frozeResult, methodsResult] = await Promise.all([
-    supabase.from("seller_payouts").select("net_amount").eq("seller_id", userId),
+  const [withdrawalsResult, profileResult, frozeResult, methodsResult, offlineRechargesResult, guaranteeRechargesResult, sellerPaymentsResult] = await Promise.all([
     supabase
       .from("withdrawals")
       .select("id,amount,method,status,notes,created_at,withdraw_type,account_info")
@@ -17,7 +29,7 @@ export async function GET() {
       .order("created_at", { ascending: false }),
     supabase
       .from("profiles")
-      .select("pending_balance,guarantee_money,balance")
+      .select("pending_balance,guarantee_money,wallet_balance")
       .eq("id", userId)
       .maybeSingle(),
     supabase
@@ -29,32 +41,95 @@ export async function GET() {
       .from("payment_methods")
       .select("id,heading,logo_url")
       .eq("is_active", true),
+    supabase
+      .from("offline_recharges")
+      .select("id,amount,method,txn_id,photo_url,is_approved,type,notes,created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("guarantee_recharges")
+      .select("id,amount,method,photo_url,status,notes,created_at")
+      .eq("seller_id", userId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("seller_payments")
+      .select("id,amount,payment_details,trx_id,created_at")
+      .eq("seller_id", userId)
+      .order("created_at", { ascending: false }),
   ]);
 
-  const totalPayouts = (payoutsResult.data ?? []).reduce(
-    (s, p) => s + Number(p.net_amount),
-    0,
-  );
-  const totalWithdrawn = (withdrawalsResult.data ?? [])
-    .filter((w) => w.status === "completed" || w.status === "approved")
-    .reduce((s, w) => s + Number(w.amount), 0);
-  const walletMoney = Math.max(0, totalPayouts - totalWithdrawn);
-
   const pendingBalance = Number(profileResult.data?.pending_balance ?? 0);
+  const walletMoney = Number(profileResult.data?.wallet_balance ?? 0);
   const guaranteeMoney = Number(profileResult.data?.guarantee_money ?? 0);
 
-  const history = (withdrawalsResult.data ?? []).map((w, idx) => ({
+  const withdrawHistory = (withdrawalsResult.data ?? []).map((w, idx) => ({
     id: w.id,
     index: idx + 1,
-    date: new Date(w.created_at).toLocaleDateString("en-US", { day: "2-digit", month: "2-digit", year: "numeric" }),
+    created_at: w.created_at,
+    date: formatDate(w.created_at),
     amount: Number(w.amount),
     method: w.method || "Bank",
     type: "Withdraw",
-    status: w.status.charAt(0).toUpperCase() + w.status.slice(1),
+    status: toTitleCase(w.status, "Pending"),
     withdraw_type: w.withdraw_type || "Bank",
     remarks: w.notes || "",
     message: w.account_info || "",
   }));
+
+  const rechargeHistory = (offlineRechargesResult.data ?? []).map((item) => ({
+    id: item.id,
+    created_at: item.created_at,
+    date: formatDate(item.created_at),
+    amount: Number(item.amount),
+    payment_method: item.method || "Bank",
+    payment_details: item.notes || "Offline wallet recharge",
+    approval: item.is_approved ? "Yes" : "No",
+    offline_payment: "Yes",
+    type: item.type || "Wallet Recharge",
+    receipt: item.txn_id || null,
+    slip_url: item.photo_url || null,
+  }));
+
+  const guaranteeHistory = (guaranteeRechargesResult.data ?? []).map((item) => ({
+    id: item.id,
+    created_at: item.created_at,
+    date: formatDate(item.created_at),
+    amount: Number(item.amount),
+    payment_method: item.method || "Bank",
+    payment_details: item.notes || "Guarantee recharge request",
+    approval: item.status === "approved" ? "Yes" : item.status === "rejected" ? "Rejected" : "Pending",
+    offline_payment: "Yes",
+    type: "Guarantee Recharge",
+    receipt: null,
+    slip_url: item.photo_url || null,
+  }));
+
+  const walletHistory = [...rechargeHistory, ...guaranteeHistory]
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map((item, idx) => ({
+      ...item,
+      index: idx + 1,
+    }));
+
+  const paymentHistory = (sellerPaymentsResult.data ?? [])
+    .map((item) => {
+      const methodMatch = item.payment_details?.match(/\(([^)]+)\)/);
+
+      return {
+        id: item.id,
+        created_at: item.created_at,
+        date: formatDate(item.created_at),
+        amount: Number(item.amount),
+        payment_details: item.payment_details || "Seller payment",
+        payment_method: methodMatch?.[1] || (item.trx_id ? "Transaction" : "Admin"),
+        trx_id: item.trx_id || null,
+      };
+    })
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+    .map((item, idx) => ({
+      ...item,
+      index: idx + 1,
+    }));
 
   const frozeOrders = (frozeResult.data ?? []).map((f, idx) => ({
     id: f.id,
@@ -79,7 +154,10 @@ export async function GET() {
     pendingBalance,
     walletMoney,
     guaranteeMoney,
-    history,
+    history: withdrawHistory,
+    withdrawHistory,
+    walletHistory,
+    paymentHistory,
     frozeOrders,
     paymentMethods: methodsResult.data ?? [],
     bankInfo: null,
@@ -104,13 +182,12 @@ export async function POST(request: Request) {
     }
 
     // Check available balance
-    const [payoutsResult, withdrawalsResult, profileResult] = await Promise.all([
-      supabase.from("seller_payouts").select("net_amount").eq("seller_id", userId),
-      supabase
+      const [withdrawalsResult, profileResult] = await Promise.all([
+        supabase
         .from("withdrawals")
         .select("amount,status")
         .eq("seller_id", userId),
-      supabase.from("profiles").select("guarantee_money").eq("id", userId).maybeSingle(),
+        supabase.from("profiles").select("guarantee_money,wallet_balance").eq("id", userId).maybeSingle(),
     ]);
 
     if (operaType === "Guarantee Balance") {
@@ -122,17 +199,10 @@ export async function POST(request: Request) {
         );
       }
     } else {
-      const totalPayouts = (payoutsResult.data ?? []).reduce(
-        (s, p) => s + Number(p.net_amount),
-        0,
-      );
-      const totalWithdrawn = (withdrawalsResult.data ?? [])
-        .filter((w) => w.status === "completed" || w.status === "approved")
-        .reduce((s, w) => s + Number(w.amount), 0);
       const pendingWithdrawals = (withdrawalsResult.data ?? [])
         .filter((w) => w.status === "pending")
         .reduce((s, w) => s + Number(w.amount), 0);
-      const available = Math.max(0, totalPayouts - totalWithdrawn - pendingWithdrawals);
+      const available = Math.max(0, Number(profileResult.data?.wallet_balance ?? 0) - pendingWithdrawals);
 
       if (amount > available) {
         return NextResponse.json(

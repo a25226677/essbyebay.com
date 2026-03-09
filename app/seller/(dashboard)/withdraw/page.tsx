@@ -15,12 +15,15 @@ import {
   Wallet,
   Shield,
   Upload,
+  Eye,
+  ExternalLink,
 } from "lucide-react";
 
 /* ─── Types ─── */
 type WithdrawItem = {
   id: string;
   index: number;
+  created_at: string;
   date: string;
   amount: number;
   method: string;
@@ -29,6 +32,32 @@ type WithdrawItem = {
   withdraw_type: string;
   remarks: string;
   message: string;
+};
+
+type WalletHistoryItem = {
+  id: string;
+  index: number;
+  created_at: string;
+  date: string;
+  amount: number;
+  payment_method: string;
+  payment_details: string;
+  approval: string;
+  offline_payment: string;
+  type: string;
+  receipt: string | null;
+  slip_url: string | null;
+};
+
+type PaymentHistoryItem = {
+  id: string;
+  index: number;
+  created_at: string;
+  date: string;
+  amount: number;
+  payment_details: string;
+  payment_method: string;
+  trx_id: string | null;
 };
 
 type FrozeOrder = {
@@ -47,7 +76,9 @@ type WithdrawData = {
   pendingBalance: number;
   walletMoney: number;
   guaranteeMoney: number;
-  history: WithdrawItem[];
+  withdrawHistory: WithdrawItem[];
+  walletHistory: WalletHistoryItem[];
+  paymentHistory: PaymentHistoryItem[];
   frozeOrders: FrozeOrder[];
   paymentMethods: { id: string; heading: string; logo_url: string | null }[];
   bankInfo: { bank_name: string; account_name: string; account_number: string; routing_number: string } | null;
@@ -58,11 +89,21 @@ const statusColors: Record<string, string> = {
   Completed: "bg-green-100 text-green-700",
   Approved: "bg-green-100 text-green-700",
   Rejected: "bg-red-100 text-red-700",
+  Refused: "bg-red-100 text-red-700",
+  Yes: "bg-green-100 text-green-700",
+  No: "bg-red-100 text-red-700",
   "Un-Paid": "bg-red-100 text-red-700",
   Paid: "bg-green-100 text-green-700",
   "Unpicked Up": "bg-amber-100 text-amber-700",
   "Picked Up": "bg-green-100 text-green-700",
 };
+
+function formatLabel(value: string | null | undefined, fallback = "-") {
+  if (!value) return fallback;
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export default function MoneyWithdrawPage() {
   const [data, setData] = useState<WithdrawData | null>(null);
@@ -285,7 +326,7 @@ export default function MoneyWithdrawPage() {
       {/* ── Withdraw Request History ── */}
       <div className="bg-white rounded-xl border border-gray-200">
         <div className="p-4 border-b border-gray-100">
-          <h2 className="text-base font-semibold text-gray-800">Withdraw Request history</h2>
+          <h2 className="text-base font-semibold text-gray-800">Withdraw Request History</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -296,6 +337,8 @@ export default function MoneyWithdrawPage() {
                 <th className="text-left px-4 py-3 font-medium">Amount</th>
                 <th className="text-left px-4 py-3 font-medium">Type</th>
                 <th className="text-left px-4 py-3 font-medium">Status</th>
+                <th className="text-left px-4 py-3 font-medium">TXN ID</th>
+                <th className="text-left px-4 py-3 font-medium">Slip</th>
                 <th className="text-left px-4 py-3 font-medium">Withdraw Type</th>
                 <th className="text-left px-4 py-3 font-medium">Remarks</th>
                 <th className="text-left px-4 py-3 font-medium">Message</th>
@@ -303,16 +346,16 @@ export default function MoneyWithdrawPage() {
             </thead>
             <tbody>
               {loading ? (
-                <tr><td colSpan={8} className="text-center py-12"><Loader2 className="size-8 animate-spin text-sky-400 mx-auto" /></td></tr>
-              ) : (data?.history ?? []).length === 0 ? (
+                <tr><td colSpan={10} className="text-center py-12"><Loader2 className="size-8 animate-spin text-sky-400 mx-auto" /></td></tr>
+              ) : (data?.withdrawHistory ?? []).length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-16">
+                  <td colSpan={10} className="text-center py-16">
                     <Frown className="size-16 text-gray-300 mx-auto mb-4" />
                     <p className="text-xl text-gray-500 font-medium">Nothing found</p>
                   </td>
                 </tr>
               ) : (
-                (data?.history ?? []).map((item) => (
+                (data?.withdrawHistory ?? []).map((item) => (
                   <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50">
                     <td className="px-4 py-3 text-gray-500">{item.index}</td>
                     <td className="px-4 py-3 text-gray-600">{item.date}</td>
@@ -323,9 +366,125 @@ export default function MoneyWithdrawPage() {
                         {item.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">{item.withdraw_type}</td>
+                    <td className="px-4 py-3 text-gray-400 text-xs">-</td>
+                    <td className="px-4 py-3 text-gray-400 text-xs">-</td>
+                    <td className="px-4 py-3 text-gray-600">{formatLabel(item.withdraw_type, item.method)}</td>
                     <td className="px-4 py-3 text-gray-600">{item.remarks || "-"}</td>
                     <td className="px-4 py-3 text-gray-600">{item.message || "-"}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="p-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-800">Wallet Recharge History</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-gray-500">
+                <th className="text-left px-4 py-3 font-medium">#</th>
+                <th className="text-left px-4 py-3 font-medium">Amount</th>
+                <th className="text-left px-4 py-3 font-medium">Payment Method</th>
+                <th className="text-left px-4 py-3 font-medium">Payment Details</th>
+                <th className="text-left px-4 py-3 font-medium">Approval</th>
+                <th className="text-left px-4 py-3 font-medium">Offline Payment</th>
+                <th className="text-left px-4 py-3 font-medium">Type</th>
+                <th className="text-left px-4 py-3 font-medium">Receipt</th>
+                <th className="text-left px-4 py-3 font-medium">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={9} className="text-center py-12"><Loader2 className="size-8 animate-spin text-sky-400 mx-auto" /></td></tr>
+              ) : (data?.walletHistory ?? []).length === 0 ? (
+                <tr>
+                  <td colSpan={9} className="text-center py-16">
+                    <Frown className="size-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-xl text-gray-500 font-medium">No wallet history found</p>
+                  </td>
+                </tr>
+              ) : (
+                (data?.walletHistory ?? []).map((item) => (
+                  <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-4 py-3 text-gray-500">{item.index}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800">${item.amount.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-gray-600">{formatLabel(item.payment_method)}</td>
+                    <td className="px-4 py-3 text-gray-600">{item.payment_details || "-"}</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[item.approval] ?? "bg-amber-100 text-amber-700"}`}>
+                        {item.approval}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[item.offline_payment] ?? "bg-gray-100 text-gray-600"}`}>
+                        {item.offline_payment}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{item.type}</td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        {item.receipt ? <span className="font-mono text-xs text-gray-500">{item.receipt}</span> : <span className="text-gray-300 text-xs">-</span>}
+                        {item.slip_url ? (
+                          <a href={item.slip_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sky-600 hover:underline text-xs font-medium">
+                            <Eye className="size-3.5" /> View
+                          </a>
+                        ) : null}
+                        {item.slip_url ? (
+                          <a href={item.slip_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-orange-500 hover:underline text-xs font-medium">
+                            <ExternalLink className="size-3.5" /> Open
+                          </a>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-gray-600">{item.date}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200">
+        <div className="p-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-800">Payment History</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-gray-500">
+                <th className="text-left px-4 py-3 font-medium">#</th>
+                <th className="text-left px-4 py-3 font-medium">Amount</th>
+                <th className="text-left px-4 py-3 font-medium">Payment Details</th>
+                <th className="text-left px-4 py-3 font-medium">Payment Method</th>
+                <th className="text-left px-4 py-3 font-medium">Transaction ID</th>
+                <th className="text-left px-4 py-3 font-medium">Date</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr><td colSpan={6} className="text-center py-12"><Loader2 className="size-8 animate-spin text-sky-400 mx-auto" /></td></tr>
+              ) : (data?.paymentHistory ?? []).length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="text-center py-16">
+                    <Frown className="size-16 text-gray-300 mx-auto mb-4" />
+                    <p className="text-xl text-gray-500 font-medium">No payment history found</p>
+                  </td>
+                </tr>
+              ) : (
+                (data?.paymentHistory ?? []).map((item) => (
+                  <tr key={item.id} className="border-b border-gray-50 hover:bg-gray-50/50">
+                    <td className="px-4 py-3 text-gray-500">{item.index}</td>
+                    <td className="px-4 py-3 font-medium text-gray-800">${item.amount.toFixed(2)}</td>
+                    <td className="px-4 py-3 text-gray-600">{item.payment_details}</td>
+                    <td className="px-4 py-3 text-gray-600">{formatLabel(item.payment_method)}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-gray-500">{item.trx_id || "-"}</td>
+                    <td className="px-4 py-3 text-gray-600">{item.date}</td>
                   </tr>
                 ))
               )}

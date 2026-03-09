@@ -11,6 +11,47 @@ function slugify(value: string) {
     .replace(/-+/g, "-");
 }
 
+async function buildUniqueImportSku(
+  db: ReturnType<typeof createAdminServiceClient>,
+  originalSku: string | null,
+  userId: string,
+  reservedSkus: Set<string>,
+) {
+  const baseSku = originalSku?.trim();
+  if (!baseSku) return null;
+
+  const sellerSuffix = userId.slice(0, 6).toUpperCase();
+  const candidateBase = `${baseSku}-${sellerSuffix}`;
+  let candidate = candidateBase;
+  let attempt = 2;
+
+  while (reservedSkus.has(candidate)) {
+    candidate = `${candidateBase}-${attempt}`;
+    attempt += 1;
+  }
+
+  while (true) {
+    const { data: existingSku, error } = await db
+      .from("products")
+      .select("id")
+      .eq("sku", candidate)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!existingSku) break;
+
+    candidate = `${candidateBase}-${attempt}`;
+    attempt += 1;
+    while (reservedSkus.has(candidate)) {
+      candidate = `${candidateBase}-${attempt}`;
+      attempt += 1;
+    }
+  }
+
+  reservedSkus.add(candidate);
+  return candidate;
+}
+
 export async function POST(request: Request) {
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
@@ -66,10 +107,10 @@ export async function POST(request: Request) {
     .in("title", titles);
 
   const existingTitles = new Set((existing || []).map((e) => e.title));
-
-  const toInsert = sourceProducts
-    .filter((p) => !existingTitles.has(p.title))
-    .map((p) => {
+  const reservedSkus = new Set<string>();
+  const importableProducts = sourceProducts.filter((p) => !existingTitles.has(p.title));
+  const toInsert = await Promise.all(
+    importableProducts.map(async (p, index) => {
       const slug = slugify(p.title) || `product-${Date.now()}`;
       return {
         seller_id: userId,
@@ -77,15 +118,16 @@ export async function POST(request: Request) {
         category_id: p.category_id,
         brand_id: p.brand_id,
         title: p.title,
-        slug: `${slug}-${Date.now().toString().slice(-6)}`,
-        sku: p.sku ?? null,
+        slug: `${slug}-${(Date.now() + index).toString().slice(-6)}`,
+        sku: await buildUniqueImportSku(db, p.sku ?? null, userId, reservedSkus),
         description: p.description ?? null,
         price: p.price,
         stock_count: p.stock_count ?? 1000,
         image_url: p.image_url ?? null,
         is_active: true,
       };
-    });
+    }),
+  );
 
   if (toInsert.length === 0) {
     return NextResponse.json({ success: true, imported: 0, skipped: sourceProducts.length, message: "All selected products already exist in your shop" });

@@ -48,15 +48,21 @@ export async function GET(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const _ctx = await getAdminContext(); if (_ctx instanceof NextResponse) return _ctx; const { db } = _ctx;
+    const _ctx = await getAdminContext(); if (_ctx instanceof NextResponse) return _ctx; const { db, userId } = _ctx;
     const body = await req.json();
     const { id, is_approved } = body;
     if (!id) return NextResponse.json({ error: "ID required" }, { status: 400 });
 
+    const { data: record } = await db.from("offline_recharges").select("*").eq("id", id).single();
+    if (!record) return NextResponse.json({ error: "Recharge request not found" }, { status: 404 });
+
+    if (record.is_approved && is_approved === false) {
+      return NextResponse.json({ error: "Approved recharge cannot be reverted from this screen" }, { status: 400 });
+    }
+
     // If approving, credit user wallet
-    if (is_approved === true) {
-      const { data: record } = await db.from("offline_recharges").select("*").eq("id", id).single();
-      if (record && record.user_id && record.amount) {
+    if (is_approved === true && !record.is_approved) {
+      if (record.user_id && record.amount) {
         // Get current wallet balance
         const { data: profile } = await db.from("profiles").select("wallet_balance").eq("id", record.user_id).single();
         const currentBalance = profile?.wallet_balance || 0;
@@ -73,7 +79,7 @@ export async function PATCH(req: NextRequest) {
 
     const { data, error } = await db
       .from("offline_recharges")
-      .update({ is_approved, updated_at: new Date().toISOString() })
+      .update({ is_approved, operator_id: userId, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select()
       .single();

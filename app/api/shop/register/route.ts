@@ -164,6 +164,7 @@ export async function POST(request: NextRequest) {
       full_name: fullName,
       role: "seller",
       phone,
+      credit_score: 100,
       transaction_password: transactionPassword,
       certificate_type: certificateType,
       certificate_front_url: certFrontUrl,

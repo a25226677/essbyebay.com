@@ -20,8 +20,8 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  const displayName = profile.fullName;
-  const avatarUrl = profile.avatarUrl;
+  const displayName = profile.shopName || profile.fullName;
+  const avatarUrl = profile.shopLogoUrl || profile.avatarUrl || "/logo.png";
   const balance = profile.balance;
 
   const handleSignOut = async () => {
@@ -60,6 +60,13 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
           <Menu className="size-5 text-gray-600" />
         </button>
         <div className="flex items-center gap-2">
+          <Link
+            href="/seller/dashboard"
+            className="hidden sm:flex items-center"
+            title="Ess by Ebay"
+          >
+            <Image src="/logo.png" alt="Ess by Ebay" width={124} height={30} className="h-8 w-auto object-contain" priority />
+          </Link>
           <button
             onClick={onToggleSidebar}
             className={`p-2 rounded-full transition-colors ${!sidebarOpen ? "bg-sky-100 text-sky-600" : "hover:bg-gray-100 text-gray-600"}`}
@@ -125,7 +132,7 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
               </div>
               <div className="text-left hidden sm:block">
                 <p className="text-sm font-medium text-gray-800">{displayName}</p>
-                <p className="text-[10px] text-gray-500 truncate max-w-[160px]" title={profile.email || undefined}>{profile.email || (profile?.isVerified ? "✓ Verified Seller" : "seller")}</p>
+                <p className="text-[10px] text-gray-500 truncate max-w-[180px]" title={profile.email || undefined}>{profile.email || (profile?.isVerified ? "✓ Verified Seller" : "seller")}</p>
               </div>
               <ChevronDown className="size-3.5 text-gray-400 hidden sm:block" />
             </button>
