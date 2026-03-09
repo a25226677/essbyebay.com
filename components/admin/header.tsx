@@ -44,19 +44,10 @@ export function AdminHeader() {
   }, []);
 
   const signOut = async () => {
-    const supabase = createClient();
-    const { error } = await supabase.auth.signOut({ scope: "global" });
-
-    if (error) {
-      toast.error(error.message || "Failed to sign out");
-      return;
-    }
-
     setUserOpen(false);
-    router.replace("/admin/login");
-    router.refresh();
-    // Force a full navigation to avoid stale authenticated UI state.
-    setTimeout(() => window.location.assign("/admin/login"), 50);
+    const supabase = createClient();
+    await supabase.auth.signOut({ scope: "local" });
+    window.location.href = "/admin/login";
   };
 
   const clearCache = async () => {

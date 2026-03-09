@@ -56,7 +56,11 @@ export async function middleware(request: NextRequest) {
   }
 
   // ── Seller routes ───────────────────────────────────────────────
-  if (pathname.startsWith("/seller") && !pathname.startsWith("/seller/login")) {
+  if (
+    pathname.startsWith("/seller") &&
+    !pathname.startsWith("/seller/login") &&
+    !pathname.startsWith("/seller/auth-callback")
+  ) {
     if (!user) {
       const url = request.nextUrl.clone();
       url.pathname = "/seller/login";
