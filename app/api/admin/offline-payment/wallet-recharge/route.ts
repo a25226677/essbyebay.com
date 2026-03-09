@@ -40,7 +40,29 @@ export async function GET(req: NextRequest) {
     // Filter by search on joined profile name
     let result = enriched;
     if (search) result = enriched.filter((r:any)=>r.user?.full_name?.toLowerCase().includes(search.toLowerCase()));
-    return NextResponse.json({ data: result, total: search ? result.length : (count || 0) });
+
+    // Generate signed URLs for photo_url (seller-files bucket is private)
+    const BUCKET = "seller-files";
+    const SIGNED_EXPIRES = 3600;
+    const withSignedPhotos = await Promise.all(
+      result.map(async (r: any) => {
+        if (!r.photo_url) return r;
+        try {
+          // Extract storage path from full public URL
+          const marker = `/storage/v1/object/public/${BUCKET}/`;
+          let storagePath: string = r.photo_url;
+          if (storagePath.includes(marker)) {
+            storagePath = storagePath.split(marker)[1]?.split("?")[0] ?? storagePath;
+          }
+          const { data } = await db.storage.from(BUCKET).createSignedUrl(storagePath, SIGNED_EXPIRES);
+          return { ...r, photo_url: data?.signedUrl ?? r.photo_url };
+        } catch {
+          return r;
+        }
+      })
+    );
+
+    return NextResponse.json({ data: withSignedPhotos, total: search ? result.length : (count || 0) });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
