@@ -34,12 +34,7 @@ export async function GET(request: NextRequest) {
        delivery_status, pickup_status, tracking_code,
        subtotal, shipping_fee, discount_amount, total_amount,
        created_at, updated_at, notes,
-       profiles!orders_user_id_fkey(id, full_name, phone),
-       order_items(
-         id, seller_id, quantity, unit_price, line_total,
-         products(id, title, image_url, slug, price),
-         profiles!order_items_seller_id_fkey(id, full_name)
-       )`,
+       profiles!orders_user_id_fkey(id, full_name, phone)`,
       { count: "exact" },
     )
     .order("created_at", { ascending: false });
@@ -66,48 +61,63 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Filter by seller_id
-  if (seller_id) {
-    items = items.filter((o) =>
-      Array.isArray(o.order_items) &&
-      (o.order_items as { seller_id: string }[]).some((i) => i.seller_id === seller_id),
-    );
+  // --- Fetch order_items explicitly to ensure accurate product counts ---
+  const orderIds = items.map((o) => o.id as string);
+  const [orderItemsResult, shopsResult] = await Promise.all([
+    orderIds.length > 0
+      ? db.from("order_items").select("order_id, seller_id, quantity").in("order_id", orderIds)
+      : Promise.resolve({ data: [] as { order_id: string; seller_id: string | null; quantity: number }[] }),
+    db.from("shops").select("owner_id, name"),
+  ]);
+
+  // Map: order_id => total quantity
+  const itemCountMap = new Map<string, number>();
+  // Map: order_id => first seller_id
+  const orderSellerMap = new Map<string, string>();
+  for (const row of (orderItemsResult.data || [])) {
+    const oid = row.order_id;
+    itemCountMap.set(oid, (itemCountMap.get(oid) ?? 0) + (row.quantity ?? 1));
+    if (!orderSellerMap.has(oid) && row.seller_id) {
+      orderSellerMap.set(oid, row.seller_id);
+    }
   }
 
-  // order_type: "seller" orders have at least one item with a seller profile that has a shop,
-  // "inhouse" orders have items belonging to admin (seller_id is the admin's own profile).
-  // We approximate: seller orders = items where seller profile exists; inhouse = no real shop.
+  // Map: owner_id => shop name
+  const shopNameMap = new Map<string, string>();
+  for (const shop of (shopsResult.data || [])) {
+    shopNameMap.set(shop.owner_id, shop.name);
+  }
+
+  // Filter by seller_id
+  if (seller_id) {
+    items = items.filter((o) => {
+      const sid = orderSellerMap.get(o.id as string);
+      return sid === seller_id;
+    });
+  }
+
   if (order_type === "seller") {
-    items = items.filter((o) =>
-      Array.isArray(o.order_items) &&
-      (o.order_items as { profiles: { full_name: string } | null }[]).some(
-        (i) => i.profiles !== null,
-      ),
-    );
+    items = items.filter((o) => orderSellerMap.has(o.id as string));
   }
 
   // Enrich items with computed fields
   const enriched = items.map((o) => {
-    const oi = (o.order_items as {
-      id: string; seller_id: string; quantity: number; unit_price: number; line_total: number;
-      products: { id: string; title: string; image_url: string | null; slug: string; price: number } | null;
-      profiles: { id: string; full_name: string } | null;
-    }[]) || [];
-
-    // First seller name for the "Shop" column
-    const firstSeller = oi.find((i) => i.profiles)?.profiles?.full_name ?? null;
-    const numProducts = oi.reduce((s, i) => s + i.quantity, 0);
+    const oid = o.id as string;
+    const numProducts = itemCountMap.get(oid) ?? 0;
+    const firstSellerId = orderSellerMap.get(oid) ?? null;
+    const shopName = firstSellerId ? (shopNameMap.get(firstSellerId) ?? null) : null;
 
     // Profit = 15–20% platform fee on subtotal (varies by order, deterministic)
-    const rateOffset = parseInt((o.id as string).replace(/-/g, "").slice(-4), 16) % 100 / 100;
+    const rateOffset = parseInt(oid.replace(/-/g, "").slice(-4), 16) % 100 / 100;
     const rate = 0.15 + rateOffset * 0.05; // 0.15 to 0.20
     const profit = Number(((o.subtotal as number) * rate).toFixed(2));
 
     return {
       ...o,
       order_code: makeOrderCode(o.created_at as string),
-      shop_name:  firstSeller,
+      shop_name: shopName,
       num_products: numProducts,
+      payment_status: o.payment_status || "pending",
       profit,
     };
   });

@@ -6,13 +6,14 @@ export async function GET(request: Request) {
   // Verify seller is authenticated
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
+  const { supabase, userId } = context;
 
   const { searchParams } = new URL(request.url);
   const search = (searchParams.get("search") || "").trim();
   const category_id = searchParams.get("category_id") || "";
   const brand_id = searchParams.get("brand_id") || "";
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
-  const limit = Math.min(100, parseInt(searchParams.get("limit") || "20", 10));
+  const limit = Math.min(100, parseInt(searchParams.get("limit") || "50", 10));
   const offset = (page - 1) * limit;
 
   const db = createAdminServiceClient();
@@ -37,11 +38,14 @@ export async function GET(request: Request) {
   const { data, error, count } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Fetch all categories and brands for filter dropdowns
-  const [{ data: categories }, { data: brands }] = await Promise.all([
+  // Fetch categories, brands, and seller's already-imported product titles in parallel
+  const [{ data: categories }, { data: brands }, { data: sellerProducts }] = await Promise.all([
     db.from("categories").select("id,name").order("name"),
     db.from("brands").select("id,name").order("name"),
+    supabase.from("products").select("title").eq("seller_id", userId),
   ]);
+
+  const importedTitles = new Set((sellerProducts || []).map((p) => p.title));
 
   const items = (data || []).map((p) => ({
     id: p.id,
@@ -52,6 +56,7 @@ export async function GET(request: Request) {
     image: p.image_url,
     category: (p.categories as unknown as { id: string; name: string } | null)?.name ?? "Uncategorized",
     brand: (p.brands as unknown as { id: string; name: string } | null)?.name ?? "",
+    imported: importedTitles.has(p.title),
   }));
 
   return NextResponse.json({

@@ -132,20 +132,22 @@ export function SellerSidebar() {
       {/* Shop info */}
       <div className="p-4 text-center border-b border-gray-100">
         <Link href="/seller/dashboard">
-          <div className="h-14 w-14 rounded-full mx-auto mb-2 bg-white overflow-hidden border-2 border-sky-100 flex items-center justify-center">
+          <div className="h-16 w-16 rounded-xl mx-auto mb-2 bg-white overflow-hidden border border-gray-200 flex items-center justify-center">
             <Image
               src={sellerImage}
               alt={sellerName}
-              width={56}
-              height={56}
-              className="h-14 w-14 object-cover"
+              width={64}
+              height={64}
+              className="h-16 w-16 object-contain"
             />
           </div>
         </Link>
         <h3 className="text-sm font-semibold text-sky-700">
           {sellerName}
         </h3>
-        <p className="text-xs text-gray-500 truncate px-2">{profile.email}</p>
+        {profile.email && (
+          <p className="text-xs text-gray-500 truncate px-2" title={profile.email}>{profile.email}</p>
+        )}
         <span className="inline-block mt-1 px-3 py-0.5 bg-green-500 text-white text-[10px] font-semibold rounded-full">
           Credit Score: {profile.creditScore}
         </span>

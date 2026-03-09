@@ -77,7 +77,24 @@ export function useUserData(): { user: UserData; loading: boolean } {
       load();
     });
 
-    return () => subscription.unsubscribe();
+    // Live-update balance/credit when admin approves a recharge
+    let realtimeSub: ReturnType<typeof supabase.channel> | null = null;
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      realtimeSub = supabase
+        .channel(`profile-live-${user.id}`)
+        .on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table: "profiles", filter: `id=eq.${user.id}` },
+          () => { load(); },
+        )
+        .subscribe();
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      if (realtimeSub) supabase.removeChannel(realtimeSub);
+    };
   }, []);
 
   return { user, loading };

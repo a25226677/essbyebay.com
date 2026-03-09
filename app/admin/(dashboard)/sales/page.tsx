@@ -258,7 +258,7 @@ export default function AllOrdersPage() {
                       {order.shop_name || <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-3 text-center text-xs font-semibold text-gray-700">
-                      {order.num_products ?? order.order_items?.length ?? 0}
+                      {order.num_products ?? 0}
                     </td>
                     <td className="px-4 py-3 text-xs font-medium text-gray-800">
                       {order.profiles?.full_name || <span className="text-gray-400">—</span>}
