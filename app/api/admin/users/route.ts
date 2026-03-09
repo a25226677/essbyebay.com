@@ -61,16 +61,17 @@ export async function GET(request: NextRequest) {
   if (profiles.length > 0) {
     try {
       const emailMap = new Map<string, string>();
-      const batch = profiles.map((p) =>
-        db.auth.admin
-          .getUserById(p.id)
+      const batch = profiles.map((p) => {
+        const pid = (p as Record<string, unknown>).id as string;
+        return db.auth.admin
+          .getUserById(pid)
           .then((r) => {
-            if (r.data?.user?.email) emailMap.set(p.id, r.data.user.email);
+            if (r.data?.user?.email) emailMap.set(pid, r.data.user.email);
           })
-          .catch(() => {})
-      );
+          .catch(() => {});
+      });
       await Promise.all(batch);
-      itemsWithEmail = profiles.map((p) => ({ ...p, email: emailMap.get(p.id) || null }));
+      itemsWithEmail = profiles.map((p) => ({ ...p, email: emailMap.get((p as Record<string, unknown>).id as string) || null }));
     } catch {
       itemsWithEmail = profiles.map((p) => ({ ...p, email: null }));
     }

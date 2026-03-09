@@ -71,7 +71,7 @@ type ProfileQueryResult = {
 type ProfileUpdateClient = {
   from: (table: string) => {
     update: (values: Record<string, unknown>) => {
-      eq: (column: string, value: string) => Promise<{ error: QueryError }>;
+      eq: (column: string, value: string) => PromiseLike<{ error: QueryError }>;
     };
   };
 };
@@ -98,7 +98,7 @@ function applyProfileDefaults<T extends Record<string, unknown>>(row: T, availab
 }
 
 export async function selectProfilesWithFallback(
-  runQuery: (columns: string, availableColumns: Set<string>) => Promise<ProfileQueryResult>,
+  runQuery: (columns: string, availableColumns: Set<string>) => PromiseLike<ProfileQueryResult>,
 ) {
   let optionalColumns = [...PROFILE_OPTIONAL_COLUMNS];
 

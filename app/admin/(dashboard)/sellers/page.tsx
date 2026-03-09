@@ -48,6 +48,8 @@ export default function SellersListPage() {
   const [messageModal,   setMessageModal]   = useState<Seller | null>(null);
   const [packageModal,   setPackageModal]   = useState<Seller | null>(null);
   const [docsModal,      setDocsModal]      = useState<Seller | null>(null);
+  const [signedDocUrls,  setSignedDocUrls]  = useState<Record<string, string>>({});
+  const [docsLoading,    setDocsLoading]    = useState(false);
   const [guaranteeAmt, setGuaranteeAmt]     = useState("");
   const [rechargeAmt,  setRechargeAmt]      = useState("");
   const [messageText,  setMessageText]      = useState("");
@@ -60,6 +62,35 @@ export default function SellersListPage() {
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  // Open docs modal and pre-fetch signed URLs for private bucket files
+  const openDocsModal = async (seller: Seller) => {
+    setDocsModal(seller);
+    setSignedDocUrls({});
+    const rawUrls: Record<string, string> = {};
+    if (seller.identity_card_url)      rawUrls["Identity card"]      = seller.identity_card_url;
+    if (seller.certificate_front_url)  rawUrls["Certificate front"]  = seller.certificate_front_url;
+    if (seller.certificate_back_url)   rawUrls["Certificate back"]   = seller.certificate_back_url;
+    if (Object.keys(rawUrls).length === 0) return;
+    setDocsLoading(true);
+    try {
+      const signed: Record<string, string> = {};
+      await Promise.all(
+        Object.entries(rawUrls).map(async ([label, url]) => {
+          const res = await fetch(`/api/admin/sign-url?url=${encodeURIComponent(url)}&bucket=seller-files`);
+          if (res.ok) {
+            const json = await res.json();
+            signed[label] = json.signedUrl;
+          } else {
+            signed[label] = url; // Fallback to original
+          }
+        })
+      );
+      setSignedDocUrls(signed);
+    } finally {
+      setDocsLoading(false);
+    }
   };
 
   const fetchSellers = useCallback(async (overrides?: { search?: string; date?: string; approval?: string; page?: number }) => {
@@ -467,7 +498,7 @@ export default function SellersListPage() {
                           const docs = getSellerDocs(seller);
                           return (
                             <button
-                              onClick={() => setDocsModal(seller)}
+                              onClick={() => openDocsModal(seller)}
                               disabled={docs.length === 0}
                               title={docs.length > 0 ? "View seller documents" : "No documents uploaded"}
                               className={`inline-flex items-center justify-center w-9 h-8 rounded-lg border transition-colors ${docs.length > 0 ? "border-gray-200 bg-white hover:bg-gray-50 text-gray-600" : "border-gray-100 bg-gray-50 text-gray-300 cursor-not-allowed"}`}
@@ -666,26 +697,35 @@ export default function SellersListPage() {
                 <h2 className="text-base font-bold text-gray-800">Seller Documents</h2>
                 <p className="text-xs text-gray-500 mt-0.5">{docsModal.full_name || docsModal.email || "Seller"}</p>
               </div>
-              <button onClick={() => setDocsModal(null)}><X className="size-4 text-gray-500" /></button>
+              <button onClick={() => { setDocsModal(null); setSignedDocUrls({}); }}><X className="size-4 text-gray-500" /></button>
             </div>
             <div className="px-6 py-5 overflow-y-auto max-h-[calc(85vh-72px)]">
-              {getSellerDocs(docsModal).length === 0 ? (
+              {docsLoading ? (
+                <p className="text-sm text-gray-500">Loading documents…</p>
+              ) : getSellerDocs(docsModal).length === 0 ? (
                 <p className="text-sm text-gray-500">No documents uploaded for this seller.</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {getSellerDocs(docsModal).map((doc) => (
-                    <div key={doc.label} className="border border-gray-200 rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <h3 className="text-sm font-semibold text-gray-800">{doc.label}</h3>
-                        <a href={doc.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-semibold">
-                          Open <ExternalLink className="size-3" />
-                        </a>
+                  {getSellerDocs(docsModal).map((doc) => {
+                    const viewUrl = signedDocUrls[doc.label] || doc.url;
+                    return (
+                      <div key={doc.label} className="border border-gray-200 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <h3 className="text-sm font-semibold text-gray-800">{doc.label}</h3>
+                          <a href={viewUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-orange-600 hover:text-orange-700 font-semibold">
+                            Open <ExternalLink className="size-3" />
+                          </a>
+                        </div>
+                        <div className="relative w-full h-44 rounded-lg overflow-hidden bg-gray-50 border border-gray-100">
+                          {viewUrl ? (
+                            <Image src={viewUrl} alt={doc.label} fill className="object-contain" unoptimized />
+                          ) : (
+                            <div className="flex items-center justify-center h-full text-xs text-gray-400">No preview</div>
+                          )}
+                        </div>
                       </div>
-                      <div className="relative w-full h-44 rounded-lg overflow-hidden bg-gray-50 border border-gray-100">
-                        <Image src={doc.url} alt={doc.label} fill className="object-contain" />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>

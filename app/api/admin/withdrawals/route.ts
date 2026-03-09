@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
 
     const result = await query;
     if (!result.error) {
-      data  = (result.data as Record<string, unknown>[]) || [];
+      data  = (result.data as unknown as Record<string, unknown>[]) || [];
       count = result.count;
       break;
     }
