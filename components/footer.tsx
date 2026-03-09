@@ -48,11 +48,7 @@ export function Footer() {
               connecting customers with trusted sellers in one seamless shopping destination. We curate a diverse range of
               products across multiple categories, offering quality, convenience, and choice.
             </p>
-            <p className="text-sm text-gray-400 leading-relaxed mb-8">
-              Built to support both buyers and sellers, eSeller Store Bay combines secure
-              technology, transparent reviews, and reliable service to deliver a refined online
-              shopping experience. Our mission is to empower businesses and elevate everyday shopping through trust, innovation, and simplicity.
-            </p>
+           
 
             {/* Newsletter */}
             <div className="mb-8">

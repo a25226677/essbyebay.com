@@ -1,6 +1,17 @@
 import { getAdminContext } from "@/lib/supabase/admin-api";
 import { NextRequest, NextResponse } from "next/server";
 
+// Columns that may be missing in older production schemas
+const OPTIONAL_WITHDRAWAL_COLS = ["account_info", "withdraw_type"];
+
+function buildWithdrawalsSelect(exclude: Set<string>) {
+  const cols = [
+    "id", "seller_id", "amount", "status", "method",
+    "account_info", "withdraw_type", "notes", "created_at", "updated_at",
+  ].filter((c) => !exclude.has(c));
+  return cols.join(", ");
+}
+
 export async function GET(request: NextRequest) {
   const context = await getAdminContext();
   if (context instanceof NextResponse) return context;
@@ -13,34 +24,62 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(100, parseInt(sp.get("limit") || "20", 10));
   const offset = (page - 1) * limit;
 
-  let query = db
-    .from("withdrawals")
-    .select(
-      `id, seller_id, amount, status, method, account_info, notes, created_at, updated_at`,
-      { count: "exact" },
-    )
-    .order("created_at", { ascending: false });
+  const excludedCols = new Set<string>();
+  let data: Record<string, unknown>[] | null = null;
+  let count: number | null = null;
 
-  if (status)   query = query.eq("status", status);
-  if (sellerId) query = query.eq("seller_id", sellerId);
-  query = query.range(offset, offset + limit - 1);
+  // Retry loop — strip one missing column per iteration
+  for (let attempt = 0; attempt <= OPTIONAL_WITHDRAWAL_COLS.length; attempt++) {
+    const selectCols = buildWithdrawalsSelect(excludedCols);
+    let query = db
+      .from("withdrawals")
+      .select(selectCols, { count: "exact" })
+      .order("created_at", { ascending: false });
+    if (status)   query = query.eq("status", status);
+    if (sellerId) query = query.eq("seller_id", sellerId);
+    query = query.range(offset, offset + limit - 1);
 
-  const { data, error, count } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    const result = await query;
+    if (!result.error) {
+      data  = (result.data as Record<string, unknown>[]) || [];
+      count = result.count;
+      break;
+    }
+
+    // Detect missing column and retry without it
+    const msg = result.error.message;
+    const match = msg.match(/column (?:withdrawals\.)?"?(\w+)"? does not exist/);
+    if (match && OPTIONAL_WITHDRAWAL_COLS.includes(match[1])) {
+      excludedCols.add(match[1]);
+      continue;
+    }
+    return NextResponse.json({ error: msg }, { status: 500 });
+  }
+
+  if (data === null) {
+    return NextResponse.json({ error: "Unable to query withdrawals" }, { status: 500 });
+  }
+
+  // Fill defaults for stripped optional columns
+  const filledData = data.map((row) => ({
+    account_info:  null,
+    withdraw_type: "bank",
+    ...row,
+  }));
 
   // Attach shop name for each withdrawal
-  const items = data || [];
+  const items = filledData;
   // Batch-fetch seller profiles and shops
-  const sellerIds = [...new Set(items.map((w: any) => w.seller_id).filter(Boolean))];
-  const profileMap = new Map<string, any>();
+  const sellerIds = [...new Set(items.map((w: Record<string, unknown>) => w.seller_id as string).filter(Boolean))];
+  const profileMap = new Map<string, Record<string, unknown>>();
   const shopMap = new Map<string, string>();
   if (sellerIds.length > 0) {
     const { data: profiles } = await db.from("profiles").select("id, full_name, phone, avatar_url, wallet_balance").in("id", sellerIds);
-    (profiles || []).forEach((p: any) => profileMap.set(p.id, p));
+    (profiles || []).forEach((p: Record<string, unknown>) => profileMap.set(p.id as string, p));
     const { data: shops } = await db.from("shops").select("name, owner_id").in("owner_id", sellerIds);
-    (shops || []).forEach((s: any) => shopMap.set(s.owner_id, s.name));
+    (shops || []).forEach((s: Record<string, unknown>) => shopMap.set(s.owner_id as string, s.name as string));
   }
-  const enriched = items.map((w: any) => ({
+  const enriched = items.map((w: Record<string, unknown>) => ({
     ...w,
     profiles: profileMap.get(w.seller_id) || null,
     shop_name: shopMap.get(w.seller_id) || null,

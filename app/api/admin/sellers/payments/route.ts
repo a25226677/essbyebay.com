@@ -24,7 +24,16 @@ export async function GET(request: NextRequest) {
   if (sellerId) query = query.eq("seller_id", sellerId);
 
   const { data, error, count } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // Table may not exist in older production deployments — return empty list gracefully
+    if (error.message.includes("seller_payments") || error.message.toLowerCase().includes("schema cache")) {
+      return NextResponse.json({
+        items: [],
+        pagination: { page, limit, total: 0, pages: 0 },
+      });
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   // Attach shop names
   const items = data || [];
@@ -59,7 +68,12 @@ export async function POST(request: NextRequest) {
     seller_id, amount, payment_details: payment_details || null, trx_id: trx_id || null, admin_id: userId,
   }).select().single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    if (error.message.includes("seller_payments") || error.message.toLowerCase().includes("schema cache")) {
+      return NextResponse.json({ error: "Payment table not yet available. Please apply the latest database migration." }, { status: 503 });
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json({ item: data });
 }
 

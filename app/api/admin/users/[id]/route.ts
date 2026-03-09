@@ -5,6 +5,10 @@ import {
   sendAccountRestoredEmail,
   sendRoleChangedEmail,
 } from "@/lib/email";
+import {
+  selectProfilesWithFallback,
+  updateProfileWithFallback,
+} from "@/lib/supabase/profile-schema-compat";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -15,13 +19,12 @@ export async function GET(_request: Request, { params }: Params) {
   const { db } = context;
   const { id } = await params;
 
-  const { data: profile, error } = await db
-    .from("profiles")
-    .select("id, full_name, phone, avatar_url, role, is_active, is_virtual, disable_login, wallet_balance, credit_score, package, created_at, updated_at")
-    .eq("id", id)
-    .maybeSingle();
+  const result = await selectProfilesWithFallback((columns) =>
+    db.from("profiles").select(columns).eq("id", id).maybeSingle(),
+  );
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 });
+  const profile = result.data?.[0] ?? null;
   if (!profile) return NextResponse.json({ error: "User not found" }, { status: 404 });
 
   // Get email from auth
@@ -134,7 +137,7 @@ export async function PATCH(request: Request, { params }: Params) {
       .eq("id", id)
       .maybeSingle();
 
-    const { error } = await db.from("profiles").update(updates).eq("id", id);
+    const { error } = await updateProfileWithFallback(db, id, updates);
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });

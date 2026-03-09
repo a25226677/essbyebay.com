@@ -5,6 +5,7 @@ import {
   sendRoleChangedEmail,
   sendAdminNewUserNotification,
 } from "@/lib/email";
+import { selectProfilesWithFallback } from "@/lib/supabase/profile-schema-compat";
 
 export async function GET(request: NextRequest) {
   const context = await getAdminContext();
@@ -20,34 +21,41 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(100, parseInt(sp.get("limit") || "20", 10));
   const offset = (page - 1) * limit;
 
-  let query = db
-    .from("profiles")
-    .select(
-      `id, full_name, phone, avatar_url, role, is_active, is_virtual, disable_login,
-       wallet_balance, credit_score, package, is_verified, balance,
-      seller_approved, guarantee_money, pending_balance, seller_views,
-      comment_permission, home_display, verification_info, invitation_code,
-      salesman_id, identity_card_url, total_recharge, total_withdrawn,
-       certificate_type, certificate_front_url, certificate_back_url,
-       created_at, updated_at`,
-      { count: "exact" },
-    )
-    .order("created_at", { ascending: false });
+  const result = await selectProfilesWithFallback((columns, availableColumns) => {
+    let query = db
+      .from("profiles")
+      .select(columns, { count: "exact" })
+      .order("created_at", { ascending: false });
 
-  if (search) {
-    query = query.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
+    if (search) {
+      query = query.or(`full_name.ilike.%${search}%,phone.ilike.%${search}%`);
+    }
+    if (role) query = query.eq("role", role);
+    if (is_active !== "") query = query.eq("is_active", is_active === "true");
+    if (seller_approved !== "" && availableColumns.has("seller_approved")) {
+      query = query.eq("seller_approved", seller_approved === "true");
+    }
+
+    query = query.range(offset, offset + limit - 1);
+
+    return query;
+  });
+
+  if (result.error) {
+    return NextResponse.json({ error: result.error.message }, { status: 500 });
   }
-  if (role) query = query.eq("role", role);
-  if (is_active !== "") query = query.eq("is_active", is_active === "true");
-  if (seller_approved !== "") query = query.eq("seller_approved", seller_approved === "true");
 
-  query = query.range(offset, offset + limit - 1);
+  let profiles = result.data || [];
+  let count = result.count || 0;
 
-  const { data, error, count } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (seller_approved !== "" && !result.availableColumns.has("seller_approved")) {
+    if (seller_approved === "true") {
+      profiles = [];
+      count = 0;
+    }
+  }
 
   // Fetch emails from auth.users for each profile
-  const profiles = data || [];
   let itemsWithEmail = profiles;
 
   if (profiles.length > 0) {
