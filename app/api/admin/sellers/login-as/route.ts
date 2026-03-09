@@ -57,7 +57,9 @@ export async function POST(request: Request) {
       );
     }
 
-    const origin = new URL(request.url).origin;
+    const origin =
+      process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+      new URL(request.url).origin;
     const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
       type: "magiclink",
       email,

@@ -5,8 +5,6 @@ import Image from "next/image";
 import { Bell, Globe, Printer, Menu, LogOut, User, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useUserData } from "@/lib/hooks/use-user-data";
-import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 
 interface SellerHeaderProps {
@@ -16,7 +14,6 @@ interface SellerHeaderProps {
 
 export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps) {
   const { user: profile } = useUserData();
-  const router = useRouter();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
@@ -26,9 +23,8 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
 
   const handleSignOut = async () => {
     setUserMenuOpen(false);
-    const supabase = createClient();
-    await supabase.auth.signOut({ scope: "local" });
-    window.location.href = "/seller/login";
+    const res = await fetch("/api/auth/signout?next=/seller/login", { method: "POST" });
+    window.location.href = res.ok ? res.url : "/seller/login";
   };
 
   // Close dropdown on outside click

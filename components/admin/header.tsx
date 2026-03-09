@@ -1,6 +1,5 @@
 "use client";
 
-import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
 import {
@@ -14,7 +13,6 @@ import {
   Trash2,
   ShoppingBag,
 } from "lucide-react";
-import { toast } from "sonner";
 
 const LANGUAGES = [
   { code: "en", label: "EN", flag: "🇺🇸" },
@@ -45,9 +43,8 @@ export function AdminHeader() {
 
   const signOut = async () => {
     setUserOpen(false);
-    const supabase = createClient();
-    await supabase.auth.signOut({ scope: "local" });
-    window.location.href = "/admin/login";
+    const res = await fetch("/api/auth/signout?next=/admin/login", { method: "POST" });
+    window.location.href = res.ok ? res.url : "/admin/login";
   };
 
   const clearCache = async () => {

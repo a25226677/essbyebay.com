@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useState, useRef, useEffect } from "react";
 import { ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
 
 type UserRole = "admin" | "seller" | "customer";
 
@@ -28,8 +26,8 @@ const languages = [
   { code: "sk", name: "Slovakian", flag: "🇸🇰" },
 ];
 
+
 export function TopBar() {
-  const router = useRouter();
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
   const [selectedLang, setSelectedLang] = useState(languages[0]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -84,13 +82,8 @@ export function TopBar() {
   }, []);
 
   const handleLogout = async () => {
-    const supabase = createClient();
-    await supabase.auth.signOut();
-    setUserRole(null);
-    setIsLoggedIn(false);
-    toast.success("Signed out successfully");
-    router.push("/");
-    router.refresh();
+    const res = await fetch("/api/auth/signout?next=/", { method: "POST" });
+    window.location.href = res.ok ? res.url : "/";
   };
 
   // Derive helper flags
