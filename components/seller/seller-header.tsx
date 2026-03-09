@@ -25,19 +25,10 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
   const balance = profile.balance;
 
   const handleSignOut = async () => {
-    const supabase = createClient();
-    const { error } = await supabase.auth.signOut({ scope: "global" });
-
-    if (error) {
-      toast.error(error.message || "Failed to sign out");
-      return;
-    }
-
     setUserMenuOpen(false);
-    router.replace("/seller/login");
-    router.refresh();
-    // Force a full navigation to avoid stale authenticated UI state.
-    setTimeout(() => window.location.assign("/seller/login"), 50);
+    const supabase = createClient();
+    await supabase.auth.signOut({ scope: "local" });
+    window.location.href = "/seller/login";
   };
 
   // Close dropdown on outside click

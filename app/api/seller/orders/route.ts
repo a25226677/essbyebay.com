@@ -1,30 +1,33 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
+import { createAdminServiceClient } from "@/lib/supabase/admin-client";
 import { NextResponse } from "next/server";
 
 export async function GET(request: Request) {
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
 
-  const { supabase, userId } = context;
+  const { userId } = context;
+  // Use admin client to bypass RLS — seller can only see their own items (filtered by userId)
+  const db = createAdminServiceClient();
   const { searchParams } = new URL(request.url);
 
   const search = (searchParams.get("search") || "").trim().toLowerCase();
   const paymentFilter = (searchParams.get("payment_status") || "all").trim();
   const deliveryFilter = (searchParams.get("delivery_status") || "all").trim();
 
-  const { data: sellerOrderRows, error: sellerRowsError } = await supabase
+  const { data: sellerOrderRows, error: sellerRowsError } = await db
     .from("order_items")
-    .select("order_id")
+    .select("order_id, quantity")
     .eq("seller_id", userId);
 
   if (sellerRowsError) {
     return NextResponse.json({ error: sellerRowsError.message }, { status: 500 });
   }
 
-  // Build a count map: order_id → number of items
+  // Build a count map: order_id → total quantity of items from this seller
   const orderCountMap: Record<string, number> = {};
   for (const row of sellerOrderRows || []) {
-    orderCountMap[row.order_id] = (orderCountMap[row.order_id] || 0) + 1;
+    orderCountMap[row.order_id] = (orderCountMap[row.order_id] || 0) + (row.quantity ?? 1);
   }
   const orderIds = Object.keys(orderCountMap);
 
@@ -35,9 +38,9 @@ export async function GET(request: Request) {
     });
   }
 
-  let ordersQuery = supabase
+  let ordersQuery = db
     .from("orders")
-    .select("id,status,payment_status,total_amount,created_at,user_id")
+    .select("id,status,payment_status,delivery_status,pickup_status,total_amount,created_at,user_id")
     .in("id", orderIds)
     .order("created_at", { ascending: false });
 
@@ -54,7 +57,7 @@ export async function GET(request: Request) {
   }
 
   const userIds = [...new Set((orders || []).map((order) => order.user_id))];
-  const { data: users } = await supabase
+  const { data: users } = await db
     .from("profiles")
     .select("id,full_name")
     .in("id", userIds);
@@ -70,18 +73,19 @@ export async function GET(request: Request) {
     const code = `${dateStr}-${numericPart}`;
 
     const pickupStatus =
-      order.status === "delivered" || order.status === "shipped"
-        ? "Picked Up"
-        : "Unpicked Up";
+      order.pickup_status === "picked_up" ? "Picked Up" : "Unpicked Up";
 
     const deliveryStatus =
-      order.status === "delivered"
+      order.delivery_status === "delivered"
         ? "Delivered"
-        : order.status === "shipped"
+        : order.delivery_status === "shipped"
           ? "On Delivery"
           : "Pending";
 
-    const paymentStatus = order.payment_status === "succeeded" ? "Paid" : "Un-Paid";
+    const paymentStatus =
+      order.payment_status === "succeeded" || order.payment_status === "paid"
+        ? "Paid"
+        : "Un-Paid";
 
     const amount = Number(order.total_amount || 0);
     // Deterministic profit: 15–20% of amount based on order ID hash
