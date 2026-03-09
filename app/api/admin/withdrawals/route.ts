@@ -81,8 +81,8 @@ export async function GET(request: NextRequest) {
   }
   const enriched = items.map((w: Record<string, unknown>) => ({
     ...w,
-    profiles: profileMap.get(w.seller_id) || null,
-    shop_name: shopMap.get(w.seller_id) || null,
+    profiles: profileMap.get(w.seller_id as string) || null,
+    shop_name: shopMap.get(w.seller_id as string) || null,
   }));
 
   return NextResponse.json({

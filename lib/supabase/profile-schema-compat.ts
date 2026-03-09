@@ -85,8 +85,8 @@ function getMissingProfileColumn(message: string) {
   return match?.[1] ?? null;
 }
 
-function applyProfileDefaults<T extends Record<string, unknown>>(row: T, availableColumns: Set<string>) {
-  const next = { ...row } as T & Record<string, unknown>;
+function applyProfileDefaults(row: Record<string, unknown>, availableColumns: Set<string>) {
+  const next = { ...row };
 
   for (const [column, defaultValue] of Object.entries(PROFILE_DEFAULTS)) {
     if (!availableColumns.has(column) && !(column in next)) {
