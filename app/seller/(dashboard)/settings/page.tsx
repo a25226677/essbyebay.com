@@ -74,6 +74,8 @@ export default function ShopSettingPage() {
       if (!res.ok) throw new Error(json.error || "Save failed");
       setSuccess("Shop settings saved successfully!");
       setTimeout(() => setSuccess(""), 4000);
+      // Notify sidebar/header to refresh shop data immediately
+      window.dispatchEvent(new CustomEvent("shop-settings-updated"));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Save failed");
     } finally {

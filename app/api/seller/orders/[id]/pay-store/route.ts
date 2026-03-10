@@ -26,20 +26,19 @@ export async function POST(
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  // Check if order is already paid
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .select("payment_status")
-    .eq("id", orderId)
-    .single();
+  // Check if the storehouse fee for this order has already been paid
+  // (tracked in froze_orders, NOT in orders.payment_status which belongs
+  //  to the customer's purchase payment)
+  const { data: frozeOrder } = await supabase
+    .from("froze_orders")
+    .select("id, payment_status")
+    .eq("order_id", orderId)
+    .eq("seller_id", userId)
+    .maybeSingle();
 
-  if (orderError || !order) {
-    return NextResponse.json({ error: "Order not found" }, { status: 404 });
-  }
-
-  if (order.payment_status === "succeeded") {
+  if (frozeOrder?.payment_status === "paid") {
     return NextResponse.json(
-      { error: "Order is already paid" },
+      { error: "Storehouse fee for this order is already paid" },
       { status: 400 }
     );
   }
@@ -86,11 +85,31 @@ export async function POST(
     return NextResponse.json({ error: balanceError.message }, { status: 500 });
   }
 
-  // Mark order as paid
-  const { error: updateError } = await supabase
-    .from("orders")
-    .update({ payment_status: "succeeded" })
-    .eq("id", orderId);
+  // Mark the storehouse fee as paid in froze_orders (not in orders.payment_status
+  // which tracks whether the customer paid for their purchase)
+  let updateError: { message: string } | null = null;
+  if (frozeOrder) {
+    const { error } = await supabase
+      .from("froze_orders")
+      .update({ payment_status: "paid" })
+      .eq("id", frozeOrder.id);
+    updateError = error;
+  } else {
+    // No froze_order row yet — create one to record this payment
+    const orderCode = `${new Date().toISOString().slice(0, 10).replace(/-/g, "")}-${orderId.slice(0, 8)}`;
+    const { error } = await supabase
+      .from("froze_orders")
+      .insert({
+        seller_id: userId,
+        order_id: orderId,
+        order_code: orderCode,
+        amount: storehouseTotal,
+        profit: 0,
+        payment_status: "paid",
+        pickup_status: "unpicked_up",
+      });
+    updateError = error;
+  }
 
   if (updateError) {
     // Rollback balance on failure
