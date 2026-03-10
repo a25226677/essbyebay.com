@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingCart, Eye, X } from "lucide-react";
+import { ShoppingCart, Eye } from "lucide-react";
 
 type OrderItem = {
   id: string;
@@ -57,16 +57,6 @@ export default function OrdersPage() {
 
   const handleSearchKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === "Enter") setSearchQuery(searchInput);
-  };
-
-  const cancelOrder = async (id: string) => {
-    if (!confirm("Are you sure you want to cancel this order?")) return;
-    const res = await fetch(`/api/seller/orders/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "cancelled" }),
-    });
-    if (res.ok) fetchOrders(searchQuery, paymentFilter, deliveryFilter);
   };
 
   const statCards = [
@@ -209,15 +199,6 @@ export default function OrdersPage() {
                         >
                           <Eye className="size-4" />
                         </button>
-                        {order.pickupStatus === "Unpicked Up" && (
-                          <button
-                            onClick={() => cancelOrder(order.id)}
-                            className="w-8 h-8 flex items-center justify-center rounded border border-red-300 text-red-500 hover:bg-red-50 transition-colors"
-                            title="Cancel"
-                          >
-                            <X className="size-4" />
-                          </button>
-                        )}
                       </div>
                     </td>
                   </tr>

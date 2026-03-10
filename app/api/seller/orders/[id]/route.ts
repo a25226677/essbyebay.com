@@ -9,33 +9,46 @@ export async function GET(_request: Request, { params }: Params) {
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
 
-  const { supabase, userId } = context;
+  const { userId } = context;
+  const db = createAdminServiceClient();
   const { id: orderId } = await params;
 
-  // Verify this order has items belonging to this seller
-  const { data: sellerItems, error: itemsError } = await supabase
-    .from("order_items")
-    .select("id, product_id, quantity, unit_price, line_total, storehouse_price")
-    .eq("order_id", orderId)
+  // Find seller's products to check ownership by product as well
+  const { data: sellerProducts } = await db
+    .from("products")
+    .select("id")
     .eq("seller_id", userId);
+
+  const sellerProductIds = (sellerProducts || []).map((p: { id: string }) => p.id);
+
+  // Fetch all items for this order, then filter to items belonging to this seller
+  const { data: allItems, error: itemsError } = await db
+    .from("order_items")
+    .select("id, product_id, quantity, unit_price, line_total, storehouse_price, seller_id")
+    .eq("order_id", orderId);
 
   if (itemsError) {
     return NextResponse.json({ error: itemsError.message }, { status: 500 });
   }
 
-  if (!sellerItems || sellerItems.length === 0) {
+  // An item belongs to this seller if seller_id matches OR the product is owned by this seller
+  const sellerItems = (allItems || []).filter(
+    (item) => item.seller_id === userId || sellerProductIds.includes(item.product_id)
+  );
+
+  if (sellerItems.length === 0) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
   const productIds = sellerItems.map((item) => item.product_id);
-  const { data: products } = await supabase
+  const { data: products } = await db
     .from("products")
     .select("id, title, image_url")
     .in("id", productIds);
 
-  const productMap = new Map((products || []).map((p) => [p.id, p]));
+  const productMap = new Map((products || []).map((p: { id: string; title: string; image_url: string | null }) => [p.id, p]));
 
-  const { data: order, error: orderError } = await supabase
+  const { data: order, error: orderError } = await db
     .from("orders")
     .select(
       "id, order_code, status, payment_status, total_amount, shipping_fee, discount_amount, coupon_amount, tax_amount, payment_method, created_at, user_id, shipping_address_id"
@@ -47,7 +60,7 @@ export async function GET(_request: Request, { params }: Params) {
     return NextResponse.json({ error: "Order not found" }, { status: 404 });
   }
 
-  const { data: customer } = await supabase
+  const { data: customer } = await db
     .from("profiles")
     .select("full_name, phone")
     .eq("id", order.user_id)
@@ -56,7 +69,7 @@ export async function GET(_request: Request, { params }: Params) {
   // Fetch shipping address if available
   let shippingAddr: Record<string, string> | null = null;
   if (order.shipping_address_id) {
-    const { data: addr } = await supabase
+    const { data: addr } = await db
       .from("addresses")
       .select("city, state, country")
       .eq("id", order.shipping_address_id)
