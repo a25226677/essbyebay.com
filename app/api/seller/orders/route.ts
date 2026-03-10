@@ -15,18 +15,50 @@ export async function GET(request: Request) {
   const paymentFilter = (searchParams.get("payment_status") || "all").trim();
   const deliveryFilter = (searchParams.get("delivery_status") || "all").trim();
 
-  const { data: sellerOrderRows, error: sellerRowsError } = await db
-    .from("order_items")
-    .select("order_id, quantity")
+  const { data: sellerProducts } = await db
+    .from("products")
+    .select("id")
     .eq("seller_id", userId);
+
+  const sellerProductIds = (sellerProducts || []).map((p) => p.id);
+
+  const [strictSellerRowsRes, fallbackSellerRowsRes] = await Promise.all([
+    db
+      .from("order_items")
+      .select("id, order_id, quantity, seller_id, product_id")
+      .eq("seller_id", userId),
+    sellerProductIds.length > 0
+      ? db
+          .from("order_items")
+          .select("id, order_id, quantity, seller_id, product_id")
+          .in("product_id", sellerProductIds)
+      : Promise.resolve({ data: [] as { id: string; order_id: string; quantity: number; seller_id: string; product_id: string }[], error: null }),
+  ]);
+
+  const sellerRowsError = strictSellerRowsRes.error || fallbackSellerRowsRes.error;
+  const rawOrderItems = [
+    ...(strictSellerRowsRes.data || []),
+    ...(fallbackSellerRowsRes.data || []),
+  ];
+  const uniqueOrderItems = Array.from(new Map(rawOrderItems.map((row) => [row.id, row])).values());
 
   if (sellerRowsError) {
     return NextResponse.json({ error: sellerRowsError.message }, { status: 500 });
   }
 
-  // Build a count map: order_id → total quantity of items from this seller
+  // Resolve product sellers so legacy rows (wrong/missing seller_id) can still be attributed correctly.
+  const productIds = [...new Set(uniqueOrderItems.map((row) => row.product_id).filter(Boolean))];
+  const { data: productRows } = productIds.length
+    ? await db.from("products").select("id, seller_id").in("id", productIds)
+    : { data: [] as { id: string; seller_id: string }[] };
+
+  const productSellerMap = new Map((productRows || []).map((row) => [row.id, row.seller_id]));
+
+  // Build a count map: order_id → total quantity of items that belong to this seller
   const orderCountMap: Record<string, number> = {};
-  for (const row of sellerOrderRows || []) {
+  for (const row of uniqueOrderItems) {
+    const itemSellerId = row.seller_id || productSellerMap.get(row.product_id);
+    if (itemSellerId !== userId) continue;
     orderCountMap[row.order_id] = (orderCountMap[row.order_id] || 0) + (row.quantity ?? 1);
   }
   const orderIds = Object.keys(orderCountMap);
@@ -46,8 +78,12 @@ export async function GET(request: Request) {
 
   if (deliveryFilter !== "all") {
     const mapped =
-      deliveryFilter === "On Delivery" ? "shipped" : deliveryFilter.toLowerCase();
-    ordersQuery = ordersQuery.eq("status", mapped);
+      deliveryFilter === "On Delivery"
+        ? "on_the_way"
+        : deliveryFilter === "Delivered"
+          ? "delivered"
+          : "pending";
+    ordersQuery = ordersQuery.eq("delivery_status", mapped);
   }
 
   const { data: orders, error: ordersError } = await ordersQuery;
@@ -95,7 +131,7 @@ export async function GET(request: Request) {
     return {
       id: order.id,
       code,
-      num_products: orderCountMap[order.id] || 1,
+      num_products: orderCountMap[order.id] || 0,
       customer: userMap.get(order.user_id) || "Customer",
       amount,
       profit,

@@ -119,9 +119,12 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
               </div>
               <div className="text-left hidden sm:block">
                 <p className="text-sm font-medium text-gray-800">{displayName}</p>
-                {profile.email && (
-                  <p className="text-[10px] text-gray-500 truncate max-w-[180px]" title={profile.email}>{profile.email}</p>
-                )}
+                <p
+                  className="text-[10px] text-gray-500 truncate max-w-[180px]"
+                  title={profile.email || "Email not available"}
+                >
+                  {profile.email || "Email not available"}
+                </p>
               </div>
               <ChevronDown className="size-3.5 text-gray-400 hidden sm:block" />
             </button>

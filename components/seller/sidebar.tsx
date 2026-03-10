@@ -145,9 +145,9 @@ export function SellerSidebar() {
         <h3 className="text-sm font-semibold text-sky-700">
           {sellerName}
         </h3>
-        {profile.email && (
-          <p className="text-xs text-gray-500 truncate px-2" title={profile.email}>{profile.email}</p>
-        )}
+        <p className="text-xs text-gray-500 truncate px-2" title={profile.email || "Email not available"}>
+          {profile.email || "Email not available"}
+        </p>
         <span className="inline-block mt-1 px-3 py-0.5 bg-green-500 text-white text-[10px] font-semibold rounded-full">
           Credit Score: {profile.creditScore}
         </span>

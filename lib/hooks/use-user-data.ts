@@ -59,7 +59,11 @@ export function useUserData(): { user: UserData; loading: boolean } {
           profile?.full_name ||
           authUser.user_metadata?.full_name ||
           "Seller",
-        email: authUser.email || "",
+        email:
+          authUser.email ||
+          authUser.user_metadata?.email ||
+          authUser.app_metadata?.email ||
+          "",
         avatarUrl: profile?.avatar_url || null,
         creditScore: profile?.credit_score && profile.credit_score > 0 ? profile.credit_score : 100,
         balance: profile?.wallet_balance ?? profile?.balance ?? 0,

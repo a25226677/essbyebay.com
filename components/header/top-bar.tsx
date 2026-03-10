@@ -100,7 +100,7 @@ export function TopBar() {
   const dashboardLabel = isAdmin
     ? "Admin Panel"
     : isSeller
-    ? "Seller Panel"
+    ? "Seller"
     : "My Account";
 
   // Close dropdown when clicking outside
