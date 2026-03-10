@@ -22,7 +22,9 @@ export async function GET(request: Request) {
 
   const sellerProductIds = (sellerProducts || []).map((p) => p.id);
 
-  const [strictSellerRowsRes, fallbackSellerRowsRes] = await Promise.all([
+  // Run all lookups in parallel: order_items by seller_id, order_items by product ownership,
+  // and froze_orders which is a direct seller→order link (catches orphaned orders without items).
+  const [strictSellerRowsRes, fallbackSellerRowsRes, frozeOrdersRes] = await Promise.all([
     db
       .from("order_items")
       .select("id, order_id, quantity, seller_id, product_id")
@@ -33,6 +35,10 @@ export async function GET(request: Request) {
           .select("id, order_id, quantity, seller_id, product_id")
           .in("product_id", sellerProductIds)
       : Promise.resolve({ data: [] as { id: string; order_id: string; quantity: number; seller_id: string; product_id: string }[], error: null }),
+    db
+      .from("froze_orders")
+      .select("order_id")
+      .eq("seller_id", userId),
   ]);
 
   const sellerRowsError = strictSellerRowsRes.error || fallbackSellerRowsRes.error;
@@ -46,7 +52,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: sellerRowsError.message }, { status: 500 });
   }
 
-  // Resolve product sellers so legacy rows (wrong/missing seller_id) can still be attributed correctly.
+  // Resolve product sellers — use the product's CURRENT seller_id as the authoritative source.
+  // This handles cases where order_items.seller_id was set incorrectly by old code/migrations.
   const productIds = [...new Set(uniqueOrderItems.map((row) => row.product_id).filter(Boolean))];
   const { data: productRows } = productIds.length
     ? await db.from("products").select("id, seller_id").in("id", productIds)
@@ -54,13 +61,27 @@ export async function GET(request: Request) {
 
   const productSellerMap = new Map((productRows || []).map((row) => [row.id, row.seller_id]));
 
-  // Build a count map: order_id → total quantity of items that belong to this seller
+  // Build a count map: order_id → total quantity of items that belong to this seller.
+  // An item belongs to this seller if EITHER the direct seller_id matches OR the product
+  // is currently owned by this seller (product → seller_id). Both are checked independently
+  // so a wrong seller_id on an item never blocks a match via the product lookup.
   const orderCountMap: Record<string, number> = {};
   for (const row of uniqueOrderItems) {
-    const itemSellerId = row.seller_id || productSellerMap.get(row.product_id);
-    if (itemSellerId !== userId) continue;
+    const belongsByDirectId = row.seller_id === userId;
+    const belongsByProduct = productSellerMap.get(row.product_id) === userId;
+    if (!belongsByDirectId && !belongsByProduct) continue;
     orderCountMap[row.order_id] = (orderCountMap[row.order_id] || 0) + (row.quantity ?? 1);
   }
+
+  // Fallback: include orders that appear in froze_orders for this seller but may have no
+  // order_items (e.g. orders seeded directly into the database without items).
+  const frozeOrderIds = (frozeOrdersRes.data || []).map((r) => r.order_id);
+  for (const oid of frozeOrderIds) {
+    if (!orderCountMap[oid]) {
+      orderCountMap[oid] = 0; // will show as 0 products but order is still visible
+    }
+  }
+
   const orderIds = Object.keys(orderCountMap);
 
   if (orderIds.length === 0) {

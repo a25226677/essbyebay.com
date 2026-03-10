@@ -28,8 +28,8 @@ export async function GET(request: NextRequest) {
   const offset = (page - 1) * limit;
 
   // Single query: orders + inline order_items → products → shops
-  // Using Supabase nested select (PostgREST) so shop name and item count
-  // are resolved reliably in one round-trip without fragile map-building.
+  // Use simple relation names (no explicit FK hints) to avoid FK-name mismatches
+  // across different Supabase instances / migration histories.
   let query = db
     .from("orders")
     .select(
@@ -37,12 +37,12 @@ export async function GET(request: NextRequest) {
        delivery_status, pickup_status, tracking_code,
        subtotal, shipping_fee, discount_amount, total_amount,
        created_at, updated_at, notes,
-       profiles!orders_user_id_fkey(id, full_name, phone),
-       order_items!order_items_order_id_fkey(
+       profiles(id, full_name, phone),
+       order_items(
          id, quantity, seller_id, product_id,
-         products!order_items_product_id_fkey(
+         products(
            id, shop_id,
-           shops!products_shop_id_fkey(id, name)
+           shops(id, name)
          )
        )`,
       { count: "exact" },
