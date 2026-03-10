@@ -60,10 +60,11 @@ export async function POST(request: Request) {
     const origin =
       process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
       new URL(request.url).origin;
+    const redirectTo = `${origin}/seller/auth-callback?next=/seller/dashboard`;
     const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
       type: "magiclink",
       email,
-      options: { redirectTo: `${origin}/seller/auth-callback` },
+      options: { redirectTo },
     });
 
     if (linkError) {

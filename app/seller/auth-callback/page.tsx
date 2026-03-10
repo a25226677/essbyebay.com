@@ -1,12 +1,21 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import type { EmailOtpType } from "@supabase/supabase-js";
 
 export default async function SellerAuthCallbackPage({
   searchParams,
 }: {
-  searchParams: Promise<{ code?: string; error?: string; error_description?: string }>;
+  searchParams: Promise<{
+    code?: string;
+    token_hash?: string;
+    type?: EmailOtpType;
+    next?: string;
+    error?: string;
+    error_description?: string;
+  }>;
 }) {
-  const { code, error, error_description } = await searchParams;
+  const { code, token_hash, type, next, error, error_description } = await searchParams;
+  const safeNext = next?.startsWith("/") ? next : "/seller/dashboard";
 
   if (error) {
     redirect(
@@ -14,18 +23,28 @@ export default async function SellerAuthCallbackPage({
     );
   }
 
-  if (!code) {
-    redirect("/seller/login?error=missing_code");
-  }
-
   const supabase = await createClient();
-  const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
 
-  if (exchangeError) {
-    redirect(
-      `/seller/login?error=${encodeURIComponent(exchangeError.message)}`,
-    );
+  // PKCE callback flow
+  if (code) {
+    const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
+    if (exchangeError) {
+      redirect(`/seller/login?error=${encodeURIComponent(exchangeError.message)}`);
+    }
+    redirect(safeNext);
   }
 
-  redirect("/seller/dashboard");
+  // Magic-link callback flow
+  if (token_hash && type) {
+    const { error: verifyError } = await supabase.auth.verifyOtp({
+      token_hash,
+      type,
+    });
+    if (verifyError) {
+      redirect(`/seller/login?error=${encodeURIComponent(verifyError.message)}`);
+    }
+    redirect(safeNext);
+  }
+
+  redirect("/seller/login?error=missing_auth_params");
 }
