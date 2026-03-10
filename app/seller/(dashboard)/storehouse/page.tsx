@@ -36,6 +36,7 @@ export default function ProductStorehousePage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [importingAll, setImportingAll] = useState(false);
 
   const showToast = (msg: string, ok = true) => {
     setToast({ msg, ok });
@@ -107,6 +108,34 @@ export default function ProductStorehousePage() {
       );
       setSelected(new Set());
       fetchCatalog(page); // refresh to update imported badges
+    } else {
+      showToast(json.error || "Import failed", false);
+    }
+  };
+
+  const importAll = async () => {
+    const confirmed = window.confirm(
+      `Import all ${total.toLocaleString()} products${search || categoryId || brandId ? " matching current filters" : ""} to your shop?\n\nThis may take a moment.`,
+    );
+    if (!confirmed) return;
+    setImportingAll(true);
+    const res = await fetch("/api/seller/catalog/import-all", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ search, category_id: categoryId, brand_id: brandId }),
+    });
+    const json = await res.json();
+    setImportingAll(false);
+    if (res.ok) {
+      showToast(
+        json.imported === 0
+          ? "All matching products are already in your shop."
+          : `Imported ${json.imported.toLocaleString()} product(s)!${
+              json.skipped > 0 ? ` (${json.skipped} already existed)` : ""
+            }`,
+        json.imported > 0,
+      );
+      fetchCatalog(page);
     } else {
       showToast(json.error || "Import failed", false);
     }
@@ -318,14 +347,14 @@ export default function ProductStorehousePage() {
         {/* Action Buttons Panel */}
         <div className="flex flex-col justify-end gap-3 pb-2 shrink-0">
           <button
-            onClick={() => importProducts(availableItems.map((i) => i.id))}
-            disabled={importing || loading || availableItems.length === 0}
+            onClick={importAll}
+            disabled={importingAll || loading || total === 0}
             className="px-5 py-2.5 text-sm font-medium border-2 border-gray-700 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 whitespace-nowrap"
           >
-            {importing ? <Loader2 className="size-4 animate-spin inline mr-1" /> : null}
+            {importingAll ? <Loader2 className="size-4 animate-spin inline mr-1" /> : null}
             Add all to My Product
-            {availableItems.length > 0 && (
-              <span className="ml-1.5 text-xs text-gray-400">({availableItems.length})</span>
+            {total > 0 && (
+              <span className="ml-1.5 text-xs text-gray-400">({total.toLocaleString()})</span>
             )}
           </button>
           <button

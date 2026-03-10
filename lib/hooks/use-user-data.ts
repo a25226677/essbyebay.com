@@ -16,7 +16,7 @@ export type UserData = {
 };
 
 const DEFAULT: UserData = {
-  fullName: "Seller",
+  fullName: "",
   email: "",
   avatarUrl: null,
   creditScore: 100,

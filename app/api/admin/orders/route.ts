@@ -61,31 +61,41 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // --- Fetch order_items explicitly to ensure accurate product counts ---
+  // --- Fetch order_items with product_id for shop lookup ---
   const orderIds = items.map((o) => o.id as string);
-  const [orderItemsResult, shopsResult] = await Promise.all([
-    orderIds.length > 0
-      ? db.from("order_items").select("order_id, seller_id, quantity").in("order_id", orderIds)
-      : Promise.resolve({ data: [] as { order_id: string; seller_id: string | null; quantity: number }[] }),
-    db.from("shops").select("owner_id, name"),
-  ]);
+  const orderItemsResult = orderIds.length > 0
+    ? await db.from("order_items").select("order_id, seller_id, product_id, quantity").in("order_id", orderIds)
+    : { data: [] as { order_id: string; seller_id: string | null; product_id: string; quantity: number }[] };
 
-  // Map: order_id => total quantity
+  // Map: order_id => total quantity & first product_id & first seller_id
   const itemCountMap = new Map<string, number>();
-  // Map: order_id => first seller_id
-  const orderSellerMap = new Map<string, string>();
+  const orderProductMap = new Map<string, string>(); // order_id → first product_id
+  const orderSellerMap = new Map<string, string>();  // order_id → first seller_id
   for (const row of (orderItemsResult.data || [])) {
     const oid = row.order_id;
     itemCountMap.set(oid, (itemCountMap.get(oid) ?? 0) + (row.quantity ?? 1));
-    if (!orderSellerMap.has(oid) && row.seller_id) {
-      orderSellerMap.set(oid, row.seller_id);
-    }
+    if (!orderProductMap.has(oid) && row.product_id) orderProductMap.set(oid, row.product_id);
+    if (!orderSellerMap.has(oid) && row.seller_id)  orderSellerMap.set(oid, row.seller_id);
   }
 
-  // Map: owner_id => shop name
-  const shopNameMap = new Map<string, string>();
+  // Map product → shop_id, then fetch shop names by shop id & by owner_id
+  const allProductIds = [...new Set([...orderProductMap.values()])];
+  const [productShopsResult, shopsResult] = await Promise.all([
+    allProductIds.length > 0
+      ? db.from("products").select("id, shop_id").in("id", allProductIds)
+      : Promise.resolve({ data: [] as { id: string; shop_id: string }[] }),
+    db.from("shops").select("id, owner_id, name"),
+  ]);
+
+  const productShopMap = new Map<string, string>(); // product_id → shop_id
+  for (const p of (productShopsResult.data || [])) {
+    if (p.shop_id) productShopMap.set(p.id, p.shop_id);
+  }
+  const shopByIdMap  = new Map<string, string>(); // shop_id   → name
+  const shopByOwnerMap = new Map<string, string>(); // owner_id → name
   for (const shop of (shopsResult.data || [])) {
-    shopNameMap.set(shop.owner_id, shop.name);
+    shopByIdMap.set(shop.id, shop.name);
+    shopByOwnerMap.set(shop.owner_id, shop.name);
   }
 
   // Filter by seller_id
@@ -102,10 +112,17 @@ export async function GET(request: NextRequest) {
 
   // Enrich items with computed fields
   const enriched = items.map((o) => {
-    const oid = o.id as string;
-    const numProducts = itemCountMap.get(oid) ?? 0;
-    const firstSellerId = orderSellerMap.get(oid) ?? null;
-    const shopName = firstSellerId ? (shopNameMap.get(firstSellerId) ?? null) : null;
+    const oid      = o.id as string;
+    const numProducts   = itemCountMap.get(oid) ?? 0;
+    const firstProductId = orderProductMap.get(oid);
+    const firstSellerId  = orderSellerMap.get(oid) ?? null;
+    // Shop name: product → shop_id path is most reliable; fall back to seller → owner_id
+    const shopId   = firstProductId ? (productShopMap.get(firstProductId) ?? null) : null;
+    const shopName = shopId
+      ? (shopByIdMap.get(shopId) ?? null)
+      : firstSellerId
+        ? (shopByOwnerMap.get(firstSellerId) ?? null)
+        : null;
 
     // Profit = 15–20% platform fee on subtotal (varies by order, deterministic)
     const rateOffset = parseInt(oid.replace(/-/g, "").slice(-4), 16) % 100 / 100;

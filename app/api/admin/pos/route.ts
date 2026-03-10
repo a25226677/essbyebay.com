@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   let query = db
     .from("products")
     .select(
-      "id, title, sku, price, stock_count, image_url, shop_id, category_id, brand_id," +
+      "id, title, sku, price, stock_count, image_url, shop_id, seller_id, category_id, brand_id," +
       "shops!products_shop_id_fkey(id,name)," +
       "categories!products_category_id_fkey(id,name)," +
       "brands!products_brand_id_fkey(id,name)",
@@ -63,12 +63,20 @@ export async function POST(request: NextRequest) {
   const total_amount = Math.max(0, subtotal + Number(shipping_fee) - Number(discount_amount));
   const user_id = customer_id || userId;
 
+  // Look up seller_id for each product from DB (do not rely on client payload)
+  const productIds = [...new Set((items as Array<{ product_id: string }>).map((i) => i.product_id))];
+  const { data: productRows } = await db
+    .from("products")
+    .select("id, seller_id")
+    .in("id", productIds);
+  const sellerMap = new Map((productRows || []).map((p) => [p.id, p.seller_id as string]));
+
   const { data: order, error: orderError } = await db
     .from("orders")
     .insert({
       user_id,
-      status: "paid",
-      payment_status: "succeeded",
+      status: "pending",
+      payment_status: "pending",
       payment_method,
       subtotal,
       shipping_fee: Number(shipping_fee),
@@ -82,19 +90,21 @@ export async function POST(request: NextRequest) {
 
   if (orderError) return NextResponse.json({ error: orderError.message }, { status: 500 });
 
-  const orderItems = items.map(
-    (i: { product_id: string; seller_id?: string; quantity: number; unit_price: number }) => ({
-      order_id: order.id,
-      product_id: i.product_id,
-      seller_id: i.seller_id || null,
-      quantity: i.quantity,
-      unit_price: i.unit_price,
-      line_total: i.unit_price * i.quantity,
-    }),
-  );
+  const orderItems = (items as Array<{ product_id: string; quantity: number; unit_price: number }>).map((i) => ({
+    order_id: order.id,
+    product_id: i.product_id,
+    seller_id: sellerMap.get(i.product_id),
+    quantity: i.quantity,
+    unit_price: i.unit_price,
+    line_total: i.unit_price * i.quantity,
+  }));
 
   const { error: itemsError } = await db.from("order_items").insert(orderItems);
-  if (itemsError) return NextResponse.json({ error: itemsError.message }, { status: 500 });
+  if (itemsError) {
+    // Rollback order so no orphan orders exist without items
+    await db.from("orders").delete().eq("id", order.id);
+    return NextResponse.json({ error: itemsError.message }, { status: 500 });
+  }
 
   // Decrement stock
   for (const i of items as Array<{ product_id: string; quantity: number }>) {

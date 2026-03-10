@@ -125,7 +125,7 @@ export function SellerSidebar() {
   });
 
   const sellerImage = profile.shopLogoUrl || profile.avatarUrl || "/logo.png";
-  const sellerName = profile.shopName || profile.fullName || "Seller";
+  const sellerName = profile.shopName || profile.fullName || "My Shop";
 
   return (
     <aside className="w-[240px] min-h-screen bg-white border-r border-gray-200 flex flex-col shrink-0">

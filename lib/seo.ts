@@ -17,7 +17,7 @@ export const seoConfig = {
   creator: "Ess by Ebay",
   publisher: "Ess by Ebay",
   themeColor: "#2f3b51",
-  defaultOgImage: "/opengraph-image",
+  defaultOgImage: "/opengraph-image?v=2",
   keywords: [
     "Ess by Ebay",
     "eSeller Store Bay",

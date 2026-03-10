@@ -17,7 +17,7 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  const displayName = profile.shopName || profile.fullName;
+  const displayName = profile.shopName || profile.fullName || "My Shop";
   const avatarUrl = profile.shopLogoUrl || profile.avatarUrl || "/logo.png";
   const balance = profile.balance;
 
