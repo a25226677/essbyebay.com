@@ -34,47 +34,27 @@ export function useUserData(): { user: UserData; loading: boolean } {
   useEffect(() => {
     const supabase = createClient();
 
+    // Fetch all seller data from the server-side API route.
+    // This uses getUser() on the server which always has the correct email
+    // and full auth context — unlike the client-side getSession() cache.
     const load = async () => {
       try {
-        // getSession reads from local storage — no network round-trip, always
-        // available while the user is logged in.
-        const { data: { session } } = await supabase.auth.getSession();
-        const authUser = session?.user;
-        if (!authUser) {
+        const res = await fetch("/api/seller/me", { cache: "no-store" });
+        if (!res.ok) {
           setLoading(false);
           return;
         }
-
-        const [{ data: profile }, { data: shop }] = await Promise.all([
-          supabase
-            .from("profiles")
-            .select("full_name, avatar_url, credit_score, wallet_balance, balance, guarantee_money, is_verified")
-            .eq("id", authUser.id)
-            .maybeSingle(),
-          supabase
-            .from("shops")
-            .select("name, logo_url, is_verified")
-            .eq("owner_id", authUser.id)
-            .maybeSingle(),
-        ]);
-
+        const data = await res.json();
         setUser({
-          fullName:
-            profile?.full_name ||
-            authUser.user_metadata?.full_name ||
-            "Seller",
-          email:
-            authUser.email ||
-            authUser.user_metadata?.email ||
-            authUser.app_metadata?.email ||
-            "",
-          avatarUrl: profile?.avatar_url || null,
-          creditScore: profile?.credit_score && profile.credit_score > 0 ? profile.credit_score : 100,
-          balance: profile?.wallet_balance ?? profile?.balance ?? 0,
-          guaranteeMoney: profile?.guarantee_money ?? 0,
-          shopName: shop?.name || "",
-          shopLogoUrl: shop?.logo_url || null,
-          isVerified: shop?.is_verified ?? profile?.is_verified ?? false,
+          fullName:     data.fullName     || "Seller",
+          email:        data.email        || "",
+          avatarUrl:    data.avatarUrl    ?? null,
+          creditScore:  data.creditScore  ?? 100,
+          balance:      data.balance      ?? 0,
+          guaranteeMoney: data.guaranteeMoney ?? 0,
+          shopName:     data.shopName     || "",
+          shopLogoUrl:  data.shopLogoUrl  ?? null,
+          isVerified:   data.isVerified   ?? false,
         });
         setLoading(false);
       } catch {
