@@ -71,15 +71,26 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: linkError.message }, { status: 500 });
     }
 
-    const actionLink = linkData?.properties?.action_link;
-    if (!actionLink) {
+    const token_hash = linkData?.properties?.hashed_token;
+    const verification_type = linkData?.properties?.verification_type ?? "magiclink";
+
+    if (!token_hash) {
       return NextResponse.json(
         { error: "Unable to create seller login link" },
         { status: 500 },
       );
     }
 
-    return NextResponse.json({ actionLink });
+    // Build a direct callback URL using token_hash + type so the server-side
+    // auth-callback page can call verifyOtp() without relying on URL fragments
+    // (fragments are invisible to server components and would cause missing_auth_params).
+    const callbackUrl =
+      `${origin}/seller/auth-callback` +
+      `?token_hash=${encodeURIComponent(token_hash)}` +
+      `&type=${encodeURIComponent(verification_type)}` +
+      `&next=/seller/dashboard`;
+
+    return NextResponse.json({ actionLink: callbackUrl });
   } catch (error) {
     return NextResponse.json(
       { error: getErrorMessage(error, "Invalid request payload") },
