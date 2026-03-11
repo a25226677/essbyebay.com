@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -10,6 +10,8 @@ import {
   Package,
   AlertCircle,
   CheckCircle,
+  X,
+  Printer,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -27,6 +29,8 @@ type OrderDetail = {
   coupon_amount: number;
   tax_amount: number;
   payment_method: string;
+  storehouse_paid: boolean;
+  storehouse_amount: number;
   customer: {
     name: string;
     email: string;
@@ -48,7 +52,7 @@ type OrderDetail = {
 };
 
 const paymentOptions = ["Un-Paid", "Paid"];
-const deliveryOptions = ["Pending", "Confirmed", "Picked Up", "On The Way", "Delivered"];
+const deliveryOptions = ["Pending", "Confirmed", "Picked Up", "On The Way", "Delivered", "Cancel"];
 
 const statusColors: Record<string, string> = {
   "Un-Paid": "bg-red-100 text-red-700",
@@ -58,11 +62,39 @@ const statusColors: Record<string, string> = {
   "Picked Up": "bg-indigo-100 text-indigo-700",
   "On The Way": "bg-sky-100 text-sky-700",
   Delivered: "bg-green-100 text-green-700",
+  Cancelled: "bg-red-100 text-red-700",
+  Cancel: "bg-red-100 text-red-700",
 };
+
+function deliveryDbToDisplay(dbValue: string): string {
+  const map: Record<string, string> = {
+    pending: "Pending",
+    confirmed: "Confirmed",
+    picked_up: "Picked Up",
+    on_the_way: "On The Way",
+    delivered: "Delivered",
+    cancelled: "Cancelled",
+  };
+  return map[dbValue] ?? "Pending";
+}
+
+function deliveryDisplayToDb(display: string): string {
+  const map: Record<string, string> = {
+    Pending: "pending",
+    Confirmed: "confirmed",
+    "Picked Up": "picked_up",
+    "On The Way": "on_the_way",
+    Delivered: "delivered",
+    Cancel: "cancelled",
+    Cancelled: "cancelled",
+  };
+  return map[display] ?? "pending";
+}
 
 export default function SellerOrderDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const orderId = params.id as string;
 
   const [order, setOrder] = useState<OrderDetail | null>(null);
@@ -70,6 +102,7 @@ export default function SellerOrderDetailPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [paying, setPaying] = useState(false);
+  const [showPayModal, setShowPayModal] = useState(false);
 
   async function loadOrder() {
     setLoading(true);
@@ -79,6 +112,10 @@ export default function SellerOrderDetailPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to load");
       setOrder(json);
+      // Auto-print if ?print=1 is in the URL
+      if (searchParams.get("print") === "1") {
+        setTimeout(() => window.print(), 800);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
@@ -108,7 +145,7 @@ export default function SellerOrderDetailPage() {
     }
   };
 
-  const handlePayStore = async () => {
+  const confirmPayStore = async () => {
     setPaying(true);
     setError("");
     try {
@@ -117,10 +154,12 @@ export default function SellerOrderDetailPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Payment failed");
-      setSuccess("Store payment processed successfully!");
+      setShowPayModal(false);
+      setSuccess("Store payment processed! It is now visible in your Frozen Orders.");
       await loadOrder();
-      setTimeout(() => setSuccess(""), 5000);
+      setTimeout(() => setSuccess(""), 6000);
     } catch (err) {
+      setShowPayModal(false);
       setError(err instanceof Error ? err.message : "Payment failed");
     } finally {
       setPaying(false);
@@ -151,110 +190,131 @@ export default function SellerOrderDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between print:hidden">
         <div className="flex items-center gap-3">
           <Link href="/seller/orders" className="p-1.5 rounded-md hover:bg-gray-100">
             <ArrowLeft className="size-5 text-gray-600" />
           </Link>
           <h1 className="text-xl font-semibold text-gray-800">Order Details</h1>
         </div>
+        <button
+          onClick={() => window.print()}
+          className="flex items-center gap-2 px-4 py-2 text-sm border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+        >
+          <Printer className="size-4" />
+          Print Invoice
+        </button>
       </div>
 
       {success && (
-        <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm">
+        <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm print:hidden">
           <CheckCircle className="size-4 shrink-0" /> {success}
         </div>
       )}
       {error && (
-        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm print:hidden">
           <AlertCircle className="size-4 shrink-0" /> {error}
         </div>
       )}
 
-      {/* Top section: Pay Store + Status + Order Info */}
+      {/* Top section: Pay Store | Payment Status | Delivery Status | Order Info */}
       <div className="bg-white rounded-xl border border-gray-200 p-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Pay Store Button */}
-          <div className="flex items-center justify-center">
-            <Button
-              onClick={handlePayStore}
-              disabled={paying || order.payment_status === "succeeded"}
-              className="bg-sky-500 hover:bg-sky-600 text-white px-8 py-3 text-base font-semibold rounded-md"
-            >
-              {paying ? (
-                <><Loader2 className="size-4 animate-spin mr-2" />Processing...</>
-              ) : order.payment_status === "succeeded" ? (
-                <><CheckCircle className="size-4 mr-2" />Paid</>
-              ) : (
-                "Pay Store"
-              )}
-            </Button>
+
+          {/* Col 1: Pay Store + Customer Info */}
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-col items-start gap-2">
+              <Button
+                onClick={() => setShowPayModal(true)}
+                disabled={order.storehouse_paid}
+                className="bg-sky-500 hover:bg-sky-600 text-white px-8 py-2.5 text-sm font-semibold rounded-md print:hidden"
+              >
+                {order.storehouse_paid ? (
+                  <><CheckCircle className="size-4 mr-2" />Store Paid</>
+                ) : (
+                  "Pay Store"
+                )}
+              </Button>
+              <span
+                className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-semibold ${
+                  order.storehouse_paid ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
+                }`}
+              >
+                {order.storehouse_paid ? "Paid" : "Un-Paid"}
+              </span>
+            </div>
+            {/* Customer Info */}
+            <div className="text-sm text-gray-600 space-y-0.5">
+              <p className="font-semibold text-gray-800">{order.customer.name}</p>
+              {order.customer.phone && <p>{order.customer.phone}</p>}
+              {order.customer.address && <p className="text-xs text-gray-500 mt-1">{order.customer.address}</p>}
+            </div>
           </div>
 
-          {/* Payment & Delivery Status Dropdowns */}
+          {/* Col 2: Payment Status + Delivery Status */}
           <div className="space-y-3">
             <div>
               <label className="text-sm font-medium text-gray-600 mb-1 block">Payment Status</label>
               <select
-                value={order.payment_status === "succeeded" ? "Paid" : "Un-Paid"}
+                value={order.payment_status === "succeeded" || order.payment_status === "paid" ? "Paid" : "Un-Paid"}
                 onChange={(e) => updateStatus("paymentStatus", e.target.value === "Paid" ? "succeeded" : "failed")}
-                className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm focus:ring-1 focus:ring-sky-500 outline-none"
+                className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm focus:ring-1 focus:ring-sky-500 outline-none print:hidden"
               >
                 {paymentOptions.map((opt) => (
                   <option key={opt}>{opt}</option>
                 ))}
               </select>
+              <p className="hidden print:block text-sm font-medium">
+                {order.payment_status === "succeeded" || order.payment_status === "paid" ? "Paid" : "Un-Paid"}
+              </p>
             </div>
             <div>
               <label className="text-sm font-medium text-gray-600 mb-1 block">Delivery Status</label>
               <select
-                value={order.delivery_status.charAt(0).toUpperCase() + order.delivery_status.slice(1).replace(/_/g, " ")}
+                value={deliveryDbToDisplay(order.delivery_status)}
                 onChange={(e) => {
-                  const val = e.target.value.toLowerCase().replace(/ /g, "_");
-                  updateStatus("status", val);
+                  const val = deliveryDisplayToDb(e.target.value);
+                  updateStatus("delivery_status", val);
                 }}
-                className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm focus:ring-1 focus:ring-sky-500 outline-none"
+                className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm focus:ring-1 focus:ring-sky-500 outline-none print:hidden"
               >
                 {deliveryOptions.map((opt) => (
                   <option key={opt}>{opt}</option>
                 ))}
               </select>
+              <p className="hidden print:block text-sm font-medium">{deliveryDbToDisplay(order.delivery_status)}</p>
             </div>
           </div>
 
-          {/* Order Info */}
-          <div className="text-sm space-y-1">
-            <div className="flex justify-between">
+          {/* Col 3: Order Info */}
+          <div className="text-sm space-y-1.5">
+            <div className="flex justify-between border-b border-gray-50 pb-1">
               <span className="text-gray-500">Order #</span>
-              <span className="text-sky-600 font-mono">{order.order_code}</span>
+              <span className="text-sky-600 font-mono text-xs">{order.order_code}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between border-b border-gray-50 pb-1">
               <span className="text-gray-500">Order status</span>
-              <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[order.delivery_status === "pending" ? "Pending" : order.delivery_status.charAt(0).toUpperCase() + order.delivery_status.slice(1)] ?? "bg-gray-100 text-gray-600"}`}>
-                {order.delivery_status === "pending" ? "Pending" : order.delivery_status.charAt(0).toUpperCase() + order.delivery_status.slice(1).replace(/_/g, " ")}
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[deliveryDbToDisplay(order.delivery_status)] ?? "bg-gray-100 text-gray-600"}`}>
+                {deliveryDbToDisplay(order.delivery_status)}
               </span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between border-b border-gray-50 pb-1">
               <span className="text-gray-500">Order date</span>
-              <span>{new Date(order.created_at).toLocaleString("en-US", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })}</span>
+              <span className="text-xs">{new Date(order.created_at).toLocaleString("en-US", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true })}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between border-b border-gray-50 pb-1">
               <span className="text-gray-500">Total amount</span>
               <span className="font-semibold">${order.total_amount.toFixed(2)}</span>
             </div>
-            <div className="flex justify-between">
+            <div className="flex justify-between border-b border-gray-50 pb-1">
               <span className="text-gray-500">Payment method</span>
               <span>{order.payment_method || "Cash on Delivery"}</span>
             </div>
+            <div className="flex justify-between">
+              <span className="text-gray-500">Additional Info</span>
+              <span className="text-gray-400 text-xs">—</span>
+            </div>
           </div>
-        </div>
-
-        {/* Customer Info */}
-        <div className="mt-6 pt-4 border-t border-gray-100 text-sm text-gray-600">
-          <p className="font-semibold text-gray-800">{order.customer.name}</p>
-          {order.customer.email && <p>{order.customer.email}</p>}
-          {order.customer.phone && <p>{order.customer.phone}</p>}
-          {order.customer.address && <p className="mt-1">{order.customer.address}</p>}
         </div>
       </div>
 
@@ -332,7 +392,63 @@ export default function SellerOrderDetailPage() {
             </div>
           </div>
         </div>
+
+        {/* Print button bottom-right */}
+        <div className="flex justify-end pt-3 border-t border-gray-100 mt-4 print:hidden">
+          <button
+            onClick={() => window.print()}
+            className="w-9 h-9 flex items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors"
+            title="Print Invoice"
+          >
+            <Printer className="size-4" />
+          </button>
+        </div>
       </div>
+
+      {/* Pay Store Confirmation Modal */}
+      {showPayModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-gray-800">Payment For Storehouse</h2>
+              <button
+                onClick={() => setShowPayModal(false)}
+                className="p-1 rounded-md hover:bg-gray-100 text-gray-500"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <p className="text-center text-xl font-bold text-gray-800 mb-1">
+              Pay with wallet ${(order.storehouse_amount ?? order.storehouse_total).toFixed(2)}
+            </p>
+            <p className="text-center text-xs text-gray-500 mb-6">
+              You must pay the storehouse price to your store upon placing an order.
+            </p>
+
+            <div className="flex items-center justify-end gap-3">
+              <button
+                onClick={() => setShowPayModal(false)}
+                disabled={paying}
+                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+              >
+                Cancel
+              </button>
+              <Button
+                onClick={confirmPayStore}
+                disabled={paying}
+                className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-2 text-sm font-semibold rounded-md"
+              >
+                {paying ? (
+                  <><Loader2 className="size-4 animate-spin mr-2" />Processing...</>
+                ) : (
+                  "Payment"
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

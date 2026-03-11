@@ -2,9 +2,20 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   images: {
+    unoptimized: true,
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
     remotePatterns: [
+      {
+        // Allow all HTTPS image sources
+        protocol: "https",
+        hostname: "**",
+      },
+      {
+        // Allow all HTTP image sources
+        protocol: "http",
+        hostname: "**",
+      },
       {
         protocol: "https",
         hostname: "m.media-amazon.com",

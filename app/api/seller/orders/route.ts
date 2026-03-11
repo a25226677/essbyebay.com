@@ -98,13 +98,18 @@ export async function GET(request: Request) {
     .order("created_at", { ascending: false });
 
   if (deliveryFilter !== "all") {
-    const mapped =
-      deliveryFilter === "On Delivery"
-        ? "on_the_way"
-        : deliveryFilter === "Delivered"
-          ? "delivered"
-          : "pending";
-    ordersQuery = ordersQuery.eq("delivery_status", mapped);
+    const deliveryDisplayToDb: Record<string, string> = {
+      Pending: "pending",
+      Confirmed: "confirmed",
+      "Picked Up": "picked_up",
+      "On Delivery": "on_the_way",
+      Delivered: "delivered",
+      Cancelled: "cancelled",
+    };
+    const dbValue = deliveryDisplayToDb[deliveryFilter];
+    if (dbValue) {
+      ordersQuery = ordersQuery.eq("delivery_status", dbValue);
+    }
   }
 
   const { data: orders, error: ordersError } = await ordersQuery;
@@ -132,12 +137,15 @@ export async function GET(request: Request) {
     const pickupStatus =
       order.pickup_status === "picked_up" ? "Picked Up" : "Unpicked Up";
 
-    const deliveryStatus =
-      order.delivery_status === "delivered"
-        ? "Delivered"
-        : order.delivery_status === "shipped"
-          ? "On Delivery"
-          : "Pending";
+    const deliveryStatusMap: Record<string, string> = {
+      delivered: "Delivered",
+      on_the_way: "On Delivery",
+      picked_up: "Picked Up",
+      confirmed: "Confirmed",
+      cancelled: "Cancelled",
+      pending: "Pending",
+    };
+    const deliveryStatus = deliveryStatusMap[order.delivery_status] ?? "Pending";
 
     const paymentStatus =
       order.payment_status === "succeeded" || order.payment_status === "paid"

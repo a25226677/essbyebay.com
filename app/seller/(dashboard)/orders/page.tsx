@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { ShoppingCart, Eye } from "lucide-react";
+import { ShoppingCart, Eye, Printer } from "lucide-react";
 
 type OrderItem = {
   id: string;
@@ -110,8 +110,11 @@ export default function OrdersPage() {
             >
               <option value="all">Filter by Deliver Status</option>
               <option value="Pending">Pending</option>
+              <option value="Confirmed">Confirmed</option>
+              <option value="Picked Up">Picked Up</option>
               <option value="On Delivery">On Delivery</option>
               <option value="Delivered">Delivered</option>
+              <option value="Cancelled">Cancelled</option>
             </select>
             <input
               type="text"
@@ -195,9 +198,16 @@ export default function OrdersPage() {
                         <button
                           onClick={() => router.push(`/seller/orders/${order.id}`)}
                           className="w-8 h-8 flex items-center justify-center rounded border border-sky-300 text-sky-500 hover:bg-sky-50 transition-colors"
-                          title="View"
+                          title="View Details"
                         >
                           <Eye className="size-4" />
+                        </button>
+                        <button
+                          onClick={() => router.push(`/seller/orders/${order.id}?print=1`)}
+                          className="w-8 h-8 flex items-center justify-center rounded border border-amber-300 text-amber-500 hover:bg-amber-50 transition-colors"
+                          title="Print Invoice"
+                        >
+                          <Printer className="size-4" />
                         </button>
                       </div>
                     </td>
