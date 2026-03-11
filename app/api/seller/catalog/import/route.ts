@@ -86,7 +86,7 @@ export async function POST(request: Request) {
   const db = createAdminServiceClient();
   const { data: sourceProducts, error: fetchError } = await db
     .from("products")
-    .select("title,sku,price,stock_count,image_url,category_id,brand_id,description")
+    .select("id,title,sku,price,stock_count,image_url,category_id,brand_id,description,source_product_id")
     .in("id", product_ids)
     .eq("is_active", true);
 
@@ -98,20 +98,27 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "No matching products found" }, { status: 404 });
   }
 
-  // Check which products the seller already has (by title + shop to avoid duplicates)
-  const titles = sourceProducts.map((p) => p.title);
+  // Check which canonical source products the seller already has.
   const { data: existing } = await supabase
     .from("products")
-    .select("title")
-    .eq("seller_id", userId)
-    .in("title", titles);
+    .select("title,source_product_id")
+    .eq("seller_id", userId);
 
   const existingTitles = new Set((existing || []).map((e) => e.title));
+  const existingSourceIds = new Set(
+    (existing || [])
+      .map((e) => e.source_product_id)
+      .filter((value): value is string => typeof value === "string" && value.length > 0),
+  );
   const reservedSkus = new Set<string>();
-  const importableProducts = sourceProducts.filter((p) => !existingTitles.has(p.title));
+  const importableProducts = sourceProducts.filter((p) => {
+    const canonicalSourceId = p.source_product_id ?? p.id;
+    return !existingSourceIds.has(canonicalSourceId) && !existingTitles.has(p.title);
+  });
   const toInsert = await Promise.all(
     importableProducts.map(async (p, index) => {
       const slug = slugify(p.title) || `product-${Date.now()}`;
+      const canonicalSourceId = p.source_product_id ?? p.id;
       return {
         seller_id: userId,
         shop_id: shopId,
@@ -125,6 +132,7 @@ export async function POST(request: Request) {
         stock_count: p.stock_count ?? 1000,
         image_url: p.image_url ?? null,
         is_active: true,
+        source_product_id: canonicalSourceId,
       };
     }),
   );

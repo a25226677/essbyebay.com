@@ -21,12 +21,13 @@ export async function GET(request: Request) {
   let query = db
     .from("products")
     .select(
-      `id, title, sku, price, stock_count, image_url, category_id, brand_id,
+      `id, title, sku, price, stock_count, image_url, category_id, brand_id, source_product_id,
        categories(id, name),
        brands(id, name)`,
       { count: "exact" },
     )
     .eq("is_active", true)
+    .neq("seller_id", userId)
     .order("created_at", { ascending: false });
 
   if (search) query = query.ilike("title", `%${search}%`);
@@ -42,10 +43,15 @@ export async function GET(request: Request) {
   const [{ data: categories }, { data: brands }, { data: sellerProducts }] = await Promise.all([
     db.from("categories").select("id,name").order("name"),
     db.from("brands").select("id,name").order("name"),
-    supabase.from("products").select("title").eq("seller_id", userId),
+    supabase.from("products").select("id,title,source_product_id").eq("seller_id", userId),
   ]);
 
   const importedTitles = new Set((sellerProducts || []).map((p) => p.title));
+  const importedSourceIds = new Set(
+    (sellerProducts || [])
+      .map((p) => p.source_product_id)
+      .filter((value): value is string => typeof value === "string" && value.length > 0),
+  );
 
   const items = (data || []).map((p) => ({
     id: p.id,
@@ -56,7 +62,7 @@ export async function GET(request: Request) {
     image: p.image_url,
     category: (p.categories as unknown as { id: string; name: string } | null)?.name ?? "Uncategorized",
     brand: (p.brands as unknown as { id: string; name: string } | null)?.name ?? "",
-    imported: importedTitles.has(p.title),
+    imported: importedSourceIds.has(p.source_product_id ?? p.id) || importedTitles.has(p.title),
   }));
 
   return NextResponse.json({

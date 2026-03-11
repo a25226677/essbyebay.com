@@ -65,7 +65,7 @@ export async function POST(
   // Get seller's current wallet balance
   const { data: profile, error: profileError } = await db
     .from("profiles")
-    .select("wallet_balance")
+    .select("wallet_balance,pending_balance")
     .eq("id", userId)
     .single();
 
@@ -77,6 +77,7 @@ export async function POST(
   }
 
   const currentBalance = Number(profile.wallet_balance || 0);
+  const currentPending = Number(profile.pending_balance || 0);
 
   if (currentBalance < storehouseTotal) {
     return NextResponse.json(
@@ -90,7 +91,10 @@ export async function POST(
   // Deduct from seller wallet balance
   const { error: balanceError } = await db
     .from("profiles")
-    .update({ wallet_balance: currentBalance - storehouseTotal })
+    .update({
+      wallet_balance: currentBalance - storehouseTotal,
+      pending_balance: currentPending + profit,
+    })
     .eq("id", userId);
 
   if (balanceError) {
@@ -137,7 +141,7 @@ export async function POST(
     // Rollback balance on failure
     await db
       .from("profiles")
-      .update({ wallet_balance: currentBalance })
+      .update({ wallet_balance: currentBalance, pending_balance: currentPending })
       .eq("id", userId);
 
     return NextResponse.json({ error: updateError.message }, { status: 500 });
@@ -148,6 +152,7 @@ export async function POST(
     message: `Store payment of $${storehouseTotal.toFixed(2)} processed successfully`,
     deducted: storehouseTotal,
     newBalance: currentBalance - storehouseTotal,
+    pendingBalance: currentPending + profit,
     profit,
   });
 }

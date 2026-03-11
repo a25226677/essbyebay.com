@@ -82,7 +82,7 @@ export async function POST(request: NextRequest) {
   const productIds = [...new Set(items.map(i => i.product_id))];
   const { data: products, error: prodErr } = await db
     .from("products")
-    .select("id, seller_id")
+    .select("id, seller_id, price")
     .in("id", productIds);
 
   if (prodErr || !products) {
@@ -90,6 +90,7 @@ export async function POST(request: NextRequest) {
   }
 
   const sellerMap = new Map(products.map(p => [p.id, p.seller_id]));
+  const productPriceMap = new Map(products.map(p => [p.id, Number(p.price || 0)]));
 
   // Validate all products have a seller
   for (const item of items) {
@@ -125,14 +126,19 @@ export async function POST(request: NextRequest) {
   }
 
   // 5. Create order items (with seller_id from products lookup)
-  const orderItems = items.map((i) => ({
-    order_id: order.id,
-    product_id: i.product_id,
-    seller_id: sellerMap.get(i.product_id)!,
-    quantity: i.quantity,
-    unit_price: i.unit_price,
-    line_total: i.unit_price * i.quantity,
-  }));
+  const orderItems = items.map((i) => {
+    const unitPrice = Number(i.unit_price || productPriceMap.get(i.product_id) || 0);
+
+    return {
+      order_id: order.id,
+      product_id: i.product_id,
+      seller_id: sellerMap.get(i.product_id)!,
+      quantity: i.quantity,
+      unit_price: unitPrice,
+      line_total: unitPrice * i.quantity,
+      storehouse_price: Number((unitPrice * 0.7).toFixed(2)),
+    };
+  });
 
   const { error: itemsError } = await db.from("order_items").insert(orderItems);
 

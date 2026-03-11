@@ -240,7 +240,7 @@ export async function PATCH(request: Request, { params }: Params) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // When order is delivered, credit seller's profit to pending_balance
+    // When an order is delivered, release previously pending profit into wallet balance.
     if (updates.delivery_status === "delivered" || updates.status === "delivered") {
       try {
         const { data: frozeOrder } = await db
@@ -252,23 +252,27 @@ export async function PATCH(request: Request, { params }: Params) {
 
         if (
           frozeOrder?.payment_status === "paid" &&
-          frozeOrder?.pickup_status !== "picked_up" &&
-          Number(frozeOrder.profit) > 0
+          frozeOrder?.pickup_status !== "picked_up"
         ) {
           const { data: profile } = await db
             .from("profiles")
-            .select("pending_balance")
+            .select("pending_balance,wallet_balance")
             .eq("id", userId)
             .single();
 
           if (profile) {
+            const releasedProfit = Math.max(0, Number(frozeOrder.profit || 0));
             const currentPending = Number(profile.pending_balance || 0);
+            const currentWallet = Number(profile.wallet_balance || 0);
             await db
               .from("profiles")
-              .update({ pending_balance: currentPending + Number(frozeOrder.profit) })
+              .update({
+                pending_balance: Math.max(0, currentPending - releasedProfit),
+                wallet_balance: currentWallet + releasedProfit,
+              })
               .eq("id", userId);
 
-            // Mark froze_order as delivered so we don't double-credit
+            // Mark the frozen order as released so we don't credit the wallet twice.
             await db
               .from("froze_orders")
               .update({ pickup_status: "picked_up" })
