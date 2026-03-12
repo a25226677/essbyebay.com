@@ -3,7 +3,7 @@ import { createAdminServiceClient } from "@/lib/supabase/admin-client";
 import { NextResponse } from "next/server";
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const context = await getSellerContext();
@@ -12,6 +12,45 @@ export async function POST(
   const { userId } = context;
   const db = createAdminServiceClient();
   const { id: orderId } = await params;
+
+  // Parse request body to get transaction password
+  let transactionPassword: string | null = null;
+  try {
+    const body = await request.json();
+    transactionPassword = body.transactionPassword || null;
+  } catch {
+    // Continue without password (for backwards compatibility)
+  }
+
+  // Validate transaction password
+  if (!transactionPassword || !transactionPassword.trim()) {
+    return NextResponse.json(
+      { error: "Transaction Password is required" },
+      { status: 400 }
+    );
+  }
+
+  // Get seller profile to validate password
+  const { data: sellerProfile } = await db
+    .from("profiles")
+    .select("transaction_password")
+    .eq("id", userId)
+    .single();
+
+  if (!sellerProfile) {
+    return NextResponse.json(
+      { error: "Seller profile not found" },
+      { status: 404 }
+    );
+  }
+
+  // Validate password matches
+  if (sellerProfile.transaction_password !== transactionPassword.trim()) {
+    return NextResponse.json(
+      { error: "Invalid Transaction Password" },
+      { status: 401 }
+    );
+  }
 
   // Find seller's products for ownership fallback
   const { data: sellerProducts } = await db
@@ -120,7 +159,7 @@ export async function POST(
   if (frozeOrder) {
     const { error } = await db
       .from("froze_orders")
-      .update({ payment_status: "paid", profit, unfreeze_date: unfreezeDate })
+      .update({ payment_status: "paid", profit, unfreeze_date: unfreezeDate, pickup_status: "picked_up" })
       .eq("id", frozeOrder.id);
     updateError = error;
   } else {
@@ -131,7 +170,7 @@ export async function POST(
       amount: storehouseTotal,
       profit,
       payment_status: "paid",
-      pickup_status: "unpicked_up",
+      pickup_status: "picked_up",
       unfreeze_date: unfreezeDate,
     });
     updateError = error;

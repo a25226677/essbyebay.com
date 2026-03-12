@@ -22,7 +22,7 @@ import { useEffect, useState } from "react";
 type DashboardData = {
   shop: { id: string; name: string; is_verified: boolean; product_count: number; logo_url: string | null; rating: number } | null;
   stats: { productCount: number; balance: number; totalOrders: number; totalSales: number; views: number; rating: number };
-  orders: { newOrder: number; cancelled: number; onDelivery: number; delivered: number };
+  orders: { newOrder: number; processing: number; cancelled: number; onDelivery: number; delivered: number };
   categoryProducts: { name: string; count: number }[];
   salesData: { month: string; amount: number }[];
   currentMonthSales: number;
@@ -79,7 +79,7 @@ export default function SellerDashboardPage() {
           </div>
         ) },
         { label: "Total Shop Balance", value: formatCurrency(data.stats.balance), icon: DollarSign, color: "bg-green-500" },
-        { label: "Total Order", value: data.stats.totalOrders.toLocaleString(), icon: ShoppingCart, color: "bg-sky-400" },
+        { label: "Total Orders", value: data.stats.totalOrders.toLocaleString(), icon: ShoppingCart, color: "bg-sky-400" },
         { label: "Total Sales", value: formatCurrency(data.stats.totalSales), icon: TrendingUp, color: "bg-sky-600" },
       ]
     : [];
@@ -175,13 +175,14 @@ export default function SellerDashboardPage() {
         <div className="space-y-4">
           <div className="bg-white rounded-xl border border-gray-200 p-5">
             <h3 className="text-sm font-semibold text-sky-600 mb-1">Orders</h3>
-            <p className="text-xs text-gray-500 mb-4">This Month</p>
+            <p className="text-xs text-gray-500 mb-4">Current totals</p>
             {loading ? (
-              <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
+              <div className="space-y-3">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
             ) : (
               <div className="space-y-3">
                 {[
-                  { label: "New / Processing", value: data?.orders.newOrder ?? 0, icon: PlusCircle },
+                  { label: "New", value: data?.orders.newOrder ?? 0, icon: PlusCircle },
+                  { label: "Processing", value: data?.orders.processing ?? 0, icon: ShoppingCart },
                   { label: "Cancelled", value: data?.orders.cancelled ?? 0, icon: ShoppingCart },
                   { label: "On Delivery", value: data?.orders.onDelivery ?? 0, icon: ArrowUpRight },
                   { label: "Delivered", value: data?.orders.delivered ?? 0, icon: Package },

@@ -1,33 +1,110 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { NextResponse } from "next/server";
 
+type DashboardOrderRow = {
+  id: string;
+  status: string | null;
+  delivery_status: string | null;
+  created_at: string | null;
+};
+
+type DashboardOrderBucket = "newOrder" | "processing" | "cancelled" | "onDelivery" | "delivered";
+
+function getDashboardOrderBucket(order: Pick<DashboardOrderRow, "status" | "delivery_status">): DashboardOrderBucket {
+  const status = order.status ?? "";
+  const deliveryStatus = order.delivery_status ?? "";
+
+  if (deliveryStatus === "cancelled" || status === "cancelled") return "cancelled";
+  if (deliveryStatus === "delivered" || status === "delivered") return "delivered";
+  if (deliveryStatus === "on_the_way" || status === "shipped") return "onDelivery";
+  if (deliveryStatus === "confirmed" || deliveryStatus === "picked_up" || status === "processing") {
+    return "processing";
+  }
+
+  return "newOrder";
+}
+
 export async function GET() {
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
 
   const { supabase, userId } = context;
 
-  // Run independent queries in parallel
+  // ── STEP 1: Get seller's product IDs for fallback matching ─────────────────
+  const { data: sellerProductsData } = await supabase
+    .from("products")
+    .select("id")
+    .eq("seller_id", userId);
+
+  const sellerProductIds = (sellerProductsData || []).map((p) => p.id);
+
+  // ── STEP 2: Fetch order items using multi-strategy approach ────────────────
+  const { queryInBatches } = await import("@/lib/supabase/query-helpers");
+
+  type OrderItemRow = {
+    id: string;
+    order_id: string;
+    quantity: number;
+    seller_id: string;
+    product_id: string;
+    line_total: number;
+  };
+
+  const [strictRes, fallbackRes, frozeRes] = await Promise.all([
+    // Direct: order_items where seller_id = userId
+    supabase
+      .from("order_items")
+      .select("id, order_id, quantity, seller_id, product_id, line_total")
+      .eq("seller_id", userId),
+
+    // Fallback: order_items for any product the seller currently owns (batched)
+    queryInBatches<OrderItemRow>(
+      (chunk) =>
+        supabase
+          .from("order_items")
+          .select("id, order_id, quantity, seller_id, product_id, line_total")
+          .in("product_id", chunk) as unknown as PromiseLike<{ data: OrderItemRow[] | null; error: { message: string } | null }>,
+      sellerProductIds,
+    ),
+
+    // Frozen orders — direct seller→order link independent of order_items
+    supabase
+      .from("froze_orders")
+      .select("order_id")
+      .eq("seller_id", userId),
+  ]);
+
+  // Deduplicate order items (remove duplicates from strict + fallback)
+  const rawItems = [...(strictRes.data || []), ...(fallbackRes.data || [])];
+  const uniqueItemsMap = new Map(rawItems.map((r) => [r.id, r]));
+  const orderItemRows = Array.from(uniqueItemsMap.values());
+
+  // Get order IDs from order_items
+  const orderIds = [
+    ...new Set(
+      orderItemRows
+        .map((r: { order_id: string }) => r.order_id)
+        .filter(Boolean)
+    ),
+  ];
+
+  // Also include froze_orders that don't have order_items
+  const frozeOrderIds = (frozeRes.data || [])
+    .map((r: { order_id: string }) => r.order_id)
+    .filter((id) => id && !orderIds.includes(id));
+  const allOrderIds = [...orderIds, ...frozeOrderIds];
+
+  // ── STEP 3: Run remaining queries in parallel ─────────────────────────────
   const [
     productsCountResult,
-    orderItemsResult,
     topProductsResult,
     categoryCountResult,
-    payoutsResult,
-    withdrawalsResult,
-    monthlySalesResult,
     shopResult,
   ] = await Promise.all([
     // Product count
     supabase
       .from("products")
       .select("id", { count: "exact", head: true })
-      .eq("seller_id", userId),
-
-    // All order items for this seller (to derive order IDs and total sales)
-    supabase
-      .from("order_items")
-      .select("order_id,line_total")
       .eq("seller_id", userId),
 
     // Top 12 products by rating
@@ -39,28 +116,10 @@ export async function GET() {
       .order("rating", { ascending: false })
       .limit(12),
 
-    // Category breakdown: select category name via join
+    // Category breakdown
     supabase
       .from("products")
       .select("category_id,categories(name)")
-      .eq("seller_id", userId),
-
-    // Total payouts
-    supabase
-      .from("seller_payouts")
-      .select("net_amount")
-      .eq("seller_id", userId),
-
-    // Withdrawals (to compute available balance)
-    supabase
-      .from("withdrawals")
-      .select("amount,status")
-      .eq("seller_id", userId),
-
-    // Monthly sales (joined with orders created_at)
-    supabase
-      .from("order_items")
-      .select("line_total,orders(created_at)")
       .eq("seller_id", userId),
 
     // Shop info
@@ -69,13 +128,12 @@ export async function GET() {
       .select("id,name,is_verified,product_count,logo_url,rating")
       .eq("owner_id", userId)
       .maybeSingle(),
-
   ]);
 
   const productCount = productsCountResult.count ?? 0;
   const shop = shopResult.data;
 
-  // Get seller views from profile
+  // Get seller views and balance
   const { data: sellerProfile } = await supabase
     .from("profiles")
     .select("seller_views,wallet_balance")
@@ -85,38 +143,51 @@ export async function GET() {
   const shopRating = Number(shop?.rating ?? 0);
   const balance = Number(sellerProfile?.wallet_balance ?? 0);
 
-  // Unique order IDs
-  const orderItemRows = orderItemsResult.data ?? [];
-  const orderIds = [...new Set(orderItemRows.map((r) => r.order_id))];
-
-  // Fetch order statuses — batched to avoid PostgREST URL-length 400 on large stores
-  type OrderStatusRow = { id: string; status: string };
-  const { queryInBatches } = await import("@/lib/supabase/query-helpers");
+  // ── STEP 4: Fetch order details ───────────────────────────────────────────
   const ordersResult =
-    orderIds.length > 0
-      ? await queryInBatches<OrderStatusRow>(
+    allOrderIds.length > 0
+      ? await queryInBatches<DashboardOrderRow>(
           (chunk) =>
-            supabase.from("orders").select("id,status").in("id", chunk) as unknown as PromiseLike<{ data: OrderStatusRow[] | null; error: { message: string } | null }>,
-          orderIds,
+            supabase
+              .from("orders")
+              .select("id,status,delivery_status,created_at")
+              .in("id", chunk) as unknown as PromiseLike<{ data: DashboardOrderRow[] | null; error: { message: string } | null }>,
+          allOrderIds,
         )
-      : { data: [] as OrderStatusRow[], error: null };
+      : { data: [] as DashboardOrderRow[], error: null };
 
   const orders = ordersResult.data ?? [];
+
+  // ── STEP 5: Build order breakdown and identify delivered orders ────────────
   const orderBreakdown = {
-    newOrder: orders.filter((o) => o.status === "pending" || o.status === "processing").length,
-    cancelled: orders.filter((o) => o.status === "cancelled").length,
-    onDelivery: orders.filter((o) => o.status === "shipped").length,
-    delivered: orders.filter((o) => o.status === "delivered").length,
+    newOrder: 0,
+    processing: 0,
+    cancelled: 0,
+    onDelivery: 0,
+    delivered: 0,
   };
 
-  // Total sales
-  const totalSales = orderItemRows.reduce((s, r) => s + Number(r.line_total), 0);
+  const orderMap = new Map(orders.map((order) => [order.id, order]));
+  const deliveredOrderIds = new Set<string>();
 
-  // Category breakdown
+  for (const order of orders) {
+    const bucket = getDashboardOrderBucket(order);
+    orderBreakdown[bucket] += 1;
+    if (bucket === "delivered") deliveredOrderIds.add(order.id);
+  }
+
+  // ── STEP 6: Calculate totals (delivered orders only) ──────────────────────
+  const totalSales = orderItemRows.reduce((sum, row) => {
+    if (!deliveredOrderIds.has(row.order_id)) return sum;
+    return sum + Number(row.line_total);
+  }, 0);
+
+  // ── STEP 7: Calculate category breakdown ───────────────────────────────────
   const catMap: Record<string, { name: string; count: number }> = {};
   for (const product of categoryCountResult.data ?? []) {
     const catId = (product.category_id as string) || "__none__";
-    const catName = (product.categories as unknown as { name: string }[] | null)?.[0]?.name ?? "Uncategorized";
+    const catName =
+      (product.categories as unknown as { name: string }[] | null)?.[0]?.name ?? "Uncategorized";
     if (!catMap[catId]) catMap[catId] = { name: catName, count: 0 };
     catMap[catId].count++;
   }
@@ -124,7 +195,7 @@ export async function GET() {
     .sort((a, b) => b.count - a.count)
     .map((c) => ({ name: c.name, count: c.count }));
 
-  // Monthly sales — last 6 months
+  // ── STEP 8: Calculate monthly sales (delivered orders only) ────────────────
   const now = new Date();
   const monthKeys: string[] = [];
   for (let i = 5; i >= 0; i--) {
@@ -133,8 +204,9 @@ export async function GET() {
   }
   const monthMap: Record<string, number> = Object.fromEntries(monthKeys.map((k) => [k, 0]));
 
-  for (const item of monthlySalesResult.data ?? []) {
-    const createdAt = (item.orders as unknown as { created_at: string }[] | null)?.[0]?.created_at;
+  for (const item of orderItemRows) {
+    if (!deliveredOrderIds.has(item.order_id)) continue;
+    const createdAt = orderMap.get(item.order_id)?.created_at;
     if (!createdAt) continue;
     const key = new Date(createdAt).toLocaleString("default", { month: "short" });
     if (key in monthMap) monthMap[key] += Number(item.line_total);
@@ -144,7 +216,7 @@ export async function GET() {
   const currentMonthKey = now.toLocaleString("default", { month: "short" });
   const lastMonthKey = new Date(now.getFullYear(), now.getMonth() - 1, 1).toLocaleString(
     "default",
-    { month: "short" },
+    { month: "short" }
   );
 
   return NextResponse.json({
@@ -152,7 +224,7 @@ export async function GET() {
     stats: {
       productCount,
       balance,
-      totalOrders: orderIds.length,
+      totalOrders: deliveredOrderIds.size,
       totalSales,
       views: sellerViews,
       rating: shopRating,

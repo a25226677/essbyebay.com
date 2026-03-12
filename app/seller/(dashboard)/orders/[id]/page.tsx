@@ -51,9 +51,6 @@ type OrderDetail = {
   profit: number;
 };
 
-const paymentOptions = ["Un-Paid", "Paid"];
-const deliveryOptions = ["Pending", "Confirmed", "Picked Up", "On The Way", "Delivered", "Cancel"];
-
 const statusColors: Record<string, string> = {
   "Un-Paid": "bg-red-100 text-red-700",
   Paid: "bg-green-100 text-green-700",
@@ -103,6 +100,7 @@ export default function SellerOrderDetailPage() {
   const [success, setSuccess] = useState("");
   const [paying, setPaying] = useState(false);
   const [showPayModal, setShowPayModal] = useState(false);
+  const [transactionPassword, setTransactionPassword] = useState("");
 
   async function loadOrder() {
     setLoading(true);
@@ -146,21 +144,56 @@ export default function SellerOrderDetailPage() {
   };
 
   const confirmPayStore = async () => {
+    if (!transactionPassword.trim()) {
+      setError("Transaction Password is required");
+      return;
+    }
+
     setPaying(true);
     setError("");
     try {
       const res = await fetch(`/api/seller/orders/${orderId}/pay-store`, {
         method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactionPassword }),
       });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Payment failed");
+      
+      if (!res.ok) {
+        // Handle specific error scenarios with helpful messages
+        let errorMessage = json.error || "Payment failed";
+        
+        if (res.status === 400) {
+          // Bad request errors (validation)
+          if (errorMessage.includes("Transaction Password is required")) {
+            errorMessage = "Password is required. Please enter your transaction password.";
+          } else if (errorMessage.includes("already paid")) {
+            errorMessage = "This order has already been paid. No further action needed.";
+          } else if (errorMessage.includes("Insufficient wallet balance")) {
+            errorMessage = errorMessage; // Keep the detailed balance message
+          }
+        } else if (res.status === 401) {
+          // Unauthorized - password mismatch
+          setTransactionPassword(""); // Clear the password field
+          errorMessage = "Incorrect Transaction Password. Please check and try again.";
+        } else if (res.status === 404) {
+          errorMessage = "Order not found or you don't have access to this order.";
+        } else if (res.status >= 500) {
+          errorMessage = "Server error. Please try again in a moment.";
+        }
+        
+        throw new Error(errorMessage);
+      }
+      
+      // Success
       setShowPayModal(false);
-      setSuccess("Store payment processed! It is now visible in your Frozen Orders.");
+      setTransactionPassword("");
+      setSuccess("Store payment processed! Pickup status updated to Picked Up.");
       await loadOrder();
       setTimeout(() => setSuccess(""), 6000);
     } catch (err) {
-      setShowPayModal(false);
-      setError(err instanceof Error ? err.message : "Payment failed");
+      const errorMsg = err instanceof Error ? err.message : "Payment failed";
+      setError(errorMsg);
     } finally {
       setPaying(false);
     }
@@ -225,7 +258,11 @@ export default function SellerOrderDetailPage() {
           <div className="flex flex-col gap-4">
             <div className="flex flex-col items-start gap-2">
               <Button
-                onClick={() => setShowPayModal(true)}
+                onClick={() => {
+                  setShowPayModal(true);
+                  setTransactionPassword("");
+                  setError("");
+                }}
                 disabled={order.storehouse_paid}
                 className="bg-sky-500 hover:bg-sky-600 text-white px-8 py-2.5 text-sm font-semibold rounded-md print:hidden"
               >
@@ -251,38 +288,37 @@ export default function SellerOrderDetailPage() {
             </div>
           </div>
 
-          {/* Col 2: Payment Status + Delivery Status */}
+          {/* Col 2: Payment Status + Delivery Status (Read-only) */}
           <div className="space-y-3">
             <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Payment Status</label>
-              <select
-                value={order.payment_status === "succeeded" || order.payment_status === "paid" ? "Paid" : "Un-Paid"}
-                onChange={(e) => updateStatus("paymentStatus", e.target.value === "Paid" ? "succeeded" : "failed")}
-                className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm focus:ring-1 focus:ring-sky-500 outline-none print:hidden"
-              >
-                {paymentOptions.map((opt) => (
-                  <option key={opt}>{opt}</option>
-                ))}
-              </select>
-              <p className="hidden print:block text-sm font-medium">
-                {order.payment_status === "succeeded" || order.payment_status === "paid" ? "Paid" : "Un-Paid"}
+              <label className="text-sm font-medium text-gray-600 mb-2 block">Payment Status</label>
+              <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
+                <span
+                  className={`inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold ${
+                    order.payment_status === "succeeded" || order.payment_status === "paid"
+                      ? "bg-green-100 text-green-700"
+                      : "bg-yellow-100 text-yellow-700"
+                  }`}
+                >
+                  {order.payment_status === "succeeded" || order.payment_status === "paid" ? "Paid" : "Un-Paid"}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                <span className="text-gray-400">Managed by admin only</span>
               </p>
             </div>
             <div>
-              <label className="text-sm font-medium text-gray-600 mb-1 block">Delivery Status</label>
-              <select
-                value={deliveryDbToDisplay(order.delivery_status)}
-                onChange={(e) => {
-                  const val = deliveryDisplayToDb(e.target.value);
-                  updateStatus("delivery_status", val);
-                }}
-                className="w-full h-9 px-3 border border-gray-200 rounded-md text-sm focus:ring-1 focus:ring-sky-500 outline-none print:hidden"
-              >
-                {deliveryOptions.map((opt) => (
-                  <option key={opt}>{opt}</option>
-                ))}
-              </select>
-              <p className="hidden print:block text-sm font-medium">{deliveryDbToDisplay(order.delivery_status)}</p>
+              <label className="text-sm font-medium text-gray-600 mb-2 block">Delivery Status</label>
+              <div className="p-3 bg-gray-50 rounded-md border border-gray-200">
+                <span
+                  className={`inline-flex items-center px-3 py-1.5 rounded-md text-xs font-semibold ${statusColors[deliveryDbToDisplay(order.delivery_status)] ?? "bg-gray-100 text-gray-600"}`}
+                >
+                  {deliveryDbToDisplay(order.delivery_status)}
+                </span>
+              </div>
+              <p className="text-xs text-gray-500 mt-1">
+                <span className="text-gray-400">Managed by admin only</span>
+              </p>
             </div>
           </div>
 
@@ -408,41 +444,120 @@ export default function SellerOrderDetailPage() {
       {/* Pay Store Confirmation Modal */}
       {showPayModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6">
-            <div className="flex items-center justify-between mb-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-sm mx-4 p-6 space-y-4">
+            <div className="flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-800">Payment For Storehouse</h2>
               <button
-                onClick={() => setShowPayModal(false)}
-                className="p-1 rounded-md hover:bg-gray-100 text-gray-500"
+                onClick={() => {
+                  setShowPayModal(false);
+                  setTransactionPassword("");
+                  setError("");
+                }}
+                disabled={paying}
+                className="p-1 rounded-md hover:bg-gray-100 text-gray-500 disabled:opacity-50 transition-colors"
               >
                 <X className="size-5" />
               </button>
             </div>
 
-            <p className="text-center text-xl font-bold text-gray-800 mb-1">
-              Pay with wallet ${(order.storehouse_amount ?? order.storehouse_total).toFixed(2)}
-            </p>
-            <p className="text-center text-xs text-gray-500 mb-6">
-              You must pay the storehouse price to your store upon placing an order.
+            <div className="bg-sky-50 border border-sky-200 rounded-lg p-4">
+              <p className="text-center text-2xl font-bold text-gray-900">
+                ${(order.storehouse_amount ?? order.storehouse_total).toFixed(2)}
+              </p>
+              <p className="text-center text-xs text-gray-600 mt-1">
+                Amount to be deducted from wallet
+              </p>
+            </div>
+
+            <p className="text-center text-xs text-gray-500 leading-relaxed">
+              Enter your Transaction Password to confirm and complete the payment. This password is required for security.
             </p>
 
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setShowPayModal(false)}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-3">
+                <AlertCircle className="size-5 text-red-600 shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-red-800">Payment Error</p>
+                  <p className="text-xs text-red-700 mt-0.5">{error}</p>
+                </div>
+              </div>
+            )}
+
+            <div>
+              <label className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <span>Transaction Password</span>
+                {transactionPassword.length > 0 && (
+                  <span className={`text-xs px-2 py-0.5 rounded-full ${
+                    transactionPassword.length >= 6 
+                      ? 'bg-green-100 text-green-700' 
+                      : 'bg-yellow-100 text-yellow-700'
+                  }`}>
+                    {transactionPassword.length >= 6 ? '✓ Valid' : '⚠ Too short'}
+                  </span>
+                )}
+              </label>
+              <input
+                type="password"
+                placeholder="Enter 6+ characters"
+                value={transactionPassword}
+                onChange={(e) => {
+                  setTransactionPassword(e.target.value);
+                  setError("");
+                }}
+                onKeyPress={(e) => {
+                  if (e.key === "Enter" && transactionPassword.trim() && !paying) {
+                    confirmPayStore();
+                  }
+                }}
                 disabled={paying}
-                className="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-md transition-colors"
+                maxLength={50}
+                required
+                className={`w-full px-4 py-2.5 border rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 ${
+                  error && !transactionPassword.trim()
+                    ? 'border-red-300 bg-red-50 focus:ring-red-500'
+                    : 'border-gray-300 focus:ring-sky-500'
+                } disabled:bg-gray-100 disabled:text-gray-500`}
+                autoComplete="off"
+              />
+              <p className="text-xs text-gray-500 mt-2">
+                <span className="block">🔒 Your password is never stored or shared</span>
+                <span className="block">📝 {transactionPassword.length}/50 characters</span>
+              </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-xs text-blue-700 leading-relaxed">
+                ℹ️ <strong>Reminder:</strong> This payment will be deducted from your wallet balance and marked as frozen for 7 days.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => {
+                  setShowPayModal(false);
+                  setTransactionPassword("");
+                  setError("");
+                }}
+                disabled={paying}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <Button
                 onClick={confirmPayStore}
-                disabled={paying}
-                className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-2 text-sm font-semibold rounded-md"
+                disabled={paying || !transactionPassword.trim()}
+                className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-2 text-sm font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {paying ? (
-                  <><Loader2 className="size-4 animate-spin mr-2" />Processing...</>
+                  <>
+                    <Loader2 className="size-4 animate-spin" />
+                    Processing...
+                  </>
                 ) : (
-                  "Payment"
+                  <>
+                    <CheckCircle className="size-4" />
+                    Confirm Payment
+                  </>
                 )}
               </Button>
             </div>
