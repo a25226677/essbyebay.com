@@ -15,7 +15,12 @@ export async function GET(req: NextRequest) {
     const productIds = (products||[]).map((p:any)=>p.id);
     let saleCounts: Record<string,number> = {};
     if (productIds.length > 0) {
-      const { data: items } = await db.from("order_items").select("product_id").in("product_id", productIds);
+      // Batched to avoid PostgREST URL-length 400 for large product catalogs
+      const { queryInBatches } = await import("@/lib/supabase/query-helpers");
+      const { data: items } = await queryInBatches<{ product_id: string }>(
+        (chunk) => db.from("order_items").select("product_id").in("product_id", chunk) as unknown as PromiseLike<{ data: { product_id: string }[] | null; error: { message: string } | null }>,
+        productIds,
+      );
       (items||[]).forEach((item:any)=>{ saleCounts[item.product_id] = (saleCounts[item.product_id]||0)+1; });
     }
     const enriched = (products||[]).map((p:any)=>({...p, num_of_sale: saleCounts[p.id]||0}));

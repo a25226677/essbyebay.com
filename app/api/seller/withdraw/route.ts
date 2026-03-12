@@ -15,18 +15,23 @@ function formatDate(value: string) {
   });
 }
 
-export async function GET() {
+export async function GET(req: any) {
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
 
   const { supabase, userId } = context;
+  const { searchParams } = new URL(req.url || "http://localhost/");
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.min(100, parseInt(searchParams.get("limit") || "20", 10));
+  const offset = (page - 1) * limit;
 
   const [withdrawalsResult, profileResult, frozeResult, methodsResult, offlineRechargesResult, guaranteeRechargesResult, sellerPaymentsResult] = await Promise.all([
     supabase
       .from("withdrawals")
-      .select("id,amount,method,status,notes,created_at,withdraw_type,account_info")
+      .select("id,amount,method,status,notes,created_at,withdraw_type,account_info", { count: "exact" })
       .eq("seller_id", userId)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1),
     supabase
       .from("profiles")
       .select("pending_balance,guarantee_money,wallet_balance")
@@ -156,6 +161,7 @@ export async function GET() {
     guaranteeMoney,
     history: withdrawHistory,
     withdrawHistory,
+    withdrawPagination: { page, limit, total: withdrawalsResult.count || 0, pages: Math.ceil((withdrawalsResult.count || 0) / limit) },
     walletHistory,
     paymentHistory,
     frozeOrders,

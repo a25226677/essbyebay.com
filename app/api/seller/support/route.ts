@@ -2,17 +2,22 @@ import { getSellerContext } from "@/lib/supabase/seller-api";
 import { NextRequest, NextResponse } from "next/server";
 import { sendSupportTicketEmail } from "@/lib/email";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
 
   const { supabase, userId } = context;
+  const { searchParams } = new URL(req.url);
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.min(100, parseInt(searchParams.get("limit") || "20", 10));
+  const offset = (page - 1) * limit;
 
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from("support_tickets")
-    .select("id,subject,message,status,created_at,updated_at,order_id")
+    .select("id,subject,message,status,created_at,updated_at,order_id", { count: "exact" })
     .eq("seller_id", userId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -27,7 +32,10 @@ export async function GET() {
     updatedAt: new Date(t.updated_at).toISOString().slice(0, 10),
   }));
 
-  return NextResponse.json({ tickets });
+  return NextResponse.json({
+    tickets,
+    pagination: { page, limit, total: count || 0, pages: Math.ceil((count || 0) / limit) },
+  });
 }
 
 export async function POST(req: NextRequest) {

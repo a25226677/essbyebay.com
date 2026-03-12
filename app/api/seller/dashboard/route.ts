@@ -89,11 +89,17 @@ export async function GET() {
   const orderItemRows = orderItemsResult.data ?? [];
   const orderIds = [...new Set(orderItemRows.map((r) => r.order_id))];
 
-  // Fetch order statuses
+  // Fetch order statuses — batched to avoid PostgREST URL-length 400 on large stores
+  type OrderStatusRow = { id: string; status: string };
+  const { queryInBatches } = await import("@/lib/supabase/query-helpers");
   const ordersResult =
     orderIds.length > 0
-      ? await supabase.from("orders").select("id,status").in("id", orderIds)
-      : { data: [] as { id: string; status: string }[] };
+      ? await queryInBatches<OrderStatusRow>(
+          (chunk) =>
+            supabase.from("orders").select("id,status").in("id", chunk) as unknown as PromiseLike<{ data: OrderStatusRow[] | null; error: { message: string } | null }>,
+          orderIds,
+        )
+      : { data: [] as OrderStatusRow[], error: null };
 
   const orders = ordersResult.data ?? [];
   const orderBreakdown = {

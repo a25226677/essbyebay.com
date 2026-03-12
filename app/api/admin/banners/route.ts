@@ -5,7 +5,7 @@ export async function GET() {
   const context = await getAdminContext();
   if (context instanceof NextResponse) return context;
 
-    const { db } = context;
+  const { db } = context;
 
   const { data, error } = await db
     .from("banners")
@@ -16,7 +16,10 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ items: data || [] });
+  return NextResponse.json({
+    items: data || [],
+    pagination: { page: 1, limit: data?.length || 0, total: data?.length || 0, pages: 1 },
+  });
 }
 
 export async function POST(request: Request) {

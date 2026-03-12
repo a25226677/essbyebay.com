@@ -1,15 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/supabase/admin-api";
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const _ctx = await getAdminContext(); if (_ctx instanceof NextResponse) return _ctx; const { db } = _ctx;
-    const { data, error } = await db.from("website_pages").select("*").order("created_at", {ascending:false});
-    if (error) {
-      // Table might not exist yet — return empty
-      return NextResponse.json({ data: [] });
+    const _ctx = await getAdminContext();
+    if (_ctx instanceof NextResponse) return _ctx;
+    const { db } = _ctx;
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(100, parseInt(searchParams.get("limit") || "20", 10));
+    const offset = (page - 1) * limit;
+
+    const { data, error, count } = await db
+      .from("website_pages")
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (error && error.code === "PGRST116") {
+      // Table doesn't exist yet
+      return NextResponse.json({
+        data: [],
+        pagination: { page: 1, limit: 0, total: 0, pages: 0 },
+      });
     }
-    return NextResponse.json({ data: data||[] });
-  } catch { return NextResponse.json({ data: [] }); }
+    if (error) throw error;
+    return NextResponse.json({
+      data: data || [],
+      pagination: { page, limit, total: count || 0, pages: Math.ceil((count || 0) / limit) },
+    });
+  } catch (e: any) {
+    return NextResponse.json({ data: [], pagination: { page: 1, limit: 0, total: 0, pages: 0 } });
+  }
 }
 export async function POST(req: NextRequest) {
   try {

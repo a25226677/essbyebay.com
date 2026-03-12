@@ -33,11 +33,16 @@ export async function GET(req: NextRequest) {
   }
 
   // Return list of conversations with last message
-  const { data: convs, error: convError } = await supabase
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.min(100, parseInt(searchParams.get("limit") || "20", 10));
+  const offset = (page - 1) * limit;
+
+  const { data: convs, error: convError, count } = await supabase
     .from("conversations")
-    .select("id,created_at,updated_at,customer_id,profiles!conversations_customer_id_fkey(full_name,avatar_url)")
+    .select("id,created_at,updated_at,customer_id,profiles!conversations_customer_id_fkey(full_name,avatar_url)", { count: "exact" })
     .eq("seller_id", userId)
-    .order("updated_at", { ascending: false });
+    .order("updated_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (convError) return NextResponse.json({ error: convError.message }, { status: 500 });
 
@@ -67,7 +72,10 @@ export async function GET(req: NextRequest) {
     updatedAt: c.updated_at,
   }));
 
-  return NextResponse.json({ conversations });
+  return NextResponse.json({
+    conversations,
+    pagination: { page, limit, total: count || 0, pages: Math.ceil((count || 0) / limit) },
+  });
 }
 
 export async function POST(req: NextRequest) {

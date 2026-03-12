@@ -8,12 +8,16 @@ export async function GET(request: Request) {
   const { supabase, userId } = context;
   const { searchParams } = new URL(request.url);
   const search = (searchParams.get("search") || "").trim().toLowerCase();
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.min(100, parseInt(searchParams.get("limit") || "20", 10));
+  const offset = (page - 1) * limit;
 
-  const { data, error } = await supabase
+  const { data, error, count } = await supabase
     .from("seller_payments")
-    .select("id,amount,payment_details,trx_id,created_at")
+    .select("id,amount,payment_details,trx_id,created_at", { count: "exact" })
     .eq("seller_id", userId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -43,5 +47,8 @@ export async function GET(request: Request) {
         )
       : items;
 
-  return NextResponse.json({ items: filtered });
+  return NextResponse.json({
+    items: filtered,
+    pagination: { page, limit, total: count || 0, pages: Math.ceil((count || 0) / limit) },
+  });
 }

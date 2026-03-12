@@ -3,13 +3,25 @@ import { getAdminContext } from "@/lib/supabase/admin-api";
 
 export async function GET(req: NextRequest) {
   try {
-    const _ctx = await getAdminContext(); if (_ctx instanceof NextResponse) return _ctx; const { db } = _ctx;
-    const { data, error } = await db
+    const _ctx = await getAdminContext();
+    if (_ctx instanceof NextResponse) return _ctx;
+    const { db } = _ctx;
+    const { searchParams } = new URL(req.url);
+    const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+    const limit = Math.min(100, parseInt(searchParams.get("limit") || "50", 10));
+    const offset = (page - 1) * limit;
+
+    const { data, error, count } = await db
       .from("payment_methods")
-      .select("*")
-      .order("created_at", { ascending: true });
+      .select("*", { count: "exact" })
+      .order("created_at", { ascending: true })
+      .range(offset, offset + limit - 1);
+
     if (error) throw error;
-    return NextResponse.json({ data });
+    return NextResponse.json({
+      data,
+      pagination: { page, limit, total: count || 0, pages: Math.ceil((count || 0) / limit) },
+    });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

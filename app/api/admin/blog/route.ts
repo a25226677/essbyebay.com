@@ -17,24 +17,31 @@ export async function GET(request: Request) {
   const { supabase } = context;
   const { searchParams } = new URL(request.url);
   const search = (searchParams.get("search") || "").trim();
+  const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
+  const limit = Math.min(100, parseInt(searchParams.get("limit") || "20", 10));
+  const offset = (page - 1) * limit;
 
   let query = supabase
     .from("blog_posts")
-    .select("id,title,slug,is_published,published_at,created_at")
-    .order("created_at", { ascending: false })
-    .limit(200);
+    .select("id,title,slug,is_published,published_at,created_at", { count: "exact" })
+    .order("created_at", { ascending: false });
 
   if (search) {
     query = query.ilike("title", `%${search}%`);
   }
 
-  const { data, error } = await query;
+  query = query.range(offset, offset + limit - 1);
+
+  const { data, error, count } = await query;
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ items: data || [] });
+  return NextResponse.json({
+    items: data || [],
+    pagination: { page, limit, total: count || 0, pages: Math.ceil((count || 0) / limit) },
+  });
 }
 
 export async function POST(request: Request) {

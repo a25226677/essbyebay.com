@@ -12,7 +12,10 @@ export async function GET(req: NextRequest) {
     query = query.order("name").range(from,from+perPage-1);
     const {data,error,count} = await query;
     if (error) throw error;
-    return NextResponse.json({data:data||[],total:count||0});
+    return NextResponse.json({
+      data:data||[],
+      pagination: { page, limit: perPage, total: count||0, pages: Math.ceil((count||0)/perPage) },
+    });
   } catch (e:any) { return NextResponse.json({error:e.message},{status:500}); }
 }
 export async function POST(req: NextRequest) {

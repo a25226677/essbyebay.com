@@ -5,18 +5,24 @@ export async function GET(req: NextRequest) {
     const _ctx = await getAdminContext(); if (_ctx instanceof NextResponse) return _ctx; const { db } = _ctx;
     const { searchParams } = new URL(req.url);
     const type = searchParams.get("type") || "posts";
-    const page = parseInt(searchParams.get("page")||"1");
+    const page = Math.max(1, parseInt(searchParams.get("page")||"1"));
     const perPage = 15; const from = (page-1)*perPage;
     if (type === "categories") {
       const {data,error,count} = await db.from("blog_categories").select("*",{count:"exact"}).order("name").range(from,from+perPage-1);
       if (error) throw error;
-      return NextResponse.json({data:data||[],total:count||0});
+      return NextResponse.json({
+        data:data||[],
+        pagination: { page, limit: perPage, total: count||0, pages: Math.ceil((count||0)/perPage) }
+      });
     }
     const {data,error,count} = await db.from("blog_posts")
       .select("*, blog_categories!blog_posts_category_id_fkey(name)",{count:"exact"})
       .order("created_at",{ascending:false}).range(from,from+perPage-1);
     if (error) throw error;
-    return NextResponse.json({data:data||[],total:count||0});
+    return NextResponse.json({
+      data:data||[],
+      pagination: { page, limit: perPage, total: count||0, pages: Math.ceil((count||0)/perPage) }
+    });
   } catch (e:any) { return NextResponse.json({error:e.message},{status:500}); }
 }
 export async function POST(req: NextRequest) {

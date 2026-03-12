@@ -8,7 +8,13 @@ export async function GET(req: NextRequest) {
     (wishlistItems||[]).forEach((w:any)=>{ counts[w.product_id]=(counts[w.product_id]||0)+1; });
     const productIds = Object.keys(counts);
     if (productIds.length === 0) return NextResponse.json({data:[],total:0});
-    const {data:products,error} = await db.from("products").select("id,title,price,image_url").in("id",productIds);
+    // Batched to avoid PostgREST URL-length 400 when there are many wishlisted products
+    const { queryInBatches } = await import("@/lib/supabase/query-helpers");
+    type ProductRow = { id: string; title: string; price: number; image_url: string | null };
+    const {data:products,error} = await queryInBatches<ProductRow>(
+      (chunk) => db.from("products").select("id,title,price,image_url").in("id", chunk) as unknown as PromiseLike<{ data: ProductRow[] | null; error: { message: string } | null }>,
+      productIds,
+    );
     if (error) throw error;
     const enriched = (products||[]).map((p:any)=>({...p,wishlist_count:counts[p.id]||0}))
       .sort((a:any,b:any)=>b.wishlist_count-a.wishlist_count);
