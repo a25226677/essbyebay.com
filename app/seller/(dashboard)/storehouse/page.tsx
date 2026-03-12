@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import Image from "next/image";
 import { Plus, Package, Loader2, Check, ChevronLeft, ChevronRight, ShoppingBag } from "lucide-react";
 
@@ -18,6 +18,12 @@ type CatalogItem = {
 
 type FilterOption = { id: string; name: string };
 
+type ToastState = {
+  msg: string;
+  tone: "success" | "error" | "info";
+  sticky?: boolean;
+};
+
 const LIMIT = 50;
 
 export default function ProductStorehousePage() {
@@ -26,7 +32,7 @@ export default function ProductStorehousePage() {
   const [brands, setBrands] = useState<FilterOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [toast, setToast] = useState<ToastState | null>(null);
 
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
@@ -37,10 +43,45 @@ export default function ProductStorehousePage() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const [importingAll, setImportingAll] = useState(false);
+  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longRunningToastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const showToast = (msg: string, ok = true) => {
-    setToast({ msg, ok });
-    setTimeout(() => setToast(null), 3500);
+  const clearToastTimers = useCallback(() => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+      toastTimeoutRef.current = null;
+    }
+    if (longRunningToastRef.current) {
+      clearTimeout(longRunningToastRef.current);
+      longRunningToastRef.current = null;
+    }
+  }, []);
+
+  const showToast = useCallback(
+    (msg: string, tone: ToastState["tone"] = "success", sticky = false) => {
+      clearToastTimers();
+      setToast({ msg, tone, sticky });
+      if (!sticky) {
+        toastTimeoutRef.current = setTimeout(() => setToast(null), 4000);
+      }
+    },
+    [clearToastTimers],
+  );
+
+  useEffect(() => {
+    return () => {
+      clearToastTimers();
+    };
+  }, [clearToastTimers]);
+
+  const formatImportSummary = (imported: number, skipped: number) => {
+    if (imported === 0 && skipped > 0) {
+      return `No new products were added. ${skipped.toLocaleString()} already exist in your shop.`;
+    }
+    if (skipped > 0) {
+      return `Added ${imported.toLocaleString()} product${imported === 1 ? "" : "s"}. Skipped ${skipped.toLocaleString()} already in your shop.`;
+    }
+    return `Added ${imported.toLocaleString()} product${imported === 1 ? "" : "s"} to your shop.`;
   };
 
   const fetchCatalog = useCallback(async (currentPage: number) => {
@@ -89,10 +130,15 @@ export default function ProductStorehousePage() {
   const importProducts = async (ids: string[]) => {
     const filteredIds = ids.filter((id) => !items.find((i) => i.id === id)?.imported);
     if (filteredIds.length === 0) {
-      showToast("All selected products are already in your shop", false);
+      showToast("All selected products are already in your shop", "error");
       return;
     }
     setImporting(true);
+    showToast(
+      `Adding ${filteredIds.length.toLocaleString()} selected product${filteredIds.length === 1 ? "" : "s"} to your shop...`,
+      "info",
+      true,
+    );
     const res = await fetch("/api/seller/catalog/import", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -101,47 +147,73 @@ export default function ProductStorehousePage() {
     const json = await res.json();
     setImporting(false);
     if (res.ok) {
-      showToast(
-        json.skipped > 0
-          ? `Imported ${json.imported} product(s). ${json.skipped} already in your shop.`
-          : `Successfully imported ${json.imported} product(s) to your shop!`,
-      );
+      showToast(formatImportSummary(json.imported ?? 0, json.skipped ?? 0), "success");
       setSelected(new Set());
       fetchCatalog(page); // refresh to update imported badges
     } else {
-      showToast(json.error || "Import failed", false);
+      showToast(json.error || "Import failed", "error");
     }
   };
 
   const importAll = async () => {
     const confirmed = window.confirm(
-      `Import all ${total.toLocaleString()} products${search || categoryId || brandId ? " matching current filters" : ""} to your shop?\n\nThis may take a moment.`,
+      `Import all ${total.toLocaleString()} products${
+        search || categoryId || brandId ? " matching current filters" : ""
+      } to your shop?\n\nThis may take a moment.`,
     );
     if (!confirmed) return;
+
     setImportingAll(true);
-    const res = await fetch("/api/seller/catalog/import-all", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ search, category_id: categoryId, brand_id: brandId }),
-    });
-    const json = await res.json();
-    setImportingAll(false);
-    if (res.ok) {
+    showToast("Starting import...", "info", true);
+
+    let currentPage = 0;
+    let totalImported = 0;
+    let totalSkipped = 0;
+
+    try {
+      while (true) {
+        const res = await fetch("/api/seller/catalog/import-all", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            search,
+            category_id: categoryId,
+            brand_id: brandId,
+            page: currentPage,
+          }),
+        });
+        const json = await res.json();
+
+        if (!res.ok) {
+          showToast(json.error || "Import failed", "error");
+          return;
+        }
+
+        totalImported += json.imported ?? 0;
+        totalSkipped += json.skipped ?? 0;
+
+        if (json.hasMore) {
+          setToast({
+            msg: `Importing... ${(totalImported + totalSkipped).toLocaleString()} processed, ${totalImported.toLocaleString()} added.`,
+            tone: "info",
+            sticky: true,
+          });
+          currentPage = json.nextPage;
+        } else {
+          break;
+        }
+      }
+
       showToast(
-        json.imported === 0
-          ? "All matching products are already in your shop."
-          : `Imported ${json.imported.toLocaleString()} product(s)!${
-              json.skipped > 0 ? ` (${json.skipped} already existed)` : ""
-            }`,
-        json.imported > 0,
+        formatImportSummary(totalImported, totalSkipped),
+        totalImported > 0 ? "success" : "info",
       );
       fetchCatalog(page);
-    } else {
-      showToast(json.error || "Import failed", false);
+    } finally {
+      setImportingAll(false);
     }
   };
 
-  const availableItems = items.filter((i) => !i.imported);
   const importedCount = items.filter((i) => i.imported).length;
 
   return (
@@ -149,11 +221,20 @@ export default function ProductStorehousePage() {
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed top-5 right-5 z-50 px-4 py-3 rounded-lg shadow-lg text-sm text-white transition-all ${
-            toast.ok ? "bg-green-600" : "bg-red-600"
+          className={`fixed top-5 right-5 z-50 flex max-w-md items-start gap-3 px-4 py-3 rounded-lg shadow-lg text-sm text-white transition-all ${
+            toast.tone === "success"
+              ? "bg-green-600"
+              : toast.tone === "error"
+                ? "bg-red-600"
+                : "bg-slate-800"
           }`}
         >
-          {toast.msg}
+          {toast.tone === "info" ? (
+            <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
+          ) : toast.tone === "success" ? (
+            <Check className="mt-0.5 size-4 shrink-0" />
+          ) : null}
+          <div className="flex-1 leading-5">{toast.msg}</div>
         </div>
       )}
 

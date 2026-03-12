@@ -52,6 +52,47 @@ async function buildUniqueImportSku(
   return candidate;
 }
 
+async function buildUniqueImportSlug(
+  db: ReturnType<typeof createAdminServiceClient>,
+  title: string,
+  userId: string,
+  canonicalSourceId: string,
+  reservedSlugs: Set<string>,
+) {
+  const baseSlug = slugify(title) || "product";
+  const sellerSuffix = userId.slice(0, 8).toLowerCase();
+  const sourceSuffix = canonicalSourceId.replace(/-/g, "").slice(0, 10).toLowerCase();
+  const candidateBase = `${baseSlug}-${sellerSuffix}-${sourceSuffix}`;
+  let candidate = candidateBase;
+  let attempt = 2;
+
+  while (reservedSlugs.has(candidate)) {
+    candidate = `${candidateBase}-${attempt}`;
+    attempt += 1;
+  }
+
+  while (true) {
+    const { data: existingSlug, error } = await db
+      .from("products")
+      .select("id")
+      .eq("slug", candidate)
+      .maybeSingle();
+
+    if (error) throw new Error(error.message);
+    if (!existingSlug) break;
+
+    candidate = `${candidateBase}-${attempt}`;
+    attempt += 1;
+    while (reservedSlugs.has(candidate)) {
+      candidate = `${candidateBase}-${attempt}`;
+      attempt += 1;
+    }
+  }
+
+  reservedSlugs.add(candidate);
+  return candidate;
+}
+
 export async function POST(request: Request) {
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
@@ -111,13 +152,13 @@ export async function POST(request: Request) {
       .filter((value): value is string => typeof value === "string" && value.length > 0),
   );
   const reservedSkus = new Set<string>();
+  const reservedSlugs = new Set<string>();
   const importableProducts = sourceProducts.filter((p) => {
     const canonicalSourceId = p.source_product_id ?? p.id;
     return !existingSourceIds.has(canonicalSourceId) && !existingTitles.has(p.title);
   });
   const toInsert = await Promise.all(
-    importableProducts.map(async (p, index) => {
-      const slug = slugify(p.title) || `product-${Date.now()}`;
+    importableProducts.map(async (p) => {
       const canonicalSourceId = p.source_product_id ?? p.id;
       return {
         seller_id: userId,
@@ -125,7 +166,7 @@ export async function POST(request: Request) {
         category_id: p.category_id,
         brand_id: p.brand_id,
         title: p.title,
-        slug: `${slug}-${(Date.now() + index).toString().slice(-6)}`,
+        slug: await buildUniqueImportSlug(db, p.title, userId, canonicalSourceId, reservedSlugs),
         sku: await buildUniqueImportSku(db, p.sku ?? null, userId, reservedSkus),
         description: p.description ?? null,
         price: p.price,
