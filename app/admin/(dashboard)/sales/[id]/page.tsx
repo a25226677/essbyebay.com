@@ -19,6 +19,7 @@ type Address = {
 type Product = { id: string; title: string; slug: string; image_url: string | null; price: number };
 type OrderItem = {
   id: string; quantity: number; unit_price: number; line_total: number;
+  storehouse_price?: number | null;
   products: Product | null;
   profiles: { id: string; full_name: string } | null;
 };
@@ -255,7 +256,10 @@ export default function OrderDetailPage() {
     ? [addr.line_1, addr.line_2, addr.city, addr.state, addr.postal_code, addr.country].filter(Boolean).join(", ")
     : null;
 
-  const storehousePrice = Number(order.subtotal) * 0.7; // 70% goes to storehouse
+  const storehousePrice = (order.order_items || []).reduce(
+    (sum, item) => sum + Number(item.storehouse_price || 0) * Number(item.quantity || 0),
+    0,
+  );
 
   return (
     <div className="space-y-5">

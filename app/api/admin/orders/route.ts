@@ -1,14 +1,6 @@
 import { getAdminContext } from "@/lib/supabase/admin-api";
+import { makeOrderCode } from "../../../../lib/order-code";
 import { NextRequest, NextResponse } from "next/server";
-
-/** Generate order code like 20260304-09201154 from a date */
-export function makeOrderCode(dateStr: string): string {
-  const d = new Date(dateStr);
-  const date = d.toISOString().slice(0, 10).replace(/-/g, "");
-  const time = d.toISOString().slice(11, 19).replace(/:/g, "") +
-    String(d.getMilliseconds()).padStart(3, "0").slice(0, 2);
-  return `${date}-${time}`;
-}
 
 export async function GET(request: NextRequest) {
   const context = await getAdminContext();
@@ -39,7 +31,7 @@ export async function GET(request: NextRequest) {
        created_at, updated_at, notes,
        profiles(id, full_name, phone),
        order_items(
-         id, quantity, seller_id, product_id,
+         id, quantity, seller_id, product_id, line_total, storehouse_price,
          products(
            id, shop_id,
            shops(id, name)
@@ -85,9 +77,39 @@ export async function GET(request: NextRequest) {
     );
   }
 
+  const orderIds = items.map((o) => o.id as string).filter(Boolean);
+  const frozeByOrder = new Map<string, { profit: number; hasPickedUp: boolean }>();
+
+  if (orderIds.length > 0) {
+    const { data: frozeOrders, error: frozeError } = await db
+      .from("froze_orders")
+      .select("order_id, profit, payment_status, pickup_status")
+      .in("order_id", orderIds);
+
+    if (frozeError) {
+      return NextResponse.json({ error: frozeError.message }, { status: 500 });
+    }
+
+    for (const row of frozeOrders || []) {
+      const orderId = row.order_id as string;
+      const current = frozeByOrder.get(orderId) || { profit: 0, hasPickedUp: false };
+      frozeByOrder.set(orderId, {
+        profit: Number((current.profit + Number(row.profit || 0)).toFixed(2)),
+        hasPickedUp:
+          current.hasPickedUp || row.pickup_status === "picked_up" || row.payment_status === "paid",
+      });
+    }
+  }
+
   // Enrich items with computed fields
   const enriched = items.map((o) => {
-    const oi: { quantity: number; seller_id: string; products?: { shop_id?: string; shops?: { name?: string } } }[] =
+    const oi: {
+      quantity: number;
+      seller_id: string;
+      line_total?: number | null;
+      storehouse_price?: number | null;
+      products?: { shop_id?: string; shops?: { name?: string } };
+    }[] =
       Array.isArray(o.order_items) ? o.order_items : [];
 
     // Number of distinct line-items in the order
@@ -96,12 +118,20 @@ export async function GET(request: NextRequest) {
     // Shop name from first item's product → shop join
     const firstItem  = oi[0];
     const shopName   = firstItem?.products?.shops?.name ?? null;
-
-    const oid = o.id as string;
-    // Profit = 15–20% platform fee on subtotal (varies by order, deterministic)
-    const rateOffset = parseInt(oid.replace(/-/g, "").slice(-4), 16) % 100 / 100;
-    const rate = 0.15 + rateOffset * 0.05; // 0.15 to 0.20
-    const profit = Number(((o.subtotal as number) * rate).toFixed(2));
+    const froze = frozeByOrder.get(o.id as string);
+    const itemProfit = Number(
+      oi
+        .reduce((sum, item) => {
+          const quantity = Number(item.quantity || 0);
+          const lineTotal = Number(item.line_total || 0);
+          const storehouseTotal = Number(item.storehouse_price || 0) * quantity;
+          return sum + (lineTotal - storehouseTotal);
+        }, 0)
+        .toFixed(2),
+    );
+    const profit = froze ? froze.profit : itemProfit;
+    const pickupStatus =
+      o.pickup_status === "picked_up" || froze?.hasPickedUp ? "picked_up" : (o.pickup_status || "unpicked_up");
 
     // Strip nested order_items from response (not needed by the table UI)
     const { order_items: _oi, ...rest } = o;
@@ -113,6 +143,7 @@ export async function GET(request: NextRequest) {
       shop_name: shopName,
       num_products: numProducts,
       payment_status: o.payment_status || "pending",
+      pickup_status: pickupStatus,
       profit,
     };
   });

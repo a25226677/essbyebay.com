@@ -1,4 +1,5 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
+import { createAdminServiceClient } from "@/lib/supabase/admin-client";
 import { NextResponse } from "next/server";
 
 type DashboardOrderRow = {
@@ -11,8 +12,8 @@ type DashboardOrderRow = {
 type DashboardOrderBucket = "newOrder" | "processing" | "cancelled" | "onDelivery" | "delivered";
 
 function getDashboardOrderBucket(order: Pick<DashboardOrderRow, "status" | "delivery_status">): DashboardOrderBucket {
-  const status = order.status ?? "";
-  const deliveryStatus = order.delivery_status ?? "";
+  const status = (order.status ?? "").trim().toLowerCase();
+  const deliveryStatus = (order.delivery_status ?? "").trim().toLowerCase();
 
   if (deliveryStatus === "cancelled" || status === "cancelled") return "cancelled";
   if (deliveryStatus === "delivered" || status === "delivered") return "delivered";
@@ -28,7 +29,8 @@ export async function GET() {
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
 
-  const { supabase, userId } = context;
+  const { userId } = context;
+  const supabase = createAdminServiceClient();
 
   // ── STEP 1: Get seller's product IDs for fallback matching ─────────────────
   const { data: sellerProductsData } = await supabase
@@ -36,10 +38,9 @@ export async function GET() {
     .select("id")
     .eq("seller_id", userId);
 
-  const sellerProductIds = (sellerProductsData || []).map((p) => p.id);
-
   // ── STEP 2: Fetch order items using multi-strategy approach ────────────────
-  const { queryInBatches } = await import("@/lib/supabase/query-helpers");
+  const { queryInBatches, sanitizeUuids } = await import("@/lib/supabase/query-helpers");
+  const sellerProductIds = sanitizeUuids((sellerProductsData || []).map((p) => p.id));
 
   type OrderItemRow = {
     id: string;
@@ -48,6 +49,12 @@ export async function GET() {
     seller_id: string;
     product_id: string;
     line_total: number;
+  };
+
+  type FrozeOrderRow = {
+    order_id: string;
+    amount: number | null;
+    profit: number | null;
   };
 
   const [strictRes, fallbackRes, frozeRes] = await Promise.all([
@@ -70,9 +77,19 @@ export async function GET() {
     // Frozen orders — direct seller→order link independent of order_items
     supabase
       .from("froze_orders")
-      .select("order_id")
+      .select("order_id, amount, profit")
       .eq("seller_id", userId),
   ]);
+
+  if (strictRes.error) {
+    return NextResponse.json({ error: strictRes.error.message, step: "order_items_strict" }, { status: 500 });
+  }
+  if (fallbackRes.error) {
+    return NextResponse.json({ error: fallbackRes.error.message, step: "order_items_fallback" }, { status: 500 });
+  }
+  if (frozeRes.error) {
+    return NextResponse.json({ error: frozeRes.error.message, step: "froze_orders" }, { status: 500 });
+  }
 
   // Deduplicate order items (remove duplicates from strict + fallback)
   const rawItems = [...(strictRes.data || []), ...(fallbackRes.data || [])];
@@ -92,7 +109,7 @@ export async function GET() {
   const frozeOrderIds = (frozeRes.data || [])
     .map((r: { order_id: string }) => r.order_id)
     .filter((id) => id && !orderIds.includes(id));
-  const allOrderIds = [...orderIds, ...frozeOrderIds];
+  const allOrderIds = sanitizeUuids([...orderIds, ...frozeOrderIds]);
 
   // ── STEP 3: Run remaining queries in parallel ─────────────────────────────
   const [
@@ -133,12 +150,30 @@ export async function GET() {
   const productCount = productsCountResult.count ?? 0;
   const shop = shopResult.data;
 
+  if (productsCountResult.error) {
+    return NextResponse.json({ error: productsCountResult.error.message, step: "product_count" }, { status: 500 });
+  }
+
+  if (topProductsResult.error) {
+    return NextResponse.json({ error: topProductsResult.error.message, step: "top_products" }, { status: 500 });
+  }
+  if (categoryCountResult.error) {
+    return NextResponse.json({ error: categoryCountResult.error.message, step: "category_breakdown" }, { status: 500 });
+  }
+  if (shopResult.error) {
+    return NextResponse.json({ error: shopResult.error.message, step: "shop_info" }, { status: 500 });
+  }
+
   // Get seller views and balance
-  const { data: sellerProfile } = await supabase
+  const { data: sellerProfile, error: sellerProfileError } = await supabase
     .from("profiles")
     .select("seller_views,wallet_balance")
     .eq("id", userId)
     .maybeSingle();
+
+  if (sellerProfileError) {
+    return NextResponse.json({ error: sellerProfileError.message, step: "seller_profile" }, { status: 500 });
+  }
   const sellerViews = sellerProfile?.seller_views ?? 0;
   const shopRating = Number(shop?.rating ?? 0);
   const balance = Number(sellerProfile?.wallet_balance ?? 0);
@@ -156,6 +191,10 @@ export async function GET() {
         )
       : { data: [] as DashboardOrderRow[], error: null };
 
+  if (ordersResult.error) {
+    return NextResponse.json({ error: ordersResult.error.message, step: "orders_fetch" }, { status: 500 });
+  }
+
   const orders = ordersResult.data ?? [];
 
   // ── STEP 5: Build order breakdown and identify delivered orders ────────────
@@ -168,7 +207,24 @@ export async function GET() {
   };
 
   const orderMap = new Map(orders.map((order) => [order.id, order]));
+  const orderSalesMap = new Map<string, number>();
   const deliveredOrderIds = new Set<string>();
+
+  for (const row of orderItemRows) {
+    orderSalesMap.set(
+      row.order_id,
+      Number(((orderSalesMap.get(row.order_id) || 0) + Number(row.line_total || 0)).toFixed(2)),
+    );
+  }
+
+  for (const row of (frozeRes.data || []) as FrozeOrderRow[]) {
+    if (!row.order_id || orderSalesMap.has(row.order_id)) continue;
+
+    const grossAmount = Number(
+      ((Number(row.amount || 0) || 0) + (Number(row.profit || 0) || 0)).toFixed(2),
+    );
+    orderSalesMap.set(row.order_id, grossAmount);
+  }
 
   for (const order of orders) {
     const bucket = getDashboardOrderBucket(order);
@@ -177,10 +233,9 @@ export async function GET() {
   }
 
   // ── STEP 6: Calculate totals (delivered orders only) ──────────────────────
-  const totalSales = orderItemRows.reduce((sum, row) => {
-    if (!deliveredOrderIds.has(row.order_id)) return sum;
-    return sum + Number(row.line_total);
-  }, 0);
+  const totalSales = Number(
+    [...deliveredOrderIds].reduce((sum, orderId) => sum + (orderSalesMap.get(orderId) || 0), 0).toFixed(2),
+  );
 
   // ── STEP 7: Calculate category breakdown ───────────────────────────────────
   const catMap: Record<string, { name: string; count: number }> = {};
@@ -204,12 +259,13 @@ export async function GET() {
   }
   const monthMap: Record<string, number> = Object.fromEntries(monthKeys.map((k) => [k, 0]));
 
-  for (const item of orderItemRows) {
-    if (!deliveredOrderIds.has(item.order_id)) continue;
-    const createdAt = orderMap.get(item.order_id)?.created_at;
+  for (const orderId of deliveredOrderIds) {
+    const createdAt = orderMap.get(orderId)?.created_at;
     if (!createdAt) continue;
     const key = new Date(createdAt).toLocaleString("default", { month: "short" });
-    if (key in monthMap) monthMap[key] += Number(item.line_total);
+    if (key in monthMap) {
+      monthMap[key] += orderSalesMap.get(orderId) || 0;
+    }
   }
 
   const salesData = Object.entries(monthMap).map(([month, amount]) => ({ month, amount }));

@@ -81,7 +81,7 @@ export async function POST(
   // Check if the storehouse fee for this order has already been paid
   const { data: frozeOrder } = await db
     .from("froze_orders")
-    .select("id, payment_status")
+    .select("id, payment_status, profit, pickup_status, unfreeze_date")
     .eq("order_id", orderId)
     .eq("seller_id", userId)
     .maybeSingle();
@@ -184,6 +184,38 @@ export async function POST(
       .eq("id", userId);
 
     return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
+
+  const { error: orderUpdateError } = await db
+    .from("orders")
+    .update({ pickup_status: "picked_up" })
+    .eq("id", orderId);
+
+  if (orderUpdateError) {
+    await db
+      .from("profiles")
+      .update({ wallet_balance: currentBalance, pending_balance: currentPending })
+      .eq("id", userId);
+
+    if (frozeOrder) {
+      await db
+        .from("froze_orders")
+        .update({
+          payment_status: frozeOrder.payment_status,
+          profit: frozeOrder.profit,
+          pickup_status: frozeOrder.pickup_status,
+          unfreeze_date: frozeOrder.unfreeze_date,
+        })
+        .eq("id", frozeOrder.id);
+    } else {
+      await db
+        .from("froze_orders")
+        .delete()
+        .eq("order_id", orderId)
+        .eq("seller_id", userId);
+    }
+
+    return NextResponse.json({ error: orderUpdateError.message }, { status: 500 });
   }
 
   return NextResponse.json({

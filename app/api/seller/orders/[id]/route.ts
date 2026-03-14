@@ -1,5 +1,6 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { createAdminServiceClient } from "@/lib/supabase/admin-client";
+import { makeOrderCode } from "../../../../../lib/order-code";
 import { NextResponse } from "next/server";
 import { sendOrderStatusEmail } from "@/lib/email";
 
@@ -58,7 +59,7 @@ export async function GET(_request: Request, { params }: Params) {
       .single(),
     db
       .from("froze_orders")
-      .select("id, payment_status, amount, profit")
+      .select("id, payment_status, amount, profit, pickup_status")
       .eq("order_id", orderId)
       .eq("seller_id", userId)
       .maybeSingle(),
@@ -108,11 +109,11 @@ export async function GET(_request: Request, { params }: Params) {
     (sum, item) => sum + item.storehouse_price * item.quantity,
     0
   );
-  const profit = subtotal - storehouseTotal;
+  const profit = frozeOrder?.profit != null ? Number(frozeOrder.profit) : subtotal - storehouseTotal;
 
   return NextResponse.json({
     id: order.id,
-    order_code: order.order_code || order.id.slice(0, 8).toUpperCase(),
+    order_code: makeOrderCode(order.created_at, order.order_code),
     status: order.status,
     payment_status: order.payment_status,
     delivery_status: order.delivery_status || "pending",

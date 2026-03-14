@@ -1,5 +1,6 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { createAdminServiceClient } from "@/lib/supabase/admin-client";
+import { makeOrderCode } from "../../../../lib/order-code";
 import { sanitizeUuids, queryInBatches, type DbResult } from "@/lib/supabase/query-helpers";
 import { NextResponse } from "next/server";
 
@@ -35,13 +36,29 @@ export async function GET(request: Request) {
     );
 
     // ── 2. Order-items for this seller (two strategies, run in parallel) ──────
-    type OrderItemRow = { id: string; order_id: string; quantity: number; seller_id: string; product_id: string };
+    type OrderItemRow = {
+      id: string;
+      order_id: string;
+      quantity: number;
+      seller_id: string;
+      product_id: string;
+      line_total: number | null;
+      storehouse_price: number | null;
+    };
+
+    type FrozeOrderRow = {
+      order_id: string;
+      amount: number | null;
+      profit: number | null;
+      payment_status: string | null;
+      pickup_status: string | null;
+    };
 
     const [strictRes, fallbackRes, frozeRes] = await Promise.all([
       // Direct: order_items where seller_id = userId
       db
         .from("order_items")
-        .select("id, order_id, quantity, seller_id, product_id")
+        .select("id, order_id, quantity, seller_id, product_id, line_total, storehouse_price")
         .eq("seller_id", userId),
 
       // Fallback: order_items for any product the seller currently owns.
@@ -50,7 +67,7 @@ export async function GET(request: Request) {
         (chunk) =>
           db
             .from("order_items")
-            .select("id, order_id, quantity, seller_id, product_id")
+            .select("id, order_id, quantity, seller_id, product_id, line_total, storehouse_price")
             .in("product_id", chunk) as unknown as PromiseLike<DbResult<OrderItemRow>>,
         sellerProductIds,
       ),
@@ -58,7 +75,7 @@ export async function GET(request: Request) {
       // Frozen orders — direct seller→order link independent of order_items
       db
         .from("froze_orders")
-        .select("order_id")
+        .select("order_id, amount, profit, payment_status, pickup_status")
         .eq("seller_id", userId),
     ]);
 
@@ -112,17 +129,30 @@ export async function GET(request: Request) {
 
     // ── 4. Build order → qty map ──────────────────────────────────────────────
     const orderCountMap: Record<string, number> = {};
+    const orderAmountMap: Record<string, number> = {};
+    const orderProfitMap: Record<string, number> = {};
     for (const row of uniqueItems) {
       if (row.seller_id !== userId && productSellerMap.get(row.product_id) !== userId) continue;
+      const quantity = Number(row.quantity ?? 1) || 1;
+      const lineTotal = Number(row.line_total || 0);
+      const storehouseUnit = Number(row.storehouse_price || 0);
+      const storehouseTotal = storehouseUnit * quantity;
+
       orderCountMap[row.order_id] =
-        (orderCountMap[row.order_id] || 0) + (row.quantity ?? 1);
+        (orderCountMap[row.order_id] || 0) + quantity;
+      orderAmountMap[row.order_id] =
+        (orderAmountMap[row.order_id] || 0) + lineTotal;
+      orderProfitMap[row.order_id] =
+        (orderProfitMap[row.order_id] || 0) + (lineTotal - storehouseTotal);
     }
 
     // Include frozen orders (may have no order_items — e.g. seeded data)
-    for (const r of frozeRes.data || []) {
+    const frozeMap = new Map<string, FrozeOrderRow>();
+    for (const r of (frozeRes.data || []) as FrozeOrderRow[]) {
       if (r.order_id && !(r.order_id in orderCountMap)) {
         orderCountMap[r.order_id] = 0;
       }
+      if (r.order_id) frozeMap.set(r.order_id, r);
     }
 
     // ── 5. Fetch matching orders ───────────────────────────────────────────────
@@ -146,12 +176,22 @@ export async function GET(request: Request) {
 
     const dbDeliveryValue = deliveryFilter !== "all" ? deliveryDisplayToDb[deliveryFilter] : null;
 
-    type OrderRow = { id: string; status: string; payment_status: string; delivery_status: string; pickup_status: string; total_amount: number; created_at: string; user_id: string };
+    type OrderRow = {
+      id: string;
+      order_code: string | null;
+      status: string;
+      payment_status: string;
+      delivery_status: string;
+      pickup_status: string;
+      total_amount: number;
+      created_at: string;
+      user_id: string;
+    };
     const { data: orders, error: ordersError } = await queryInBatches<OrderRow>(
       (chunk) => {
         let q = db
           .from("orders")
-          .select("id,status,payment_status,delivery_status,pickup_status,total_amount,created_at,user_id")
+          .select("id,order_code,status,payment_status,delivery_status,pickup_status,total_amount,created_at,user_id")
           .in("id", chunk)
           .order("created_at", { ascending: false });
         if (dbDeliveryValue) q = q.eq("delivery_status", dbDeliveryValue);
@@ -208,18 +248,21 @@ export async function GET(request: Request) {
     };
 
     const mapped = (orders || []).map((order) => {
-      const dateStr = order.created_at.slice(0, 10).replace(/-/g, "");
-      const numericPart = (
-        parseInt(order.id.replace(/-/g, "").slice(-10), 16) % 100_000_000
-      )
-        .toString()
-        .padStart(8, "0");
-      const code = `${dateStr}-${numericPart}`;
-
-      const amount = Number(order.total_amount || 0);
-      const rateOffset =
-        (parseInt(order.id.replace(/-/g, "").slice(-4), 16) % 100) / 100;
-      const profit = Number((amount * (0.15 + rateOffset * 0.05)).toFixed(2));
+      const code = makeOrderCode(order.created_at, order.order_code);
+      const frozeOrder = frozeMap.get(order.id);
+      const itemAmount = Number((orderAmountMap[order.id] || 0).toFixed(2));
+      const itemProfit = Number((orderProfitMap[order.id] || 0).toFixed(2));
+      const fallbackAmount = Number(
+        ((Number(frozeOrder?.amount || 0) || 0) + (Number(frozeOrder?.profit || 0) || 0)).toFixed(2),
+      );
+      const amount = itemAmount > 0 ? itemAmount : fallbackAmount;
+      const profit = itemAmount > 0 ? itemProfit : Number((Number(frozeOrder?.profit || 0) || 0).toFixed(2));
+      const pickupStatus =
+        order.pickup_status === "picked_up" ||
+        frozeOrder?.pickup_status === "picked_up" ||
+        frozeOrder?.payment_status === "paid"
+          ? "Picked Up"
+          : "Unpicked Up";
 
       return {
         id: order.id,
@@ -228,8 +271,7 @@ export async function GET(request: Request) {
         customer: userMap.get(order.user_id) || "Customer",
         amount,
         profit,
-        pickupStatus:
-          order.pickup_status === "picked_up" ? "Picked Up" : "Unpicked Up",
+        pickupStatus,
         deliveryStatus: deliveryStatusDisplay[order.delivery_status] ?? "Pending",
         paymentStatus:
           order.payment_status === "succeeded" || order.payment_status === "paid"
