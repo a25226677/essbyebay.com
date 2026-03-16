@@ -1,5 +1,6 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { createAdminServiceClient } from "@/lib/supabase/admin-client";
+import { buildOwnedCatalogLookup, getCanonicalSourceProductId, isOwnedCatalogProduct } from "@/lib/seller-catalog";
 import { NextResponse } from "next/server";
 
 // Each request handles one page — keeps every DB query well under the statement timeout.
@@ -90,7 +91,7 @@ export async function POST(request: Request) {
       "id,title,sku,price,stock_count,image_url,category_id,brand_id,description,source_product_id",
     )
     .eq("is_active", true)
-    .neq("seller_id", userId)
+    .is("shop_id", null)
     .order("created_at", { ascending: false })
     .range(from, to);
 
@@ -108,28 +109,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ imported: 0, skipped: 0, hasMore: false });
   }
 
-  // Targeted dedup — only the IDs in this page, never a full-table scan.
-  const candidateSourceIds = sourceProducts.map((p) => p.source_product_id ?? p.id);
   const { data: alreadyOwned } = await supabase
     .from("products")
-    .select("source_product_id")
-    .eq("seller_id", userId)
-    .in("source_product_id", candidateSourceIds);
+    .select("id,title,source_product_id")
+    .eq("seller_id", userId);
 
-  const ownedSet = new Set(
-    (alreadyOwned || []).map((p) => p.source_product_id as string),
-  );
+  const ownedLookup = buildOwnedCatalogLookup(alreadyOwned || []);
 
   const reservedSlugs = new Set<string>();
   const reservedSkus = new Set<string>();
 
   const toInsert = sourceProducts
     .filter((p) => {
-      const canonicalSourceId = p.source_product_id ?? p.id;
-      return !ownedSet.has(canonicalSourceId);
+      return !isOwnedCatalogProduct(p, ownedLookup);
     })
     .map((p) => {
-      const canonicalSourceId = p.source_product_id ?? p.id;
+      const canonicalSourceId = getCanonicalSourceProductId(p) || p.id;
       return {
         seller_id: userId,
         shop_id: shopId,

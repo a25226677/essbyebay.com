@@ -1,5 +1,6 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { createAdminServiceClient } from "@/lib/supabase/admin-client";
+import { buildOwnedCatalogLookup, getCanonicalSourceProductId, isOwnedCatalogProduct } from "@/lib/seller-catalog";
 import { NextResponse } from "next/server";
 
 function slugify(value: string) {
@@ -129,6 +130,7 @@ export async function POST(request: Request) {
     .from("products")
     .select("id,title,sku,price,stock_count,image_url,category_id,brand_id,description,source_product_id")
     .in("id", product_ids)
+    .is("shop_id", null)
     .eq("is_active", true);
 
   if (fetchError) {
@@ -145,21 +147,15 @@ export async function POST(request: Request) {
     .select("title,source_product_id")
     .eq("seller_id", userId);
 
-  const existingTitles = new Set((existing || []).map((e) => e.title));
-  const existingSourceIds = new Set(
-    (existing || [])
-      .map((e) => e.source_product_id)
-      .filter((value): value is string => typeof value === "string" && value.length > 0),
-  );
+  const ownedLookup = buildOwnedCatalogLookup(existing || []);
   const reservedSkus = new Set<string>();
   const reservedSlugs = new Set<string>();
   const importableProducts = sourceProducts.filter((p) => {
-    const canonicalSourceId = p.source_product_id ?? p.id;
-    return !existingSourceIds.has(canonicalSourceId) && !existingTitles.has(p.title);
+    return !isOwnedCatalogProduct(p, ownedLookup);
   });
   const toInsert = await Promise.all(
     importableProducts.map(async (p) => {
-      const canonicalSourceId = p.source_product_id ?? p.id;
+      const canonicalSourceId = getCanonicalSourceProductId(p);
       return {
         seller_id: userId,
         shop_id: shopId,
@@ -173,7 +169,7 @@ export async function POST(request: Request) {
         stock_count: p.stock_count ?? 1000,
         image_url: p.image_url ?? null,
         is_active: true,
-        source_product_id: canonicalSourceId,
+        source_product_id: canonicalSourceId || p.id,
       };
     }),
   );

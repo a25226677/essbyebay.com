@@ -527,7 +527,7 @@ export default function SellerOrderDetailPage() {
 
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
               <p className="text-xs text-blue-700 leading-relaxed">
-                ℹ️ <strong>Reminder:</strong> This payment will be deducted from your wallet balance and marked as frozen for 7 days.
+                ℹ️ <strong>Reminder:</strong> This payment will be deducted from your wallet balance and marked as frozen for 24 hours.
               </p>
             </div>
 

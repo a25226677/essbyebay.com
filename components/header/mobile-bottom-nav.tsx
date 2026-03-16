@@ -65,7 +65,7 @@ export function MobileBottomNav() {
 
   return (
     <nav className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-50 bg-[#1b233a] border-t border-[#2a3350] md:hidden">
-      <div className="flex items-center justify-around h-14">
+      <div className="flex items-center justify-around h-14 pb-[env(safe-area-inset-bottom)]">
         {items.map((item) => {
           const isActive =
             item.href === "/"

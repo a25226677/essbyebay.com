@@ -151,8 +151,8 @@ export async function POST(
     orderRow?.order_code ||
     `${new Date(orderRow?.created_at || Date.now()).toISOString().slice(0, 10).replace(/-/g, "")}-${orderId.slice(0, 8).toUpperCase()}`;
 
-  // Set unfreeze_date to 7 days from now (standard freeze period)
-  const unfreezeDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  // Set unfreeze_date to 24 hours from now (standard freeze period)
+  const unfreezeDate = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString();
 
   // Record/update storehouse payment in froze_orders
   let updateError: { message: string } | null = null;

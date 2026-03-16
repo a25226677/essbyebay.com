@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
@@ -66,7 +66,6 @@ const sidebarLinks: SidebarLink[] = [
     label: "Orders",
     href: "/seller/orders",
     icon: ShoppingCart,
-    badge: 3,
   },
   {
     label: "Shop Setting",
@@ -104,7 +103,35 @@ export function SellerSidebar() {
   const pathname = usePathname();
   const [expandedGroups, setExpandedGroups] = useState<string[]>(["Products"]);
   const [searchMenu, setSearchMenu] = useState("");
+  const [newOrdersBadge, setNewOrdersBadge] = useState(0);
   const { user: profile } = useUserData();
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadNewOrdersBadge = async () => {
+      try {
+        const res = await fetch("/api/seller/dashboard", { cache: "no-store" });
+        if (!res.ok) {
+          if (!cancelled) setNewOrdersBadge(0);
+          return;
+        }
+
+        const data = await res.json();
+        const nextBadge = Math.max(0, Number(data?.orders?.newOrder ?? 0));
+
+        if (!cancelled) setNewOrdersBadge(nextBadge);
+      } catch {
+        if (!cancelled) setNewOrdersBadge(0);
+      }
+    };
+
+    loadNewOrdersBadge();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [pathname]);
 
   const toggleGroup = (label: string) => {
     setExpandedGroups((prev) =>
@@ -123,6 +150,14 @@ export function SellerSidebar() {
     }
     return false;
   });
+
+  const getLinkBadge = (link: SidebarLink) => {
+    if (link.label === "Orders") {
+      return newOrdersBadge > 0 ? newOrdersBadge : undefined;
+    }
+
+    return link.badge;
+  };
 
   const sellerImage = profile.shopLogoUrl || profile.avatarUrl || "/logo.png";
   const sellerName = profile.shopName || profile.fullName || "My Shop";
@@ -170,6 +205,8 @@ export function SellerSidebar() {
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-2 pb-4 space-y-0.5">
         {filteredLinks.map((link) => {
+          const badge = getLinkBadge(link);
+
           if (link.children) {
             const isExpanded = expandedGroups.includes(link.label);
             const isChildActive = link.children.some((c) =>
@@ -190,9 +227,9 @@ export function SellerSidebar() {
                 >
                   <Icon className="size-4" />
                   <span className="flex-1 text-left">{link.label}</span>
-                  {"badge" in link && link.badge && (
+                  {badge && (
                     <span className="bg-red-500 text-white text-[10px] font-bold size-4 rounded-full flex items-center justify-center">
-                      {link.badge}
+                      {badge}
                     </span>
                   )}
                   <ChevronDown
@@ -246,9 +283,9 @@ export function SellerSidebar() {
             >
               <Icon className="size-4" />
               <span className="flex-1">{link.label}</span>
-              {link.badge && (
+              {badge && (
                 <span className="bg-red-500 text-white text-[10px] font-bold size-4 rounded-full flex items-center justify-center">
-                  {link.badge}
+                  {badge}
                 </span>
               )}
             </Link>

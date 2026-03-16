@@ -91,7 +91,7 @@ export default function RootLayout({
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
         />
         <Header />
-        <main className="min-h-screen pb-14 md:pb-0">{children}</main>
+        <main className="site-main min-h-screen">{children}</main>
         <Footer />
         <MobileBottomNav />
         <Toaster position="top-right" richColors />

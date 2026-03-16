@@ -42,6 +42,8 @@ export default function ProductStorehousePage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
+  const [basePoolTotal, setBasePoolTotal] = useState(0);
+  const [remainingTotal, setRemainingTotal] = useState(0);
   const [importingAll, setImportingAll] = useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longRunningToastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -101,6 +103,8 @@ export default function ProductStorehousePage() {
       setBrands(json.brands ?? []);
       setTotalPages(json.pagination?.pages ?? 1);
       setTotal(json.pagination?.total ?? 0);
+      setBasePoolTotal(json.pagination?.baseTotal ?? json.pagination?.total ?? 0);
+      setRemainingTotal(json.pagination?.remainingTotal ?? json.pagination?.total ?? 0);
     }
     setSelected(new Set());
     setLoading(false);
@@ -214,8 +218,6 @@ export default function ProductStorehousePage() {
     }
   };
 
-  const importedCount = items.filter((i) => i.imported).length;
-
   return (
     <div className="space-y-5 relative">
       {/* Toast */}
@@ -269,8 +271,7 @@ export default function ProductStorehousePage() {
         </select>
         {!loading && (
           <span className="text-xs text-gray-400 ml-auto">
-            {total} product{total !== 1 ? "s" : ""} total
-            {importedCount > 0 && ` · ${importedCount} already in shop on this page`}
+            Base Pool: {basePoolTotal.toLocaleString()} &nbsp;|&nbsp; Remaining: {remainingTotal.toLocaleString()}
           </span>
         )}
       </div>
@@ -378,7 +379,7 @@ export default function ProductStorehousePage() {
           {!loading && totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 bg-gray-50">
               <span className="text-xs text-gray-500">
-                Page {page} of {totalPages} &nbsp;·&nbsp; {total} total products
+                Page {page} of {totalPages} &nbsp;·&nbsp; Base Pool {basePoolTotal.toLocaleString()} &nbsp;·&nbsp; Remaining {remainingTotal.toLocaleString()}
               </span>
               <div className="flex items-center gap-2">
                 <button
@@ -434,8 +435,8 @@ export default function ProductStorehousePage() {
           >
             {importingAll ? <Loader2 className="size-4 animate-spin inline mr-1" /> : null}
             Add all to My Product
-            {total > 0 && (
-              <span className="ml-1.5 text-xs text-gray-400">({total.toLocaleString()})</span>
+            {remainingTotal > 0 && (
+              <span className="ml-1.5 text-xs text-gray-400">({remainingTotal.toLocaleString()})</span>
             )}
           </button>
           <button

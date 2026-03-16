@@ -11,6 +11,40 @@ type DashboardOrderRow = {
 
 type DashboardOrderBucket = "newOrder" | "processing" | "cancelled" | "onDelivery" | "delivered";
 
+type SellerCategoryRow = { category_id: string | null };
+
+async function fetchAllSellerCategoryRows(
+  supabase: ReturnType<typeof createAdminServiceClient>,
+  userId: string,
+) {
+  const PAGE_SIZE = 1000;
+  let from = 0;
+  const rows: SellerCategoryRow[] = [];
+
+  while (true) {
+    const to = from + PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .from("products")
+      .select("category_id")
+      .eq("seller_id", userId)
+      .range(from, to);
+
+    if (error) {
+      return { data: [] as SellerCategoryRow[], error };
+    }
+
+    const chunk = (data || []) as SellerCategoryRow[];
+    if (chunk.length === 0) break;
+
+    rows.push(...chunk);
+    if (chunk.length < PAGE_SIZE) break;
+
+    from += PAGE_SIZE;
+  }
+
+  return { data: rows, error: null as { message: string } | null };
+}
+
 function getDashboardOrderBucket(order: Pick<DashboardOrderRow, "status" | "delivery_status">): DashboardOrderBucket {
   const status = (order.status ?? "").trim().toLowerCase();
   const deliveryStatus = (order.delivery_status ?? "").trim().toLowerCase();
@@ -57,7 +91,7 @@ export async function GET() {
     profit: number | null;
   };
 
-  const [strictRes, fallbackRes, frozeRes] = await Promise.all([
+  const [strictRes, fallbackRes, frozeRes, sellerProfileRes] = await Promise.all([
     // Direct: order_items where seller_id = userId
     supabase
       .from("order_items")
@@ -79,6 +113,13 @@ export async function GET() {
       .from("froze_orders")
       .select("order_id, amount, profit")
       .eq("seller_id", userId),
+
+    // Pre-fetch seller profile to avoid redundant query later
+    supabase
+      .from("profiles")
+      .select("seller_views,wallet_balance")
+      .eq("id", userId)
+      .maybeSingle(),
   ]);
 
   if (strictRes.error) {
@@ -89,6 +130,9 @@ export async function GET() {
   }
   if (frozeRes.error) {
     return NextResponse.json({ error: frozeRes.error.message, step: "froze_orders" }, { status: 500 });
+  }
+  if (sellerProfileRes.error) {
+    return NextResponse.json({ error: sellerProfileRes.error.message, step: "seller_profile" }, { status: 500 });
   }
 
   // Deduplicate order items (remove duplicates from strict + fallback)
@@ -115,8 +159,8 @@ export async function GET() {
   const [
     productsCountResult,
     topProductsResult,
-    categoryCountResult,
     shopResult,
+    categoryRowsResult,
   ] = await Promise.all([
     // Product count
     supabase
@@ -133,18 +177,15 @@ export async function GET() {
       .order("rating", { ascending: false })
       .limit(12),
 
-    // Category breakdown
-    supabase
-      .from("products")
-      .select("category_id,categories(name)")
-      .eq("seller_id", userId),
-
     // Shop info
     supabase
       .from("shops")
       .select("id,name,is_verified,product_count,logo_url,rating")
       .eq("owner_id", userId)
       .maybeSingle(),
+
+    // Category breakdown: fetch all seller product categories in batches
+    fetchAllSellerCategoryRows(supabase, userId),
   ]);
 
   const productCount = productsCountResult.count ?? 0;
@@ -157,26 +198,17 @@ export async function GET() {
   if (topProductsResult.error) {
     return NextResponse.json({ error: topProductsResult.error.message, step: "top_products" }, { status: 500 });
   }
-  if (categoryCountResult.error) {
-    return NextResponse.json({ error: categoryCountResult.error.message, step: "category_breakdown" }, { status: 500 });
+  if (categoryRowsResult.error) {
+    return NextResponse.json({ error: categoryRowsResult.error.message, step: "category_breakdown" }, { status: 500 });
   }
   if (shopResult.error) {
     return NextResponse.json({ error: shopResult.error.message, step: "shop_info" }, { status: 500 });
   }
 
-  // Get seller views and balance
-  const { data: sellerProfile, error: sellerProfileError } = await supabase
-    .from("profiles")
-    .select("seller_views,wallet_balance")
-    .eq("id", userId)
-    .maybeSingle();
-
-  if (sellerProfileError) {
-    return NextResponse.json({ error: sellerProfileError.message, step: "seller_profile" }, { status: 500 });
-  }
-  const sellerViews = sellerProfile?.seller_views ?? 0;
+  // Use pre-fetched seller profile
+  const sellerViews = sellerProfileRes.data?.seller_views ?? 0;
   const shopRating = Number(shop?.rating ?? 0);
-  const balance = Number(sellerProfile?.wallet_balance ?? 0);
+  const balance = Number(sellerProfileRes.data?.wallet_balance ?? 0);
 
   // ── STEP 4: Fetch order details ───────────────────────────────────────────
   const ordersResult =
@@ -239,13 +271,33 @@ export async function GET() {
 
   // ── STEP 7: Calculate category breakdown ───────────────────────────────────
   const catMap: Record<string, { name: string; count: number }> = {};
-  for (const product of categoryCountResult.data ?? []) {
+  const uniqueCatIds = [...new Set(
+    (categoryRowsResult.data ?? [])
+      .map((p: any) => p.category_id as string | null)
+      .filter(Boolean),
+  )];
+
+  // Fetch category names for valid IDs
+  const { data: categories } = uniqueCatIds.length > 0
+    ? await supabase
+        .from("categories")
+        .select("id,name")
+        .in("id", uniqueCatIds)
+    : { data: [] };
+
+  const catNameMap = new Map(
+    (categories ?? []).map((c: any) => [c.id, c.name]),
+  );
+
+  // Build category breakdown
+  for (const product of categoryRowsResult.data ?? []) {
     const catId = (product.category_id as string) || "__none__";
-    const catName =
-      (product.categories as unknown as { name: string }[] | null)?.[0]?.name ?? "Uncategorized";
-    if (!catMap[catId]) catMap[catId] = { name: catName, count: 0 };
-    catMap[catId].count++;
+    const catName = catNameMap.get(catId) || "Uncategorized";
+    const bucketKey = catName === "Uncategorized" ? "__uncategorized__" : catId;
+    if (!catMap[bucketKey]) catMap[bucketKey] = { name: catName, count: 0 };
+    catMap[bucketKey].count++;
   }
+  
   const categoryProducts = Object.values(catMap)
     .sort((a, b) => b.count - a.count)
     .map((c) => ({ name: c.name, count: c.count }));
