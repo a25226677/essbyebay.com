@@ -7,7 +7,6 @@ import {
   DollarSign,
   ShoppingCart,
   TrendingUp,
-  Eye,
   Star,
   PlusCircle,
   ArrowUpRight,
@@ -72,7 +71,6 @@ export default function SellerDashboardPage() {
     ? [
         { label: "Products", value: data.stats.productCount.toLocaleString(), icon: Package, color: "bg-sky-500", extraContent: (
           <div className="flex items-center gap-4 mt-3 text-xs opacity-90">
-            <span className="flex items-center gap-1"><Eye className="size-3" /> Views <strong className="ml-0.5">{(data.stats.views ?? 0).toLocaleString()}</strong></span>
             <span className="flex items-center gap-1"><Star className="size-3" /> Ratings
               <span className="flex gap-0.5 ml-1">{Array.from({ length: 5 }).map((_, i) => (<Star key={i} className={`size-3 ${i < Math.round(data.stats.rating ?? 0) ? "fill-yellow-300 text-yellow-300" : "text-white/50"}`} />))}</span>
             </span>

@@ -233,32 +233,10 @@ export default function SellersListPage() {
   };
 
   const handleLoginAsSeller = async (seller: Seller) => {
-    setLoginAsSellerId(seller.id);
-    try {
-      showToast("Preparing seller session...");
-      const res = await fetch("/api/admin/sellers/login-as", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sellerId: seller.id }),
-      });
-
-      const json = await res.json();
-      if (!res.ok) {
-        showToast(json.error || "Unable to login as seller", false);
-        return;
-      }
-
-      if (!json.actionLink) {
-        showToast("Seller login link was not generated", false);
-        return;
-      }
-
-      window.location.assign(json.actionLink);
-    } catch {
-      showToast("Unable to login as seller", false);
-    } finally {
-      setLoginAsSellerId(null);
-    }
+    if (!seller.email) { showToast("Seller has no email", false); return; }
+    showToast("Logging in as seller...");
+    const impersonateUrl = `/api/admin/impersonate?email=${encodeURIComponent(seller.email)}&redirect=/seller/dashboard`;
+    window.location.href = impersonateUrl;
   };
 
   const offset = (page - 1) * pagination.limit;

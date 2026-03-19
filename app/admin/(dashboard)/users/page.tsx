@@ -6,6 +6,7 @@ import {
   Eye, Send, Edit3, Trash2, Plus, X, Mail, Phone, Calendar, Shield,
   ShoppingBag, Store, Star
 } from "lucide-react";
+import { toast as _toast } from "react-toastify";
 
 type UserRow = {
   id: string;
@@ -136,6 +137,18 @@ export default function AdminUsersPage() {
       else { const j = await res.json(); showToast(j.error || "Failed", "error"); }
     } catch { showToast("Network error", "error"); }
     finally { setActionLoading(false); }
+  };
+
+  const handleImpersonate = async (email?: string) => {
+    if (!email) return showToast('No email provided', 'error');
+    try {
+      showToast('Logging in...');
+      const impersonateUrl = `/api/admin/impersonate?email=${encodeURIComponent(email)}&redirect=/seller/dashboard`;
+      // redirect to server-side route which sets cookies and redirects
+      window.location.href = impersonateUrl;
+    } catch (err) {
+      showToast('Failed to impersonate user', 'error');
+    }
   };
 
   const createUser = async () => {
@@ -283,6 +296,11 @@ export default function AdminUsersPage() {
                         <button onClick={() => { setModalMode("view"); fetchDetail(u.id); }} className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-500" title="View"><Eye className="size-3.5" /></button>
                         <button onClick={() => { setFormData({ full_name: u.full_name || "", email: u.email || "", phone: u.phone || "", password: "", role: u.role }); setModalMode("edit"); fetchDetail(u.id); }} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500" title="Edit"><Edit3 className="size-3.5" /></button>
                         {u.email && <button onClick={() => { setSelectedUser(u as UserDetail); setEmailData({ subject: "", message: "" }); setModalMode("email"); }} className="p-1.5 rounded-lg hover:bg-purple-50 text-purple-500" title="Email"><Send className="size-3.5" /></button>}
+                        {u.role === 'seller' && u.email && (
+                          <button onClick={() => handleImpersonate(u.email || '')} className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600" title="Impersonate Seller">
+                            <Store className="size-3.5" />
+                          </button>
+                        )}
                         <button onClick={() => toggleActive(u.id, u.is_active)} className={`p-1.5 rounded-lg ${u.is_active ? "hover:bg-red-50 text-red-400" : "hover:bg-emerald-50 text-emerald-500"}`} title={u.is_active ? "Suspend" : "Restore"}>
                           {u.is_active ? <UserX className="size-3.5" /> : <UserCheck className="size-3.5" />}
                         </button>
