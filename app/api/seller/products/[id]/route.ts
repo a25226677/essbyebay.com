@@ -1,4 +1,5 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
+import { sendProductUpdatedEmail, sendProductDeletedEmail } from "@/lib/email";
 import { NextResponse } from "next/server";
 
 type Params = { params: Promise<{ id: string }> };
@@ -131,6 +132,21 @@ export async function PATCH(request: Request, { params }: Params) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // send non-blocking update email to seller
+    try {
+      const { data: profile } = await supabase.from("profiles").select("full_name,email").eq("id", userId).maybeSingle();
+      const sellerName = profile?.full_name || "Seller";
+      const sellerEmail = profile?.email;
+      let productTitle = updates.title as string | undefined;
+      if (!productTitle) {
+        const { data: prod } = await supabase.from("products").select("title").eq("id", id).maybeSingle();
+        productTitle = prod?.title || "your product";
+      }
+      if (sellerEmail) sendProductUpdatedEmail(sellerEmail, sellerName, productTitle, id).catch(() => {});
+    } catch (e) {
+      // ignore
+    }
+
     return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: "Invalid request payload" }, { status: 400 });
@@ -144,6 +160,10 @@ export async function DELETE(_request: Request, { params }: Params) {
   const { supabase, userId } = context;
   const { id } = await params;
 
+  // fetch product title before deletion for notification
+  const { data: existing } = await supabase.from("products").select("title").eq("id", id).eq("seller_id", userId).maybeSingle();
+  const productTitle = existing?.title || "Product";
+
   const { error } = await supabase
     .from("products")
     .delete()
@@ -152,6 +172,16 @@ export async function DELETE(_request: Request, { params }: Params) {
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  // notify seller about deletion
+  try {
+    const { data: profile } = await supabase.from("profiles").select("full_name,email").eq("id", userId).maybeSingle();
+    const sellerName = profile?.full_name || "Seller";
+    const sellerEmail = profile?.email;
+    if (sellerEmail) sendProductDeletedEmail(sellerEmail, sellerName, productTitle).catch(() => {});
+  } catch (e) {
+    // ignore
   }
 
   return NextResponse.json({ success: true });

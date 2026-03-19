@@ -97,8 +97,25 @@ export default function RegistrationPage() {
           // Email failure should not block registration
         }
       }
+
       if (role === "seller") {
-        router.push("/seller/login?registered=true");
+        // Attempt to sign in automatically so seller goes straight to dashboard.
+        try {
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+            email,
+            password,
+          });
+
+          if (signInError) {
+            // If auto sign-in fails (e.g. email confirmation required), fall back to login page
+            router.push("/seller/login?registered=true");
+          } else {
+            // Successful sign-in: redirect to seller dashboard
+            router.push("/seller/dashboard");
+          }
+        } catch (e) {
+          router.push("/seller/login?registered=true");
+        }
       } else {
         router.push("/users/login?registered=true");
       }

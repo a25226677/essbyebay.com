@@ -524,3 +524,52 @@ export async function sendOtpEmail(to: string, code: string) {
     `),
   });
 }
+
+// ─── Product created/updated/deleted notifications ─────────────
+export async function sendProductCreatedEmail(to: string, sellerName: string, productTitle: string, productId?: string) {
+  return sendEmail({
+    to,
+    subject: `Product Listed: ${productTitle} – ${SITE_NAME}`,
+    html: emailLayout(`
+      <h2 style="margin:0 0 16px;color:#111827;font-size:20px">Product Listed Successfully</h2>
+      <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">Hi ${sellerName}, your product <strong>"${productTitle}"</strong> is now live on ${SITE_NAME}.</p>
+      ${button("View Product", `${SITE_URL}/product/${productId || ""}`)}
+    `),
+  });
+}
+
+export async function sendProductUpdatedEmail(to: string, sellerName: string, productTitle: string, productId?: string) {
+  return sendEmail({
+    to,
+    subject: `Product Updated: ${productTitle} – ${SITE_NAME}`,
+    html: emailLayout(`
+      <h2 style="margin:0 0 16px;color:#111827;font-size:20px">Product Updated</h2>
+      <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">Hi ${sellerName}, your product <strong>"${productTitle}"</strong> has been updated.</p>
+      ${button("View Product", `${SITE_URL}/product/${productId || ""}`)}
+    `),
+  });
+}
+
+export async function sendProductDeletedEmail(to: string, sellerName: string, productTitle: string) {
+  return sendEmail({
+    to,
+    subject: `Product Removed: ${productTitle} – ${SITE_NAME}`,
+    html: emailLayout(`
+      <h2 style="margin:0 0 16px;color:#111827;font-size:20px">Product Removed</h2>
+      <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">Hi ${sellerName}, your product <strong>"${productTitle}"</strong> has been removed from the marketplace.</p>
+      <p style="color:#9ca3af;font-size:13px;margin:16px 0 0">If this was a mistake, please contact support or re-create the listing.</p>
+    `),
+  });
+}
+
+export async function sendAdminNewProductNotification(sellerName: string, sellerEmail: string, productTitle: string, productId?: string) {
+  return sendEmail({
+    to: ADMIN_EMAIL,
+    subject: `New Product Listed by ${sellerName} – ${productTitle}`,
+    html: emailLayout(`
+      <h2 style="margin:0 0 16px;color:#111827;font-size:20px">New Product Listed</h2>
+      <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">Seller <strong>${sellerName}</strong> (${sellerEmail}) listed a new product: <strong>${productTitle}</strong>.</p>
+      ${button("Review Product", `${SITE_URL}/admin/products${productId ? `/${productId}` : ""}`)}
+    `),
+  });
+}

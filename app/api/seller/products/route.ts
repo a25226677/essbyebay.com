@@ -1,4 +1,5 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
+import { sendProductCreatedEmail, sendAdminNewProductNotification, sendProductUpdatedEmail, sendProductDeletedEmail } from "@/lib/email";
 import { NextResponse } from "next/server";
 
 function slugify(value: string) {
@@ -203,6 +204,20 @@ export async function POST(request: Request) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Send non-blocking emails: notify seller and admin
+    try {
+      const { data: profile } = await supabase.from("profiles").select("full_name,email").eq("id", userId).maybeSingle();
+      const sellerName = profile?.full_name || "Seller";
+      const sellerEmail = profile?.email;
+      if (sellerEmail) {
+        // fire-and-forget
+        sendProductCreatedEmail(sellerEmail, sellerName, title, created.id).catch(() => {});
+        sendAdminNewProductNotification(sellerName, sellerEmail, title, created.id).catch(() => {});
+      }
+    } catch (e) {
+      // ignore email failures
     }
 
     return NextResponse.json({ success: true, id: created.id });
