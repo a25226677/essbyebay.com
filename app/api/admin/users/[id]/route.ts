@@ -189,6 +189,7 @@ export async function PATCH(request: Request, { params }: Params) {
           source: "Admin recharge",
           reference: id,
           balance: Number(updates.wallet_balance ?? 0),
+          role: currentProfile.role || undefined,
         }).catch(() => {});
       }
     }

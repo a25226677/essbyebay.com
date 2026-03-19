@@ -63,6 +63,7 @@ export async function POST(request: Request) {
           method: "bank",
           reference: undefined,
           type: "guarantee",
+          role: "seller",
         });
       }
     } catch {

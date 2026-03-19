@@ -88,6 +88,7 @@ export async function POST(request: Request) {
           method,
           reference: txnId,
           type: "wallet",
+          role: "seller",
         });
       }
     } catch {

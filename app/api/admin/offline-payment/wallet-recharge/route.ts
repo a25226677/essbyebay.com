@@ -89,7 +89,7 @@ export async function PATCH(req: NextRequest) {
         // Get current wallet balance
         const { data: profile } = await db
           .from("profiles")
-          .select("wallet_balance,full_name")
+          .select("wallet_balance,full_name,role")
           .eq("id", record.user_id)
           .single();
         const currentBalance = profile?.wallet_balance || 0;
@@ -114,6 +114,7 @@ export async function PATCH(req: NextRequest) {
               source: "Offline wallet recharge",
               reference: record.txn_id || undefined,
               balance: newBalance,
+              role: profile?.role || undefined,
             });
           }
         } catch {

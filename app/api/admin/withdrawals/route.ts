@@ -169,10 +169,10 @@ export async function PATCH(request: NextRequest) {
       const { data: { user } } = await db.auth.admin.getUserById(currentWithdrawal.seller_id);
       if (user?.email) {
         const { data: profile } = await db
-          .from("profiles")
-          .select("full_name,wallet_balance")
-          .eq("id", currentWithdrawal.seller_id)
-          .single();
+            .from("profiles")
+            .select("full_name,wallet_balance,role")
+            .eq("id", currentWithdrawal.seller_id)
+            .single();
 
         await sendWalletWithdrawalEmail({
           to: user.email,
@@ -181,8 +181,9 @@ export async function PATCH(request: NextRequest) {
           status: String(status),
           method: currentWithdrawal.method || currentWithdrawal.withdraw_type || undefined,
           reference: currentWithdrawal.id,
-          balance: currentBalance ?? Number(profile?.wallet_balance ?? 0),
-          note: typeof notes === "string" ? notes : undefined,
+            balance: currentBalance ?? Number(profile?.wallet_balance ?? 0),
+            note: typeof notes === "string" ? notes : undefined,
+            role: profile?.role || "seller",
         });
       }
     } catch {

@@ -86,7 +86,7 @@ export async function PATCH(request: NextRequest) {
       if (user?.email) {
         const { data: profile } = await db
           .from("profiles")
-          .select("full_name,wallet_balance")
+          .select("full_name,wallet_balance,role")
           .eq("id", existingReq.user_id)
           .single();
 
@@ -99,6 +99,7 @@ export async function PATCH(request: NextRequest) {
           reference: existingReq.id,
           balance: currentBalance ?? Number(profile?.wallet_balance ?? 0),
           note: typeof admin_note === "string" ? admin_note : undefined,
+          role: profile?.role || "customer",
         });
       }
     } catch {

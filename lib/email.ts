@@ -378,8 +378,10 @@ export async function sendWalletDepositEmail(opts: {
   source?: string;
   reference?: string;
   balance?: number;
+  role?: string;
 }) {
-  const { to, customerName, amount, source, reference, balance } = opts;
+  const { to, customerName, amount, source, reference, balance, role } = opts;
+  const walletLink = role === "seller" ? `${SITE_URL}/seller/withdraw` : `${SITE_URL}/account`;
 
   return sendEmail({
     to,
@@ -396,7 +398,7 @@ export async function sendWalletDepositEmail(opts: {
       ${source ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 8px"><strong>Source:</strong> ${source}</p>` : ""}
       ${reference ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 8px"><strong>Reference:</strong> ${reference}</p>` : ""}
       ${typeof balance === "number" ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 16px"><strong>Current Wallet Balance:</strong> $${balance.toFixed(2)}</p>` : ""}
-      ${button("Open Wallet", `${SITE_URL}/account`) }
+      ${button("Open Wallet", walletLink) }
     `),
   });
 }
@@ -409,8 +411,10 @@ export async function sendWalletRechargeRequestEmail(opts: {
   method?: string;
   reference?: string;
   type?: string;
+  role?: string;
 }) {
-  const { to, customerName, amount, method, reference, type } = opts;
+  const { to, customerName, amount, method, reference, type, role } = opts;
+  const walletLink = role === "seller" ? `${SITE_URL}/seller/withdraw` : `${SITE_URL}/account`;
 
   return sendEmail({
     to,
@@ -429,7 +433,7 @@ export async function sendWalletRechargeRequestEmail(opts: {
       <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">
         We'll notify you automatically once this request is approved.
       </p>
-      ${button("View Wallet", `${SITE_URL}/seller/withdraw`) }
+      ${button("View Wallet", walletLink) }
     `),
   });
 }
@@ -444,8 +448,9 @@ export async function sendWalletWithdrawalEmail(opts: {
   reference?: string;
   balance?: number;
   note?: string;
+  role?: string;
 }) {
-  const { to, customerName, amount, status, method, reference, balance, note } = opts;
+  const { to, customerName, amount, status, method, reference, balance, note, role } = opts;
   const normalizedStatus = status.toLowerCase();
   const statusLabel = normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
   const statusColor = normalizedStatus === "paid" || normalizedStatus === "approved"
@@ -458,6 +463,8 @@ export async function sendWalletWithdrawalEmail(opts: {
     : normalizedStatus === "rejected" || normalizedStatus === "failed"
       ? "#fef2f2"
       : "#fffbeb";
+
+  const walletLink = role === "seller" ? `${SITE_URL}/seller/withdraw` : `${SITE_URL}/account`;
 
   return sendEmail({
     to,
@@ -475,7 +482,7 @@ export async function sendWalletWithdrawalEmail(opts: {
       ${reference ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 8px"><strong>Reference:</strong> ${reference}</p>` : ""}
       ${note ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 8px"><strong>Note:</strong> ${note}</p>` : ""}
       ${typeof balance === "number" ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 16px"><strong>Current Wallet Balance:</strong> $${balance.toFixed(2)}</p>` : ""}
-      ${button("Open Wallet", `${SITE_URL}/account`) }
+      ${button("Open Wallet", walletLink) }
     `),
   });
 }
