@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminContext } from "@/lib/supabase/admin-api";
+import { sendWalletDepositEmail } from "@/lib/email";
 
 export async function GET(req: NextRequest) {
   try {
@@ -86,9 +87,14 @@ export async function PATCH(req: NextRequest) {
     if (is_approved === true && !record.is_approved) {
       if (record.user_id && record.amount) {
         // Get current wallet balance
-        const { data: profile } = await db.from("profiles").select("wallet_balance").eq("id", record.user_id).single();
+        const { data: profile } = await db
+          .from("profiles")
+          .select("wallet_balance,full_name")
+          .eq("id", record.user_id)
+          .single();
         const currentBalance = profile?.wallet_balance || 0;
-        await db.from("profiles").update({ wallet_balance: currentBalance + record.amount }).eq("id", record.user_id);
+        const newBalance = currentBalance + Number(record.amount || 0);
+        await db.from("profiles").update({ wallet_balance: newBalance }).eq("id", record.user_id);
         // Record transaction
         await db.from("wallet_transactions").insert({
           user_id: record.user_id,
@@ -96,6 +102,23 @@ export async function PATCH(req: NextRequest) {
           type: "recharge",
           note: `Offline recharge approved (TXN: ${record.txn_id || "N/A"})`,
         });
+
+        // Email is non-blocking; wallet credit should still succeed even if email fails.
+        try {
+          const { data: { user } } = await db.auth.admin.getUserById(record.user_id);
+          if (user?.email) {
+            await sendWalletDepositEmail({
+              to: user.email,
+              customerName: profile?.full_name || "User",
+              amount: Number(record.amount || 0),
+              source: "Offline wallet recharge",
+              reference: record.txn_id || undefined,
+              balance: newBalance,
+            });
+          }
+        } catch {
+          // Non-blocking
+        }
       }
     }
 

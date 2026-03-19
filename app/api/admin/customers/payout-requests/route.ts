@@ -1,5 +1,6 @@
 import { getAdminContext } from "@/lib/supabase/admin-api";
 import { NextRequest, NextResponse } from "next/server";
+import { sendWalletWithdrawalEmail } from "@/lib/email";
 
 export async function GET(request: NextRequest) {
   const context = await getAdminContext();
@@ -41,23 +42,67 @@ export async function PATCH(request: NextRequest) {
   const { id, status, admin_note } = await request.json();
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
+  const { data: existingReq } = await db
+    .from("payout_requests")
+    .select("id, amount, user_id, status, method")
+    .eq("id", id)
+    .single();
+
+  if (!existingReq) {
+    return NextResponse.json({ error: "Payout request not found" }, { status: 404 });
+  }
+
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-  if (status) updates.status = status;
+  if (status) updates.status = String(status).toLowerCase();
   if (admin_note !== undefined) updates.admin_note = admin_note;
 
   const { error } = await db.from("payout_requests").update(updates).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // If approved/paid — deduct from customer wallet
-  if (status === "paid") {
-    const { data: req } = await db.from("payout_requests").select("amount, user_id").eq("id", id).single();
-    if (req) {
-      const { data: profile } = await db.from("profiles").select("wallet_balance").eq("id", req.user_id).single();
-      const newBal = Math.max(0, Number(profile?.wallet_balance ?? 0) - Number(req.amount));
-      await db.from("profiles").update({ wallet_balance: newBal }).eq("id", req.user_id);
-      await db.from("wallet_transactions").insert({
-        user_id: req.user_id, amount: req.amount, type: "debit", note: "Payout paid",
-      });
+  let currentBalance: number | undefined;
+
+  // If approved/paid — deduct from customer wallet (only on status transition)
+  if (updates.status === "paid" && existingReq.status !== "paid") {
+    const { data: profile } = await db
+      .from("profiles")
+      .select("wallet_balance")
+      .eq("id", existingReq.user_id)
+      .single();
+    const newBal = Math.max(0, Number(profile?.wallet_balance ?? 0) - Number(existingReq.amount));
+    currentBalance = newBal;
+    await db.from("profiles").update({ wallet_balance: newBal }).eq("id", existingReq.user_id);
+    await db.from("wallet_transactions").insert({
+      user_id: existingReq.user_id,
+      amount: existingReq.amount,
+      type: "debit",
+      note: "Payout paid",
+    });
+  }
+
+  // Notify user about payout request status updates (non-blocking)
+  if (status) {
+    try {
+      const { data: { user } } = await db.auth.admin.getUserById(existingReq.user_id);
+      if (user?.email) {
+        const { data: profile } = await db
+          .from("profiles")
+          .select("full_name,wallet_balance")
+          .eq("id", existingReq.user_id)
+          .single();
+
+        await sendWalletWithdrawalEmail({
+          to: user.email,
+          customerName: profile?.full_name || "User",
+          amount: Number(existingReq.amount || 0),
+          status: String(status),
+          method: existingReq.method || undefined,
+          reference: existingReq.id,
+          balance: currentBalance ?? Number(profile?.wallet_balance ?? 0),
+          note: typeof admin_note === "string" ? admin_note : undefined,
+        });
+      }
+    } catch {
+      // Non-blocking
     }
   }
 

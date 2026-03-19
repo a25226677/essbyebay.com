@@ -370,6 +370,116 @@ export async function sendWithdrawalRequestEmail(to: string, sellerName: string,
   });
 }
 
+// ─── Wallet deposit/add-funds notification ───────────────────
+export async function sendWalletDepositEmail(opts: {
+  to: string;
+  customerName: string;
+  amount: number;
+  source?: string;
+  reference?: string;
+  balance?: number;
+}) {
+  const { to, customerName, amount, source, reference, balance } = opts;
+
+  return sendEmail({
+    to,
+    subject: `Wallet Credited $${amount.toFixed(2)} – ${SITE_NAME}`,
+    html: emailLayout(`
+      <h2 style="margin:0 0 16px;color:#111827;font-size:20px">Funds Added to Your Wallet</h2>
+      <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">
+        Hi ${customerName}, your wallet has been credited successfully.
+      </p>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:16px;margin:0 0 16px;text-align:center">
+        <p style="margin:0;color:#166534;font-size:24px;font-weight:700">+$${amount.toFixed(2)}</p>
+        <p style="margin:4px 0 0;color:#15803d;font-size:13px">Deposit confirmed</p>
+      </div>
+      ${source ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 8px"><strong>Source:</strong> ${source}</p>` : ""}
+      ${reference ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 8px"><strong>Reference:</strong> ${reference}</p>` : ""}
+      ${typeof balance === "number" ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 16px"><strong>Current Wallet Balance:</strong> $${balance.toFixed(2)}</p>` : ""}
+      ${button("Open Wallet", `${SITE_URL}/account`) }
+    `),
+  });
+}
+
+// ─── Wallet recharge request notification ─────────────────────
+export async function sendWalletRechargeRequestEmail(opts: {
+  to: string;
+  customerName: string;
+  amount: number;
+  method?: string;
+  reference?: string;
+  type?: string;
+}) {
+  const { to, customerName, amount, method, reference, type } = opts;
+
+  return sendEmail({
+    to,
+    subject: `Recharge Request Received – ${SITE_NAME}`,
+    html: emailLayout(`
+      <h2 style="margin:0 0 16px;color:#111827;font-size:20px">Recharge Request Received</h2>
+      <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">
+        Hi ${customerName}, we received your ${type || "wallet"} recharge request.
+      </p>
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin:0 0 16px;text-align:center">
+        <p style="margin:0;color:#1e40af;font-size:24px;font-weight:700">$${amount.toFixed(2)}</p>
+        <p style="margin:4px 0 0;color:#1d4ed8;font-size:13px">Status: Pending Review</p>
+      </div>
+      ${method ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 8px"><strong>Method:</strong> ${method}</p>` : ""}
+      ${reference ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 16px"><strong>Reference:</strong> ${reference}</p>` : ""}
+      <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">
+        We'll notify you automatically once this request is approved.
+      </p>
+      ${button("View Wallet", `${SITE_URL}/seller/withdraw`) }
+    `),
+  });
+}
+
+// ─── Wallet withdrawal notification ──────────────────────────
+export async function sendWalletWithdrawalEmail(opts: {
+  to: string;
+  customerName: string;
+  amount: number;
+  status: string;
+  method?: string;
+  reference?: string;
+  balance?: number;
+  note?: string;
+}) {
+  const { to, customerName, amount, status, method, reference, balance, note } = opts;
+  const normalizedStatus = status.toLowerCase();
+  const statusLabel = normalizedStatus.charAt(0).toUpperCase() + normalizedStatus.slice(1);
+  const statusColor = normalizedStatus === "paid" || normalizedStatus === "approved"
+    ? "#166534"
+    : normalizedStatus === "rejected" || normalizedStatus === "failed"
+      ? "#991b1b"
+      : "#92400e";
+  const statusBg = normalizedStatus === "paid" || normalizedStatus === "approved"
+    ? "#f0fdf4"
+    : normalizedStatus === "rejected" || normalizedStatus === "failed"
+      ? "#fef2f2"
+      : "#fffbeb";
+
+  return sendEmail({
+    to,
+    subject: `Withdrawal ${statusLabel} – ${SITE_NAME}`,
+    html: emailLayout(`
+      <h2 style="margin:0 0 16px;color:#111827;font-size:20px">Withdrawal ${statusLabel}</h2>
+      <p style="color:#4b5563;font-size:15px;line-height:1.6;margin:0 0 16px">
+        Hi ${customerName}, your withdrawal request has been updated.
+      </p>
+      <div style="background:${statusBg};border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:0 0 16px;text-align:center">
+        <p style="margin:0;color:${statusColor};font-size:24px;font-weight:700">$${amount.toFixed(2)}</p>
+        <p style="margin:4px 0 0;color:${statusColor};font-size:13px">Status: ${statusLabel}</p>
+      </div>
+      ${method ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 8px"><strong>Method:</strong> ${method}</p>` : ""}
+      ${reference ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 8px"><strong>Reference:</strong> ${reference}</p>` : ""}
+      ${note ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 8px"><strong>Note:</strong> ${note}</p>` : ""}
+      ${typeof balance === "number" ? `<p style="color:#4b5563;font-size:14px;line-height:1.6;margin:0 0 16px"><strong>Current Wallet Balance:</strong> $${balance.toFixed(2)}</p>` : ""}
+      ${button("Open Wallet", `${SITE_URL}/account`) }
+    `),
+  });
+}
+
 // ─── Support ticket confirmation ──────────────────────────────
 export async function sendSupportTicketEmail(to: string, name: string, ticketId: string, subject: string) {
   return sendEmail({

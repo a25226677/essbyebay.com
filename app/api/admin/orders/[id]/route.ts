@@ -44,19 +44,27 @@ export async function PATCH(request: Request, { params }: Params) {
     const body = await request.json();
     const updates: Record<string, unknown> = {};
 
-    if (typeof body.status           === "string") updates.status           = body.status;
+    if (typeof body.status           === "string") updates.status           = body.status.toLowerCase();
     if (typeof body.payment_status   === "string") updates.payment_status   = body.payment_status;
     if (typeof body.paymentStatus    === "string") updates.payment_status   = body.paymentStatus;
-    if (typeof body.delivery_status  === "string") updates.delivery_status  = body.delivery_status;
+    if (typeof body.delivery_status  === "string") updates.delivery_status  = body.delivery_status.toLowerCase();
     if (typeof body.pickup_status    === "string") updates.pickup_status    = body.pickup_status;
     if (typeof body.tracking_code    === "string") updates.tracking_code    = body.tracking_code;
     if (typeof body.payment_method   === "string") updates.payment_method   = body.payment_method;
 
     // Sync pickup_status when delivery_status progresses
     if (typeof body.delivery_status === "string") {
-      if (["picked_up", "on_the_way", "delivered"].includes(body.delivery_status)) {
+      const normalizedDelivery = body.delivery_status.toLowerCase();
+
+      if (["picked_up", "on_the_way", "delivered"].includes(normalizedDelivery)) {
         updates.pickup_status = "picked_up";
       }
+
+      // Keep order status aligned with delivery lifecycle
+      if (normalizedDelivery === "delivered") updates.status = "delivered";
+      else if (normalizedDelivery === "on_the_way") updates.status = "shipped";
+      else if (normalizedDelivery === "confirmed") updates.status = "processing";
+      else if (normalizedDelivery === "cancelled") updates.status = "cancelled";
     }
 
     if (Object.keys(updates).length === 0)
@@ -66,7 +74,7 @@ export async function PATCH(request: Request, { params }: Params) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
     // When order is marked as delivered, release pending profit for all sellers with items in this order
-    if (body.delivery_status === "delivered" || body.status === "delivered") {
+    if (updates.delivery_status === "delivered" || updates.status === "delivered") {
       try {
         // Get all sellers' items in this order
         const { data: orderItems } = await db

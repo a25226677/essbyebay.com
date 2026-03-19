@@ -1,6 +1,7 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { createAdminServiceClient } from "@/lib/supabase/admin-client";
 import { NextResponse } from "next/server";
+import { sendWalletRechargeRequestEmail } from "@/lib/email";
 
 function createTxnId() {
   const stamp = Date.now().toString(36).toUpperCase();
@@ -70,6 +71,28 @@ export async function POST(request: Request) {
     });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user?.email) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", userId)
+          .maybeSingle();
+
+        await sendWalletRechargeRequestEmail({
+          to: user.email,
+          customerName: profile?.full_name || "Seller",
+          amount,
+          method,
+          reference: txnId,
+          type: "wallet",
+        });
+      }
+    } catch {
+      // Non-blocking
+    }
 
     return NextResponse.json({ success: true, txn_id: txnId, photo_url: photoUrl });
   } catch {

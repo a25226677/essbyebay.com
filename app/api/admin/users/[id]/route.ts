@@ -4,6 +4,7 @@ import {
   sendAccountSuspendedEmail,
   sendAccountRestoredEmail,
   sendRoleChangedEmail,
+  sendWalletDepositEmail,
 } from "@/lib/email";
 import {
   selectProfilesWithFallback,
@@ -75,6 +76,7 @@ export async function PATCH(request: Request, { params }: Params) {
   try {
     const body = await request.json();
     const updates: Record<string, unknown> = {};
+    let walletRechargeMeta: { amount: number; note?: string } | null = null;
 
     if (typeof body.role === "string") {
       const allowed = ["customer", "seller", "admin"];
@@ -110,6 +112,10 @@ export async function PATCH(request: Request, { params }: Params) {
       const { data: current } = await db.from("profiles").select("wallet_balance").eq("id", id).maybeSingle();
       const newBalance = Number(current?.wallet_balance ?? 0) + body.recharge_amount;
       updates.wallet_balance = newBalance;
+      walletRechargeMeta = {
+        amount: Number(body.recharge_amount),
+        note: typeof body.recharge_note === "string" ? body.recharge_note : undefined,
+      };
       // Record transaction
       await db.from("wallet_transactions").insert({
         user_id: id, amount: body.recharge_amount, type: "recharge",
@@ -172,6 +178,18 @@ export async function PATCH(request: Request, { params }: Params) {
       // Role changed
       if (updates.role && updates.role !== currentProfile.role) {
         sendRoleChangedEmail(email, name, updates.role as string).catch(() => {});
+      }
+
+      // Wallet recharged
+      if (walletRechargeMeta && Number(walletRechargeMeta.amount) > 0) {
+        sendWalletDepositEmail({
+          to: email,
+          customerName: name,
+          amount: walletRechargeMeta.amount,
+          source: "Admin recharge",
+          reference: id,
+          balance: Number(updates.wallet_balance ?? 0),
+        }).catch(() => {});
       }
     }
 

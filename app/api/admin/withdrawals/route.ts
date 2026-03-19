@@ -1,5 +1,6 @@
 import { getAdminContext } from "@/lib/supabase/admin-api";
 import { NextRequest, NextResponse } from "next/server";
+import { sendWalletWithdrawalEmail } from "@/lib/email";
 
 // Columns that may be missing in older production schemas
 const OPTIONAL_WITHDRAWAL_COLS = ["account_info", "withdraw_type"];
@@ -120,30 +121,74 @@ export async function PATCH(request: NextRequest) {
   const { id, status, notes } = body;
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
 
+  const { data: currentWithdrawal } = await db
+    .from("withdrawals")
+    .select("id, seller_id, amount, status, method, withdraw_type")
+    .eq("id", id)
+    .single();
+
+  if (!currentWithdrawal) {
+    return NextResponse.json({ error: "Withdrawal not found" }, { status: 404 });
+  }
+
   const updates: Record<string, unknown> = {};
-  if (status) updates.status = status;
+  if (status) updates.status = String(status).toLowerCase();
   if (notes !== undefined) updates.notes = notes;
   updates.updated_at = new Date().toISOString();
 
   // If paid → deduct from seller wallet + record seller_payment
-  if (status === "paid") {
-    const { data: wd } = await db.from("withdrawals").select("seller_id, amount").eq("id", id).single();
-    if (wd) {
-      const { data: prof } = await db.from("profiles").select("wallet_balance, total_withdrawn").eq("id", wd.seller_id).single();
-      const newBal = Math.max(0, Number(prof?.wallet_balance ?? 0) - Number(wd.amount));
-      const newWithdrawn = Number(prof?.total_withdrawn ?? 0) + Number(wd.amount);
-      await db.from("profiles").update({ wallet_balance: newBal, total_withdrawn: newWithdrawn }).eq("id", wd.seller_id);
+  let currentBalance: number | undefined;
+  if (updates.status === "paid" && currentWithdrawal.status !== "paid") {
+    const { data: prof } = await db
+      .from("profiles")
+      .select("wallet_balance, total_withdrawn")
+      .eq("id", currentWithdrawal.seller_id)
+      .single();
+    const newBal = Math.max(0, Number(prof?.wallet_balance ?? 0) - Number(currentWithdrawal.amount));
+    const newWithdrawn = Number(prof?.total_withdrawn ?? 0) + Number(currentWithdrawal.amount);
+    currentBalance = newBal;
+    await db
+      .from("profiles")
+      .update({ wallet_balance: newBal, total_withdrawn: newWithdrawn })
+      .eq("id", currentWithdrawal.seller_id);
       // Record seller payment entry
-      await db.from("seller_payments").insert({
-        seller_id: wd.seller_id,
-        amount: wd.amount,
+    await db.from("seller_payments").insert({
+        seller_id: currentWithdrawal.seller_id,
+        amount: currentWithdrawal.amount,
         payment_details: `Withdrawal payout (${body.withdraw_type || "bank"})`,
         trx_id: `WD-${Date.now()}`,
       });
-    }
   }
 
   const { error } = await db.from("withdrawals").update(updates).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Notify seller on withdrawal status update (non-blocking)
+  if (status) {
+    try {
+      const { data: { user } } = await db.auth.admin.getUserById(currentWithdrawal.seller_id);
+      if (user?.email) {
+        const { data: profile } = await db
+          .from("profiles")
+          .select("full_name,wallet_balance")
+          .eq("id", currentWithdrawal.seller_id)
+          .single();
+
+        await sendWalletWithdrawalEmail({
+          to: user.email,
+          customerName: profile?.full_name || "Seller",
+          amount: Number(currentWithdrawal.amount || 0),
+          status: String(status),
+          method: currentWithdrawal.method || currentWithdrawal.withdraw_type || undefined,
+          reference: currentWithdrawal.id,
+          balance: currentBalance ?? Number(profile?.wallet_balance ?? 0),
+          note: typeof notes === "string" ? notes : undefined,
+        });
+      }
+    } catch {
+      // Non-blocking
+    }
+  }
+
   return NextResponse.json({ success: true });
 }
