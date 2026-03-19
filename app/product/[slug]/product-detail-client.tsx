@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Star, Heart, Share2, Truck, RotateCcw } from "lucide-react";
@@ -36,6 +36,30 @@ export function ProductDetailClient({ product, relatedProducts }: Props) {
 
   const allImages = [product.image, ...product.images];
   const totalPrice = product.price * quantity;
+
+  // Reviews
+  type Review = { id: string; rating: number; comment: string; author: string; date: string };
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewsLoading, setReviewsLoading] = useState(false);
+  const [newRating, setNewRating] = useState<number>(5);
+  const [hoverRating, setHoverRating] = useState<number>(0);
+  const [newComment, setNewComment] = useState<string>("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadReviews = async () => {
+    setReviewsLoading(true);
+    try {
+      const res = await fetch(`/api/reviews?product_id=${encodeURIComponent(product.id)}`);
+      const j = await res.json();
+      setReviews(j.reviews || []);
+    } catch (e) {
+      setReviews([]);
+    } finally {
+      setReviewsLoading(false);
+    }
+  };
+
+  useEffect(() => { loadReviews(); }, [product.id]);
 
   const handleAddToCart = () => {
     addToCart(product, quantity, selectedColor, selectedSize);
@@ -255,38 +279,93 @@ export function ProductDetailClient({ product, relatedProducts }: Props) {
             />
           </TabsContent>
           <TabsContent value="reviews" className="mt-4">
-            {product.reviewCount === 0 ? (
-              <p className="text-muted-foreground text-sm">No reviews yet. Be the first to review this product.</p>
-            ) : (
-              <div className="space-y-4">
-                {[...Array(Math.min(product.reviewCount, 3))].map((_, i) => (
-                  <div key={i} className="border-b pb-4">
+            <div className="space-y-4">
+              {reviewsLoading ? (
+                <p className="text-sm text-muted-foreground">Loading reviews…</p>
+              ) : reviews.length === 0 ? (
+                <p className="text-muted-foreground text-sm">No reviews yet. Be the first to review this product.</p>
+              ) : (
+                reviews.map((r) => (
+                  <div key={r.id} className="border-b pb-4">
                     <div className="flex items-center gap-2">
                       <div className="flex">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <Star
                             key={star}
                             size={12}
-                            className={
-                              star <= (5 - i * 0.5)
-                                ? "fill-yellow-400 text-yellow-400"
-                                : "text-gray-300"
-                            }
+                            className={star <= r.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}
                           />
                         ))}
                       </div>
-                      <span className="text-sm font-medium">Customer {i + 1}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(Date.now() - i * 7 * 86400000).toLocaleDateString()}
-                      </span>
+                      <span className="text-sm font-medium">{r.author}</span>
+                      <span className="text-xs text-muted-foreground">{new Date(r.date).toLocaleDateString()}</span>
                     </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Great product! Exactly as described and fast shipping.
-                    </p>
+                    <p className="text-sm text-muted-foreground mt-1">{r.comment || "—"}</p>
                   </div>
-                ))}
+                ))
+              )}
+
+              {/* Submit review form */}
+              <div className="pt-4">
+                <h4 className="text-sm font-medium mb-2">Leave a review</h4>
+                <div className="flex items-center gap-2 mb-2">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <button
+                      key={s}
+                      onClick={() => setNewRating((prev) => (prev === s ? 0 : s))}
+                      onMouseEnter={() => setHoverRating(s)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      className="p-1"
+                      aria-label={`Rate ${s} stars`}
+                      type="button"
+                    >
+                      <Star
+                        size={18}
+                        className={(hoverRating || newRating) >= s ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={newComment}
+                  onChange={(e) => setNewComment(e.target.value)}
+                  rows={3}
+                  className="w-full border rounded p-2 text-sm"
+                  placeholder="Write your review"
+                />
+                <div className="mt-2 flex gap-2">
+                  <Button
+                    onClick={async () => {
+                      setSubmitting(true);
+                      try {
+                        const res = await fetch('/api/reviews', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ productId: product.id, rating: newRating, comment: newComment }),
+                        });
+                        if (res.ok) {
+                          setNewComment('');
+                          setNewRating(5);
+                          await loadReviews();
+                        } else if (res.status === 401) {
+                          window.location.href = '/users/login';
+                        } else {
+                          const j = await res.json();
+                          alert(j.error || 'Failed to submit review');
+                        }
+                      } catch (e) {
+                        alert('Failed to submit review');
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                    disabled={submitting}
+                  >
+                    Submit Review
+                  </Button>
+                </div>
               </div>
-            )}
+            </div>
           </TabsContent>
           <TabsContent value="seller-info" className="mt-4">
             <div className="flex items-center gap-4">
