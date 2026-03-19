@@ -175,6 +175,46 @@ export async function getHomeStorefrontData() {
       dealEndTime: new Date(Date.now() + 1000 * 60 * 60 * 24 * 2).toISOString(),
     }));
 
+  // If there are no real flash deals, create a fallback set of randomized
+  // flash deals from existing products so the UI doesn't look empty.
+  if (flashDeals.length === 0) {
+    // helper: shuffle and pick up to 12 products that are in stock
+    const shuffled = products
+      .filter((p) => p.inStock)
+      .slice()
+      .sort(() => Math.random() - 0.5);
+
+    const fallback = shuffled.slice(0, 12).map((product) => {
+      const discountPercent = Math.floor(Math.random() * 50) + 10; // 10% - 59%
+      const originalPrice = Math.max(
+        Math.round(product.price * (1 + discountPercent / 100)),
+        product.price + 1,
+      );
+
+      const dealEndTime = new Date(
+        Date.now() + (Math.floor(Math.random() * (72 - 6)) + 6) * 60 * 60 * 1000,
+      ).toISOString(); // between 6 and 72 hours
+
+      // copy product and set originalPrice so UI shows discount
+      const p = { ...product, originalPrice };
+
+      return {
+        product: p,
+        discountPercent,
+        dealEndTime,
+      } as FlashDeal;
+    });
+
+    // use the fallback deals instead of empty list
+    return {
+      categories: mappedCategories,
+      brands: mappedBrands,
+      products,
+      flashDeals: fallback,
+      bannerSlides,
+    };
+  }
+
   return {
     categories: mappedCategories,
     brands: mappedBrands,

@@ -133,7 +133,7 @@ export function Footer() {
               <div>
                 <p className="text-gray-500 mb-1">Address:</p>
                 <p className="text-gray-400">
-                  San Jose, California, USA (2025 Hamilton Avenue)
+                  San Jose, California, USA ({new Date().getFullYear()}  Hamilton Avenue)
                 </p>
               </div>
               <div>
@@ -204,7 +204,7 @@ export function Footer() {
       <div className="border-t border-[#1e2735]">
         <div className="max-w-[1340px] mx-auto px-4 py-5 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-gray-400">
-            Copyright &copy; {new Date().getFullYear()} eSeller Store Bay. All Rights Reserved.
+            Copyright &copy; {new Date().getFullYear()} Ess By EBay. All Rights Reserved.
           </p>
           <div className="flex items-center gap-1.5 flex-wrap justify-center">
             {([

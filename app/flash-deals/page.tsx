@@ -4,6 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { CountdownBanner } from "@/components/flash-deals/countdown-banner";
 import { getFlashDeals } from "@/lib/storefront-data";
 
+// Force this route to render dynamically on each request so flash deals
+// (which change frequently) are always fresh.
+export const dynamic = "force-dynamic";
+
 export default async function FlashDealsPage() {
   const flashDeals = await getFlashDeals();
 
@@ -21,11 +25,15 @@ export default async function FlashDealsPage() {
         </div>
 
         <div className="store-surface p-4 md:p-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {flashDeals.map((deal) => (
-              <ProductCard key={deal.product.id} product={deal.product} />
-            ))}
-          </div>
+          {flashDeals.length === 0 ? (
+            <div className="py-12 text-center text-red-500">No flash deals available right now.</div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+              {flashDeals.map((deal) => (
+                <ProductCard key={deal.product.id} product={deal.product} />
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>
