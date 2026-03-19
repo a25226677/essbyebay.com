@@ -54,8 +54,8 @@ export async function GET(request: Request) {
     stock_count: number | null;
     image_url: string | null;
     source_product_id: string | null;
-    categories: { id: string; name: string } | null;
-    brands: { id: string; name: string } | null;
+    categories: { id: string; name: string }[] | null;
+    brands: { id: string; name: string }[] | null;
   };
 
   const visibleItems: CatalogRow[] = [];
@@ -105,8 +105,8 @@ export async function GET(request: Request) {
     price: Number(p.price),
     stock: p.stock_count ?? 1000,
     image: p.image_url,
-    category: p.categories?.name ?? "Uncategorized",
-    brand: p.brands?.name ?? "",
+    category: p.categories?.[0]?.name ?? "Uncategorized",
+    brand: p.brands?.[0]?.name ?? "",
     imported: false,
   }));
 

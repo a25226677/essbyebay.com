@@ -142,7 +142,7 @@ export async function PATCH(request: Request, { params }: Params) {
         const { data: prod } = await supabase.from("products").select("title").eq("id", id).maybeSingle();
         productTitle = prod?.title || "your product";
       }
-      if (sellerEmail) sendProductUpdatedEmail(sellerEmail, sellerName, productTitle, id).catch(() => {});
+      if (sellerEmail) sendProductUpdatedEmail(sellerEmail, sellerName, productTitle ?? "your product", id).catch(() => {});
     } catch (e) {
       // ignore
     }

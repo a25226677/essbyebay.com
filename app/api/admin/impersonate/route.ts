@@ -47,14 +47,15 @@ export async function GET(request: NextRequest) {
     const adminClient = createAdminServiceClient()
 
     // Find the auth user by email using the admin auth API
-    const listRes = await adminClient.auth.admin.listUsers({ query: targetEmail, per_page: 100 });
+    // `query` is not a valid option on this SDK method; fetch a page and filter locally.
+    const listRes = await adminClient.auth.admin.listUsers({ perPage: 100 });
     const matched = (listRes.data?.users || []).find((u: any) => u.email?.toLowerCase() === targetEmail.toLowerCase());
 
     if (!matched) {
       return NextResponse.redirect(new URL(`/admin/users?error=${encodeURIComponent('User not found: ' + targetEmail)}`, request.nextUrl.origin))
     }
 
-    const targetId = matched.id || matched.user?.id || matched.user_id || matched?.sub || matched?.uid || matched?.id;
+    const targetId = matched.id;
 
     // Lookup profile for role (profiles table stores role)
     const { data: dbUser, error: dbError } = await adminClient
