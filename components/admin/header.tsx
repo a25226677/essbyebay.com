@@ -43,8 +43,11 @@ export function AdminHeader() {
 
   const signOut = async () => {
     setUserOpen(false);
-    const res = await fetch("/api/auth/signout?next=/admin/login", { method: "POST" });
-    window.location.href = res.ok ? res.url : "/admin/login";
+    try {
+      await fetch("/api/auth/signout?next=/admin/login", { method: "POST" });
+    } finally {
+      window.location.href = "/admin/login";
+    }
   };
 
   const clearCache = async () => {

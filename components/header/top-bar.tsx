@@ -82,8 +82,12 @@ export function TopBar() {
   }, []);
 
   const handleLogout = async () => {
-    const res = await fetch("/api/auth/signout?next=/", { method: "POST" });
-    window.location.href = res.ok ? res.url : "/";
+    try {
+      await fetch("/api/auth/signout?next=/", { method: "POST" });
+    } finally {
+      // Always navigate to home to ensure session cleared client-side
+      window.location.href = "/";
+    }
   };
 
   // Derive helper flags

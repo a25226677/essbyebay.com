@@ -23,8 +23,13 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
 
   const handleSignOut = async () => {
     setUserMenuOpen(false);
-    const res = await fetch("/api/auth/signout?next=/seller/login", { method: "POST" });
-    window.location.href = res.ok ? res.url : "/seller/login";
+    try {
+      const res = await fetch("/api/auth/signout?next=/seller/login", { method: "POST" });
+      // Redirect to known location instead of relying on fetch's redirect URL
+      window.location.href = "/seller/login";
+    } catch (e) {
+      window.location.href = "/seller/login";
+    }
   };
 
   // Close dropdown on outside click
