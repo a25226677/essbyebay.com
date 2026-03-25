@@ -126,6 +126,28 @@ export async function POST(request: NextRequest) {
   }
 
   // 5. Create order items (with seller_id from products lookup)
+  // Determine storehouse factor (fraction of unit price assigned to storehouse).
+  // This controls seller profit: profit = subtotal - storehouseTotal.
+  // Default factor is 0.7 (i.e. 30% profit). Make configurable via
+  // website_settings.setting_key = 'seller_storehouse_factor' with a numeric value like '0.7'.
+  let storehouseFactor = 0.7;
+  try {
+    const { data: settingRows } = await db
+      .from("website_settings")
+      .select("setting_key, setting_value")
+      .eq("setting_key", "seller_storehouse_factor");
+    const row = (settingRows || [])[0];
+    if (row && row.setting_value) {
+      const parsed = Number(row.setting_value);
+      if (!Number.isNaN(parsed) && parsed > 0 && parsed < 10) {
+        // allow either fraction (0.7) or percent (70)
+        storehouseFactor = parsed > 1 ? parsed / 100 : parsed;
+      }
+    }
+  } catch {
+    // ignore and use default
+  }
+
   const orderItems = items.map((i) => {
     const unitPrice = Number(i.unit_price || productPriceMap.get(i.product_id) || 0);
 
@@ -136,7 +158,7 @@ export async function POST(request: NextRequest) {
       quantity: i.quantity,
       unit_price: unitPrice,
       line_total: unitPrice * i.quantity,
-      storehouse_price: Number((unitPrice * 0.7).toFixed(2)),
+      storehouse_price: Number((unitPrice * storehouseFactor).toFixed(2)),
     };
   });
 

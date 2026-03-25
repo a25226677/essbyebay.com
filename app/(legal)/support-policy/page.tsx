@@ -4,7 +4,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Support Policy",
   description:
-    "Learn how Ess by Ebay handles customer support, response times, dispute resolution, and support contact channels.",
+    "Learn how ESS by eBay handles customer support, response times, dispute resolution, and support contact channels.",
   path: "/support-policy",
 });
 

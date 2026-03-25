@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
   return buildMetadata({
     title: `${shop.name} All Products`,
-    description: `Explore the complete product catalog from ${shop.name} on Ess by Ebay.`,
+    description: `Explore the complete product catalog from ${shop.name} on ESS by eBay.`,
     path: `/shop/${shop.slug}/all-products`,
     images: [shop.banner, shop.logo],
   });

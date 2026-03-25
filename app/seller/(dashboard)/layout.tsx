@@ -60,7 +60,7 @@ export default function SellerDashboardLayout({
             {children}
           </main>
           <footer className="h-10 border-t border-gray-200 bg-white flex items-center justify-center">
-            <p className="text-xs text-gray-500">© Ess by Ebay</p>
+            <p className="text-xs text-gray-500">© ESS by eBay</p>
           </footer>
         </div>
       </div>

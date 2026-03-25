@@ -31,6 +31,13 @@ export default function SellerFunctionsPage() {
   const [loadingSettings, setLoadingSettings] = useState(true);
   const [savingSettings, setSavingSettings] = useState(false);
   const [applyToAll, setApplyToAll] = useState(true);
+  // Storehouse / profit settings
+  const [storehouseFactor, setStorehouseFactor] = useState<number | null>(null);
+  const [sellerProfitPercent, setSellerProfitPercent] = useState<number | null>(null);
+  const [editingStorehouse, setEditingStorehouse] = useState(false);
+  const [editProfitValue, setEditProfitValue] = useState("");
+  const [applyToPending, setApplyToPending] = useState(true);
+  const [savingStorehouse, setSavingStorehouse] = useState(false);
 
   const loadSettings = async () => {
     setLoadingSettings(true);
@@ -76,7 +83,20 @@ export default function SellerFunctionsPage() {
 
   useEffect(() => {
     void loadSettings();
+    void loadStorehouse();
   }, []);
+
+  const loadStorehouse = async () => {
+    try {
+      const res = await fetch("/api/admin/seller-functions/storehouse", { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to load storehouse settings");
+      setStorehouseFactor(json.data.storehouseFactor);
+      setSellerProfitPercent(json.data.sellerProfitPercent);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load storehouse settings");
+    }
+  };
 
   const openEdit = (item: CommissionItem) => {
     setEditingKey(item.key);
@@ -132,6 +152,29 @@ export default function SellerFunctionsPage() {
     }
   };
 
+  const saveStorehouse = async () => {
+    const num = parseFloat(editProfitValue);
+    if (Number.isNaN(num) || num < 0 || num > 100) { toast.error("Enter a valid percentage (0-100)"); return; }
+    setSavingStorehouse(true);
+    try {
+      const res = await fetch("/api/admin/seller-functions/storehouse", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerProfitPercent: num, applyToPending }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Failed to save storehouse settings");
+      setSellerProfitPercent(num);
+      setStorehouseFactor(json.data?.storehouseFactor ?? (1 - num / 100));
+      toast.success(applyToPending ? `Updated and applied to ${json.data?.updated ?? 0} pending items` : "Updated storehouse factor");
+      setEditingStorehouse(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to save");
+    } finally {
+      setSavingStorehouse(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-bold text-gray-800">Seller Functions</h1>
@@ -169,6 +212,14 @@ export default function SellerFunctionsPage() {
                 className="mt-2 text-xs text-blue-500 hover:underline disabled:opacity-40">Edit</button>
             </div>
           ))}
+          {/* Storehouse / Profit tile */}
+          <div className="border border-gray-100 rounded-lg p-4">
+            <p className="text-xs text-gray-500">Seller Profit Rate</p>
+            <p className="text-2xl font-bold text-blue-600 my-1">{sellerProfitPercent !== null ? `${sellerProfitPercent}%` : "—"}</p>
+            <p className="text-[10px] text-gray-400">Profit kept by seller from sale (rest assigned to storehouse)</p>
+            <button onClick={() => { setEditingStorehouse(true); setEditProfitValue((sellerProfitPercent ?? 30).toString()); }}
+              className="mt-2 text-xs text-blue-500 hover:underline">Edit</button>
+          </div>
         </div>
         {loadingSettings && (
           <p className="text-xs text-gray-400 mt-3">Loading saved commission settings...</p>
@@ -210,6 +261,35 @@ export default function SellerFunctionsPage() {
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
               <button onClick={() => setEditingKey(null)} className="text-sm text-gray-600 px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50">Cancel</button>
               <button onClick={saveEdit} disabled={savingSettings} className="text-sm font-semibold bg-blue-500 hover:bg-blue-600 text-white px-5 py-2 rounded-xl disabled:opacity-60">{savingSettings ? "Saving..." : "Save"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Storehouse / Profit Modal */}
+      {editingStorehouse && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">Edit Seller Profit Rate</h2>
+              <button onClick={() => setEditingStorehouse(false)}><X className="size-4 text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-5 space-y-3">
+              <p className="text-xs text-gray-500">Seller keeps this percent from the sale. Example: 20% means seller profit is 20% and storehouse gets 80%.</p>
+              <div>
+                <input type="number" min="0" max="100" step="0.5" value={editProfitValue}
+                  onChange={(e) => setEditProfitValue(e.target.value)}
+                  className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-blue-400 bg-gray-50" />
+                <div className="text-[11px] text-gray-400 mt-2">Profit percent: {editProfitValue || "-"}%</div>
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={applyToPending} onChange={(e) => setApplyToPending(e.target.checked)} />
+                <span>Apply changes to pending frozen profits (will recalculate pending profit and update seller pending balances)</span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => setEditingStorehouse(false)} className="text-sm text-gray-600 px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => saveStorehouse()} disabled={savingStorehouse} className="text-sm font-semibold bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-xl">{savingStorehouse ? "Saving..." : "Save"}</button>
             </div>
           </div>
         </div>

@@ -50,9 +50,9 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
           <Link
             href="/seller/dashboard"
             className="hidden sm:flex items-center"
-            title="Ess by Ebay"
+            title="ESS by eBay"
           >
-            <Image src="/logo.png" alt="Ess by Ebay" width={124} height={30} className="h-8 w-auto object-contain" priority />
+            <Image src="/logo.png" alt="ESS by eBay" width={124} height={30} className="h-8 w-auto object-contain" priority />
           </Link>
           <button
             onClick={onToggleSidebar}

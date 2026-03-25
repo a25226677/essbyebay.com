@@ -6,7 +6,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Shop All Categories",
   description:
-    "Browse every shopping category on Ess by Ebay, from fashion and electronics to beauty and home essentials.",
+    "Browse every shopping category on ESS by eBay, from fashion and electronics to beauty and home essentials.",
   path: "/categories",
   keywords: ["product categories", "shop by category", "fashion", "electronics"],
 });

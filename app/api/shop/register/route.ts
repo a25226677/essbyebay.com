@@ -71,6 +71,32 @@ async function uploadCertificate(
 export async function POST(request: NextRequest) {
   const formData = await request.formData();
 
+  // server-side captcha token (frontend should send `captchaToken` from reCAPTCHA)
+  const captchaToken = getRequiredString(formData, "captchaToken");
+  if (!captchaToken) {
+    return NextResponse.json({ error: "CAPTCHA token is required" }, { status: 400 });
+  }
+
+  // Verify reCAPTCHA token with Google's API
+  try {
+    const secret = process.env.RECAPTCHA_SECRET_KEY || process.env.NEXT_PUBLIC_RECAPTCHA_SECRET_KEY;
+    if (!secret) {
+      return NextResponse.json({ error: "Server captcha configuration missing" }, { status: 500 });
+    }
+
+    const verifyRes = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ secret, response: captchaToken }),
+    });
+    const verifyJson = await verifyRes.json().catch(() => ({}));
+    if (!verifyJson.success) {
+      return NextResponse.json({ error: "CAPTCHA verification failed" }, { status: 400 });
+    }
+  } catch (e) {
+    return NextResponse.json({ error: "Failed to verify CAPTCHA" }, { status: 500 });
+  }
+
   const fullName = getRequiredString(formData, "fullName");
   const email = getRequiredString(formData, "email").toLowerCase();
   const phone = getRequiredString(formData, "phone");
@@ -79,6 +105,41 @@ export async function POST(request: NextRequest) {
   const shopName = getRequiredString(formData, "shopName");
   const address = getRequiredString(formData, "address");
   const certificateType = getRequiredString(formData, "certificateType") || "id_card";
+  const invitationCode = getRequiredString(formData, "invitationCode");
+
+  // Basic server-side file validations (before creating user)
+  const certFrontFileRaw = formData.get("certFrontFile");
+  const certBackFileRaw = formData.get("certBackFile");
+  const certFrontFile = certFrontFileRaw instanceof File ? certFrontFileRaw : null;
+  const certBackFile = certBackFileRaw instanceof File ? certBackFileRaw : null;
+
+  if (!certFrontFile && !certBackFile) {
+    return NextResponse.json({ error: "Identity document is required" }, { status: 400 });
+  }
+
+  // Validate file types and sizes early to avoid creating user then failing later
+  const allowed = ALLOWED_FILE_TYPES;
+  const maxSize = MAX_FILE_SIZE;
+
+  for (const f of [certFrontFile, certBackFile]) {
+    if (!f) continue;
+    if (!allowed.has(f.type)) {
+      return NextResponse.json({ error: "Certificate files must be JPG, PNG, WEBP, or PDF." }, { status: 400 });
+    }
+    if (f.size > maxSize) {
+      return NextResponse.json({ error: "Certificate files must be 5MB or smaller." }, { status: 400 });
+    }
+  }
+
+  // Server-side validation: invitation code required and well-formed
+  if (!invitationCode) {
+    return NextResponse.json({ error: "Invitation code is required" }, { status: 400 });
+  }
+
+  // Basic format check (avoid bypassing with empty-like values)
+  if (!/^[A-Za-z0-9\-]{4,30}$/.test(invitationCode)) {
+    return NextResponse.json({ error: "Invalid invitation code format" }, { status: 400 });
+  }
 
   if (!fullName) {
     return NextResponse.json({ error: "Full name is required" }, { status: 400 });
@@ -159,6 +220,53 @@ export async function POST(request: NextRequest) {
       "certificate-back",
     );
 
+    // Validate invitation code against DB (ensure it exists and is usable)
+    try {
+      const { data: inv } = await db
+        .from("invitations")
+        .select("code, is_active, uses, max_uses, expires_at")
+        .eq("code", invitationCode)
+        .maybeSingle();
+
+      if (!inv || !inv.code || !inv.is_active) {
+        // cleanup created user
+        await db.auth.admin.deleteUser(createdUserId).catch(() => undefined);
+        return NextResponse.json(
+          { error: "Invalid or inactive invitation code" },
+          { status: 400 },
+        );
+      }
+
+      if (inv.expires_at && new Date(inv.expires_at) < new Date()) {
+        await db.auth.admin.deleteUser(createdUserId).catch(() => undefined);
+        return NextResponse.json({ error: "Invitation code expired" }, { status: 400 });
+      }
+
+      if (inv.max_uses !== null && typeof inv.max_uses === "number" && inv.uses >= inv.max_uses) {
+        await db.auth.admin.deleteUser(createdUserId).catch(() => undefined);
+        return NextResponse.json({ error: "Invitation code usage limit reached" }, { status: 400 });
+      }
+
+      // mark invitation as used (increment uses and set last_used fields)
+      const { error: invUpdateError } = await db
+        .from("invitations")
+        .update({ uses: (inv.uses || 0) + 1, last_used_by: createdUserId, last_used_at: new Date().toISOString() })
+        .eq("code", invitationCode);
+
+      if (invUpdateError) {
+        await db.auth.admin.deleteUser(createdUserId).catch(() => undefined);
+        return NextResponse.json({ error: "Failed to claim invitation code" }, { status: 500 });
+      }
+    } catch (e) {
+      await db.auth.admin.deleteUser(createdUserId).catch(() => undefined);
+      return NextResponse.json({ error: "Invitation validation failed" }, { status: 500 });
+    }
+
+    // Require at least one identity document
+    if (!certFrontUrl && !certBackUrl) {
+      return NextResponse.json({ error: "Identity document is required" }, { status: 400 });
+    }
+
     const { error: profileError } = await db.from("profiles").upsert({
       id: createdUserId,
       full_name: fullName,
@@ -169,6 +277,7 @@ export async function POST(request: NextRequest) {
       certificate_type: certificateType,
       certificate_front_url: certFrontUrl,
       certificate_back_url: certBackUrl,
+      invitation_code: invitationCode || null,
     });
 
     if (profileError) {

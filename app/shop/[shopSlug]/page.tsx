@@ -25,7 +25,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return buildMetadata({
     title: shop.name,
     description: truncateDescription(
-      shop.description || `${shop.name} on Ess by Ebay with products from a trusted marketplace seller.`,
+      shop.description || `${shop.name} on ESS by eBay with products from a trusted marketplace seller.`,
     ),
     path: `/shop/${shop.slug}`,
     images: [shop.banner, shop.logo],

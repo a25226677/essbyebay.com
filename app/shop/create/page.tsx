@@ -206,6 +206,16 @@ export default function RegisterShopPage() {
       setError("Shop name is required");
       return;
     }
+    // Require invitation code
+    if (!form.invitationCode.trim()) {
+      setError("Invitation code is required");
+      return;
+    }
+    // Require at least one identity document (front or back)
+    if (!certFrontFile && !certBackFile) {
+      setError("Identity document (front or back) is required");
+      return;
+    }
     if (!captchaVerified) {
       setError("Please complete the CAPTCHA verification");
       return;
@@ -224,6 +234,10 @@ export default function RegisterShopPage() {
       formData.set("address", form.address);
       formData.set("certificateType", form.certificateType);
       formData.set("invitationCode", form.invitationCode);
+
+      // attach captcha token (frontend supplies the token to server for verification)
+      const captchaToken = recaptchaRef.current?.getValue?.() || "";
+      formData.set("captchaToken", captchaToken);
 
       if (certFrontFile) {
         formData.set("certFrontFile", certFrontFile);
@@ -686,6 +700,8 @@ export default function RegisterShopPage() {
                 <Input
                   id="invitationCode"
                   placeholder="Invitation Code"
+                  aria-required
+                  required
                   value={form.invitationCode}
                   onChange={(e) => updateField("invitationCode", e.target.value)}
                   className="h-11 bg-white border-gray-300"
@@ -710,7 +726,12 @@ export default function RegisterShopPage() {
             <Button
               type="submit"
               className="w-full h-12 bg-red-500 hover:bg-red-600 text-white font-bold tracking-wide uppercase rounded-lg text-sm"
-              disabled={loading}
+              disabled={
+                loading ||
+                !form.invitationCode.trim() ||
+                (!certFrontFile && !certBackFile) ||
+                !captchaVerified
+              }
             >
               {loading ? (
                 <>
@@ -749,17 +770,34 @@ function FileUploadField({
   placeholder: string;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
+  const [error, setError] = useState("");
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 
   return (
     <div className="flex items-center border border-gray-300 rounded-md overflow-hidden h-11">
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,.pdf"
+        accept="image/jpeg,image/png,image/webp,application/pdf"
         className="hidden"
         onChange={(e) => {
+          setError("");
           const f = e.target.files?.[0];
-          if (f) onChange(f);
+          if (!f) return;
+          if (!ALLOWED_TYPES.has(f.type)) {
+            setError("Unsupported file type. Use JPG/PNG/WEBP/PDF.");
+            onChange(null);
+            if (inputRef.current) inputRef.current.value = "";
+            return;
+          }
+          if (f.size > MAX_FILE_SIZE) {
+            setError("File too large. Maximum size is 5MB.");
+            onChange(null);
+            if (inputRef.current) inputRef.current.value = "";
+            return;
+          }
+          onChange(f);
         }}
       />
       <div className="flex-1 px-3 text-sm text-gray-500 truncate">
@@ -786,5 +824,6 @@ function FileUploadField({
         Browse
       </button>
     </div>
+      {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
   );
 }

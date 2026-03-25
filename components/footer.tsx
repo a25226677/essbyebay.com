@@ -37,14 +37,14 @@ export function Footer() {
             <div className="mb-4">
               <Image
                 src="/logo.png"
-                alt="Ess by Ebay"
+                alt="ESS by eBay"
                 width={140}
                 height={44}
                 className="object-contain brightness-110"
               />
             </div>
-            <p className="text-sm text-gray-400 leading-relaxed mb-6">
-              <strong className="text-white">Ess by Ebay</strong> is a modern multi-vendor eCommerce marketplace
+              <p className="text-sm text-gray-400 leading-relaxed mb-6">
+              <strong className="text-white">ESS by eBay</strong> is a modern multi-vendor eCommerce marketplace
               connecting customers with trusted sellers in one seamless shopping destination. We curate a diverse range of
               products across multiple categories, offering quality, convenience, and choice.
             </p>
@@ -133,7 +133,7 @@ export function Footer() {
               <div>
                 <p className="text-gray-500 mb-1">Address:</p>
                 <p className="text-gray-400">
-                  San Jose, California, USA ({new Date().getFullYear()}  Hamilton Avenue)
+                  San Jose, California, USA (2015 Hamilton Avenue)
                 </p>
               </div>
               <div>
@@ -204,7 +204,7 @@ export function Footer() {
       <div className="border-t border-[#1e2735]">
         <div className="max-w-[1340px] mx-auto px-4 py-5 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-gray-400">
-            Copyright &copy; {new Date().getFullYear()} Ess By EBay. All Rights Reserved.
+            Copyright &copy; {new Date().getFullYear()} ESS by eBay. All Rights Reserved.
           </p>
           <div className="flex items-center gap-1.5 flex-wrap justify-center">
             {([

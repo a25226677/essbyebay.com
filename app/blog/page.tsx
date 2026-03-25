@@ -7,7 +7,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Shopping Blog and Marketplace News",
   description:
-    "Read shopping guides, seller tips, product trends, and marketplace updates from Ess by Ebay.",
+    "Read shopping guides, seller tips, product trends, and marketplace updates from ESS by eBay.",
   path: "/blog",
   keywords: ["shopping blog", "marketplace news", "product guides", "seller tips"],
 });

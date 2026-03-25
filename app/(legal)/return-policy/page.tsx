@@ -4,7 +4,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Return Policy",
   description:
-    "Review the Ess by Ebay return policy, eligibility rules, shipping terms, and refund process for marketplace purchases.",
+    "Review the ESS by eBay return policy, eligibility rules, shipping terms, and refund process for marketplace purchases.",
   path: "/return-policy",
 });
 

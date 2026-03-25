@@ -92,8 +92,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(new URL(`/admin/users?error=${encodeURIComponent('Failed to get authentication token')}`, request.nextUrl.origin))
     }
 
+    // Determine canonical site base (use NEXT_PUBLIC_SITE_URL when available)
+    const siteBase = (process.env.NEXT_PUBLIC_SITE_URL && process.env.NEXT_PUBLIC_SITE_URL.trim()) || request.nextUrl.origin;
     // Prepare response so we can set cookies on it
-    const redirectUrl = new URL(redirectTo, request.nextUrl.origin)
+    const redirectUrl = new URL(redirectTo, siteBase)
     const response = NextResponse.redirect(redirectUrl)
 
     // Create server client that can set cookies on the response

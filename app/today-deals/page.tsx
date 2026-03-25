@@ -8,7 +8,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Today’s Deals and Flash Sale Offers",
   description:
-    "Shop limited-time discounts and flash sale offers from top sellers on Ess by Ebay.",
+  "Shop limited-time discounts and flash sale offers from top sellers on ESS by eBay.",
   path: "/today-deals",
   keywords: ["today's deals", "flash sale", "limited-time offers", "discount shopping"],
 });

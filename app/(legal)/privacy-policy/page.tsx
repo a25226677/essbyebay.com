@@ -4,7 +4,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Privacy Policy",
   description:
-    "Read the privacy policy for Ess by Ebay and learn how customer and seller information is collected, used, and protected.",
+    "Read the privacy policy for ESS by eBay and learn how customer and seller information is collected, used, and protected.",
   path: "/privacy-policy",
 });
 

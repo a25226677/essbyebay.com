@@ -29,6 +29,9 @@ function PayoutRequestsInner() {
   const [page, setPage]             = useState(1);
   const [actionId, setActionId]     = useState<string | null>(null);
   const [viewItem, setViewItem]     = useState<Withdrawal | null>(null);
+  const [refuseModalOpen, setRefuseModalOpen] = useState(false);
+  const [refuseReason, setRefuseReason] = useState("");
+  const [selectedActionId, setSelectedActionId] = useState<string | null>(null);
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const showToast = (msg: string, ok = true) => { setToast({ msg, ok }); setTimeout(() => setToast(null), 3000); };
@@ -51,17 +54,36 @@ function PayoutRequestsInner() {
 
   useEffect(() => { fetchItems(); }, []); // eslint-disable-line
 
-  const handleAction = async (id: string, status: string) => {
+  const performAction = async (id: string, status: string, notes?: string | null) => {
     setActionId(id);
-    const res = await fetch("/api/admin/withdrawals", {
-      method: "PATCH", headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, status }),
-    });
-    setActionId(null);
-    if (res.ok) {
-      showToast(status === "paid" ? "Marked as paid" : "Refused");
-      fetchItems();
-    } else showToast("Action failed", false);
+    try {
+      const res = await fetch("/api/admin/withdrawals", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, status, notes }),
+      });
+      if (res.ok) {
+        showToast(status === "paid" ? "Marked as paid" : "Refused");
+        fetchItems();
+      } else {
+        showToast("Action failed", false);
+      }
+    } catch (err) {
+      showToast("Action failed", false);
+    } finally {
+      setActionId(null);
+    }
+  };
+
+  const handleAction = async (id: string, status: string) => {
+    // When refusing, prompt for a reason
+    if (status === "refused") {
+      setSelectedActionId(id);
+      setRefuseReason("");
+      setRefuseModalOpen(true);
+      return;
+    }
+    await performAction(id, status);
   };
 
   const offset = (page - 1) * pagination.limit;
@@ -219,13 +241,38 @@ function PayoutRequestsInner() {
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
               {viewItem.status === "pending" && (
                 <>
-                  <button onClick={() => { handleAction(viewItem.id, "refused"); setViewItem(null); }}
+                  <button onClick={() => { setSelectedActionId(viewItem.id); setRefuseModalOpen(true); setViewItem(null); }}
                     className="text-sm font-semibold text-red-600 px-4 py-2 rounded-xl border border-red-200 hover:bg-red-50">Refuse</button>
                   <button onClick={() => { handleAction(viewItem.id, "paid"); setViewItem(null); }}
                     className="text-sm font-semibold bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-xl">Mark Paid</button>
                 </>
               )}
               <button onClick={() => setViewItem(null)} className="text-sm text-gray-600 px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Refuse Reason Modal */}
+      {refuseModalOpen && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-bold text-gray-800">Refuse Withdrawal</h2>
+              <button onClick={() => { setRefuseModalOpen(false); setSelectedActionId(null); }}><X className="size-4 text-gray-500" /></button>
+            </div>
+            <div className="px-6 py-5">
+              <label className="text-sm text-gray-600 mb-2 block">Reason for refusal</label>
+              <textarea value={refuseReason} onChange={(e) => setRefuseReason(e.target.value)} rows={5} className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:ring-1 focus:ring-sky-500 outline-none resize-y" />
+            </div>
+            <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">
+              <button onClick={() => { setRefuseModalOpen(false); setSelectedActionId(null); }} className="text-sm text-gray-600 px-4 py-2 rounded-xl border border-gray-200 hover:bg-gray-50">Cancel</button>
+              <button onClick={() => {
+                if (!selectedActionId) return;
+                performAction(selectedActionId, "refused", refuseReason || null);
+                setRefuseModalOpen(false);
+                setSelectedActionId(null);
+              }} className="text-sm font-semibold bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-xl">Confirm Refuse</button>
             </div>
           </div>
         </div>

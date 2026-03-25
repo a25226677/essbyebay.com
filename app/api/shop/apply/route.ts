@@ -13,7 +13,32 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const { shopName, sellerName, sellerEmail } = await request.json();
+    const body = await request.json();
+    const { shopName, sellerName, sellerEmail, captchaToken } = body;
+
+    // verify captcha token server-side
+    if (!captchaToken) {
+      return NextResponse.json({ error: "CAPTCHA token is required" }, { status: 400 });
+    }
+
+    try {
+      const secret = process.env.RECAPTCHA_SECRET_KEY || process.env.NEXT_PUBLIC_RECAPTCHA_SECRET_KEY;
+      if (!secret) {
+        return NextResponse.json({ error: "Server captcha configuration missing" }, { status: 500 });
+      }
+
+      const verifyRes = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ secret, response: captchaToken }),
+      });
+      const verifyJson = await verifyRes.json().catch(() => ({}));
+      if (!verifyJson.success) {
+        return NextResponse.json({ error: "CAPTCHA verification failed" }, { status: 400 });
+      }
+    } catch (e) {
+      return NextResponse.json({ error: "Failed to verify CAPTCHA" }, { status: 500 });
+    }
 
     // Send confirmation to seller
     await sendSellerApplicationEmail(

@@ -4,7 +4,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Terms and Conditions",
   description:
-    "Read the marketplace terms and conditions for using Ess by Ebay, including account, pricing, and product policies.",
+    "Read the marketplace terms and conditions for using ESS by eBay, including account, pricing, and product policies.",
   path: "/terms",
 });
 
