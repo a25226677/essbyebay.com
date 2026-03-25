@@ -43,6 +43,41 @@ export async function POST(request: NextRequest) {
   const { db } = context;
 
   const body = await request.json();
+
+  // Require an owner/seller identifier
+  const ownerId = body.owner_id || body.seller_id;
+  if (!ownerId) {
+    return NextResponse.json({ error: "owner_id or seller_id is required" }, { status: 400 });
+  }
+
+  // Ensure owner profile exists and has invitation code + identity document
+  const { data: profile, error: profileError } = await db
+    .from("profiles")
+    .select("id, invitation_code, certificate_front_url, certificate_back_url")
+    .eq("id", ownerId)
+    .maybeSingle();
+
+  if (profileError) return NextResponse.json({ error: profileError.message }, { status: 500 });
+  if (!profile) return NextResponse.json({ error: "Owner profile not found" }, { status: 400 });
+
+  if (!profile.invitation_code) {
+    return NextResponse.json({ error: "Owner must have a valid invitation code" }, { status: 400 });
+  }
+
+  if (!profile.certificate_front_url && !profile.certificate_back_url) {
+    return NextResponse.json({ error: "Owner must have an identity document on file" }, { status: 400 });
+  }
+
+  // Prevent duplicate shops for same owner
+  const { data: existingShop, error: existingError } = await db
+    .from("shops")
+    .select("id")
+    .eq("owner_id", ownerId)
+    .maybeSingle();
+
+  if (existingError) return NextResponse.json({ error: existingError.message }, { status: 500 });
+  if (existingShop) return NextResponse.json({ error: "Owner already has a shop" }, { status: 409 });
+
   const { data, error } = await db.from("shops").insert(body).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ item: data }, { status: 201 });

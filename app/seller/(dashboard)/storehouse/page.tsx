@@ -95,9 +95,24 @@ export default function ProductStorehousePage() {
       page: String(currentPage),
       limit: String(LIMIT),
     });
-    const res = await fetch(`/api/seller/catalog?${params.toString()}`, { cache: "no-store" });
-    const json = await res.json();
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/seller/catalog?${params.toString()}`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        showToast(json?.error || "Failed to load catalog", "error");
+        setItems([]);
+        setCategories([]);
+        setBrands([]);
+        setTotalPages(1);
+        setTotal(0);
+        setBasePoolTotal(0);
+        setRemainingTotal(0);
+        setSelected(new Set());
+        setLoading(false);
+        return;
+      }
+
       setItems(json.items ?? []);
       setCategories(json.categories ?? []);
       setBrands(json.brands ?? []);
@@ -105,9 +120,19 @@ export default function ProductStorehousePage() {
       setTotal(json.pagination?.total ?? 0);
       setBasePoolTotal(json.pagination?.baseTotal ?? json.pagination?.total ?? 0);
       setRemainingTotal(json.pagination?.remainingTotal ?? json.pagination?.total ?? 0);
+    } catch (err) {
+      showToast((err as Error).message || "Network error while loading catalog", "error");
+      setItems([]);
+      setCategories([]);
+      setBrands([]);
+      setTotalPages(1);
+      setTotal(0);
+      setBasePoolTotal(0);
+      setRemainingTotal(0);
+    } finally {
+      setSelected(new Set());
+      setLoading(false);
     }
-    setSelected(new Set());
-    setLoading(false);
   }, [search, categoryId, brandId]);
 
   useEffect(() => {

@@ -17,7 +17,8 @@ export function AccountSignOutButton() {
         setLoading(false);
         return;
       }
-      window.location.href = res.url;
+      // Redirect to login page after signing out (don't rely on fetch redirect URL)
+      window.location.href = "/users/login";
     } catch {
       toast.error("Failed to sign out");
       setLoading(false);

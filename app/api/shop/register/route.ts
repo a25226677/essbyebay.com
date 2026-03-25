@@ -73,28 +73,38 @@ export async function POST(request: NextRequest) {
 
   // server-side captcha token (frontend should send `captchaToken` from reCAPTCHA)
   const captchaToken = getRequiredString(formData, "captchaToken");
-  if (!captchaToken) {
+
+  // Development/testing helper: allow skipping external captcha verification when
+  // a special header is present and we're not in production. This makes it
+  // possible to write integration scripts that exercise server-side validation
+  // without needing an actual Google reCAPTCHA token.
+  const skipCaptchaHeader = request.headers.get("x-skip-captcha");
+  const skipCaptchaAllowed = skipCaptchaHeader === "1" && process.env.NODE_ENV !== "production";
+
+  if (!captchaToken && !skipCaptchaAllowed) {
     return NextResponse.json({ error: "CAPTCHA token is required" }, { status: 400 });
   }
 
-  // Verify reCAPTCHA token with Google's API
-  try {
-    const secret = process.env.RECAPTCHA_SECRET_KEY || process.env.NEXT_PUBLIC_RECAPTCHA_SECRET_KEY;
-    if (!secret) {
-      return NextResponse.json({ error: "Server captcha configuration missing" }, { status: 500 });
-    }
+  if (!skipCaptchaAllowed) {
+    // Verify reCAPTCHA token with Google's API
+    try {
+      const secret = process.env.RECAPTCHA_SECRET_KEY || process.env.NEXT_PUBLIC_RECAPTCHA_SECRET_KEY;
+      if (!secret) {
+        return NextResponse.json({ error: "Server captcha configuration missing" }, { status: 500 });
+      }
 
-    const verifyRes = await fetch("https://www.google.com/recaptcha/api/siteverify", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ secret, response: captchaToken }),
-    });
-    const verifyJson = await verifyRes.json().catch(() => ({}));
-    if (!verifyJson.success) {
-      return NextResponse.json({ error: "CAPTCHA verification failed" }, { status: 400 });
+      const verifyRes = await fetch("https://www.google.com/recaptcha/api/siteverify", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ secret, response: captchaToken }),
+      });
+      const verifyJson = await verifyRes.json().catch(() => ({}));
+      if (!verifyJson.success) {
+        return NextResponse.json({ error: "CAPTCHA verification failed" }, { status: 400 });
+      }
+    } catch (e) {
+      return NextResponse.json({ error: "Failed to verify CAPTCHA" }, { status: 500 });
     }
-  } catch (e) {
-    return NextResponse.json({ error: "Failed to verify CAPTCHA" }, { status: 500 });
   }
 
   const fullName = getRequiredString(formData, "fullName");
