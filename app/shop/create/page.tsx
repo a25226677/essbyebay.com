@@ -775,7 +775,8 @@ function FileUploadField({
   const ALLOWED_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "application/pdf"]);
 
   return (
-    <div className="flex items-center border border-gray-300 rounded-md overflow-hidden h-11">
+    <>
+      <div className="flex items-center border border-gray-300 rounded-md overflow-hidden h-11">
       <input
         ref={inputRef}
         type="file"
@@ -823,7 +824,8 @@ function FileUploadField({
         <Upload className="size-3.5" />
         Browse
       </button>
-    </div>
+      </div>
       {error && <p className="text-xs text-red-600 mt-1">{error}</p>}
+    </>
   );
 }
