@@ -1,484 +1,470 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
-import Image from "next/image";
-import { Plus, Package, Loader2, Check, ChevronLeft, ChevronRight, ShoppingBag } from "lucide-react";
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import Image from 'next/image';
+import {
+  Eye,
+  Edit,
+  Trash2,
+  Copy,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Package,
+  Download,
+  Warehouse,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import type { WarehouseProductItem } from '@/lib/types';
 
-type CatalogItem = {
-  id: string;
-  title: string;
-  sku: string;
-  price: number;
-  stock: number;
-  image: string | null;
-  category: string;
-  brand: string;
-  imported: boolean;
-};
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('en-US', {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+  }).format(value || 0);
+}
 
-type FilterOption = { id: string; name: string };
+export default function SellerWarehousePage() {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [products, setProducts] = useState<WarehouseProductItem[]>([] as WarehouseProductItem[]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const perPage = 10;
 
-type ToastState = {
-  msg: string;
-  tone: "success" | "error" | "info";
-  sticky?: boolean;
-};
-
-const LIMIT = 50;
-
-export default function ProductStorehousePage() {
-  const [items, setItems] = useState<CatalogItem[]>([]);
-  const [categories, setCategories] = useState<FilterOption[]>([]);
-  const [brands, setBrands] = useState<FilterOption[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [importing, setImporting] = useState(false);
-  const [toast, setToast] = useState<ToastState | null>(null);
-
-  const [search, setSearch] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [brandId, setBrandId] = useState("");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [basePoolTotal, setBasePoolTotal] = useState(0);
-  const [remainingTotal, setRemainingTotal] = useState(0);
-  const [importingAll, setImportingAll] = useState(false);
-  const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longRunningToastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const clearToastTimers = useCallback(() => {
-    if (toastTimeoutRef.current) {
-      clearTimeout(toastTimeoutRef.current);
-      toastTimeoutRef.current = null;
-    }
-    if (longRunningToastRef.current) {
-      clearTimeout(longRunningToastRef.current);
-      longRunningToastRef.current = null;
-    }
-  }, []);
-
-  const showToast = useCallback(
-    (msg: string, tone: ToastState["tone"] = "success", sticky = false) => {
-      clearToastTimers();
-      setToast({ msg, tone, sticky });
-      if (!sticky) {
-        toastTimeoutRef.current = setTimeout(() => setToast(null), 4000);
-      }
-    },
-    [clearToastTimers],
+  const totalPages = useMemo(
+    () => Math.max(1, Math.ceil(totalCount / perPage)),
+    [totalCount],
   );
 
   useEffect(() => {
-    return () => {
-      clearToastTimers();
-    };
-  }, [clearToastTimers]);
+    let active = true;
 
-  const formatImportSummary = (imported: number, skipped: number) => {
-    if (imported === 0 && skipped > 0) {
-      return `No new products were added. ${skipped.toLocaleString()} already exist in your shop.`;
-    }
-    if (skipped > 0) {
-      return `Added ${imported.toLocaleString()} product${imported === 1 ? "" : "s"}. Skipped ${skipped.toLocaleString()} already in your shop.`;
-    }
-    return `Added ${imported.toLocaleString()} product${imported === 1 ? "" : "s"} to your shop.`;
-  };
+    async function loadProducts() {
+      setLoading(true);
+      setError("");
+      setCurrentPage(1);
 
-  const fetchCatalog = useCallback(async (currentPage: number) => {
-    setLoading(true);
-    const params = new URLSearchParams({
-      search,
-      category_id: categoryId,
-      brand_id: brandId,
-      page: String(currentPage),
-      limit: String(LIMIT),
-    });
-    try {
-      const res = await fetch(`/api/seller/catalog?${params.toString()}`, { cache: "no-store" });
-      const json = await res.json().catch(() => null);
+      const params = new URLSearchParams({
+        page: "1",
+        limit: String(perPage),
+        search: searchQuery,
+      });
 
-      if (!res.ok) {
-        showToast(json?.error || "Failed to load catalog", "error");
-        setItems([]);
-        setCategories([]);
-        setBrands([]);
-        setTotalPages(1);
-        setTotal(0);
-        setBasePoolTotal(0);
-        setRemainingTotal(0);
-        setSelected(new Set());
-        setLoading(false);
-        return;
+      const response = await fetch(`/api/seller/storehouse?${params.toString()}`, {
+        cache: "no-store",
+      });
+      const data = await response.json();
+
+      if (!active) return;
+
+      if (!response.ok) {
+        setError(data.error || "Failed to load warehouse");
+        setProducts([]);
+        setTotalCount(0);
+      } else {
+        setProducts(data.items || []);
+        setTotalCount(data.total || 0);
       }
 
-      setItems(json.items ?? []);
-      setCategories(json.categories ?? []);
-      setBrands(json.brands ?? []);
-      setTotalPages(json.pagination?.pages ?? 1);
-      setTotal(json.pagination?.total ?? 0);
-      setBasePoolTotal(json.pagination?.baseTotal ?? json.pagination?.total ?? 0);
-      setRemainingTotal(json.pagination?.remainingTotal ?? json.pagination?.total ?? 0);
-    } catch (err) {
-      showToast((err as Error).message || "Network error while loading catalog", "error");
-      setItems([]);
-      setCategories([]);
-      setBrands([]);
-      setTotalPages(1);
-      setTotal(0);
-      setBasePoolTotal(0);
-      setRemainingTotal(0);
-    } finally {
-      setSelected(new Set());
       setLoading(false);
     }
-  }, [search, categoryId, brandId]);
 
-  useEffect(() => {
-    setPage(1);
-    fetchCatalog(1);
-  }, [fetchCatalog]);
+    loadProducts();
 
-  const handlePageChange = (newPage: number) => {
-    setPage(newPage);
-    fetchCatalog(newPage);
-  };
+    return () => {
+      active = false;
+    };
+  }, [searchQuery]);
 
-  const toggleSelect = (id: string) => {
-    const item = items.find((i) => i.id === id);
-    if (item?.imported) return; // can't re-select already-imported items
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
+  const refreshProducts = async (pageNum = currentPage) => {
+    setLoading(true);
+    const params = new URLSearchParams({
+      page: String(pageNum),
+      limit: String(perPage),
+      search: searchQuery,
     });
+    const response = await fetch(`/api/seller/storehouse?${params.toString()}`, {
+      cache: "no-store",
+    });
+    const data = await response.json();
+    setLoading(false);
+    if (response.ok) {
+      setProducts(data.items || []);
+      setTotalCount(data.total || 0);
+    }
   };
 
-  const importProducts = async (ids: string[]) => {
-    const filteredIds = ids.filter((id) => !items.find((i) => i.id === id)?.imported);
-    if (filteredIds.length === 0) {
-      showToast("All selected products are already in your shop", "error");
-      return;
-    }
-    setImporting(true);
-    showToast(
-      `Adding ${filteredIds.length.toLocaleString()} selected product${filteredIds.length === 1 ? "" : "s"} to your shop...`,
-      "info",
-      true,
-    );
-    const res = await fetch("/api/seller/catalog/import", {
-      method: "POST",
+  const togglePublished = async (product: WarehouseProductItem, next: boolean) => {
+    await fetch(`/api/seller/products/${product.id}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ product_ids: filteredIds }),
+      body: JSON.stringify({ isActive: next }),
     });
-    const json = await res.json();
-    setImporting(false);
-    if (res.ok) {
-      showToast(formatImportSummary(json.imported ?? 0, json.skipped ?? 0), "success");
-      setSelected(new Set());
-      fetchCatalog(page); // refresh to update imported badges
-    } else {
-      showToast(json.error || "Import failed", "error");
-    }
+    setProducts((prev) =>
+      prev.map((item) =>
+        item.id === product.id ? { ...item, is_active: next } : item,
+      ),
+    );
   };
 
-  const importAll = async () => {
-    const confirmed = window.confirm(
-      `Import all ${total.toLocaleString()} products${
-        search || categoryId || brandId ? " matching current filters" : ""
-      } to your shop?\n\nThis may take a moment.`,
+  const toggleFeatured = async (product: WarehouseProductItem, next: boolean) => {
+    await fetch(`/api/seller/products/${product.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isFeatured: next }),
+    });
+    setProducts((prev) =>
+      prev.map((item) =>
+        item.id === product.id ? { ...item, is_featured: next ?? false } : item,
+      ),
     );
+  };
+
+  const togglePromoted = async (product: WarehouseProductItem, next: boolean) => {
+    await fetch(`/api/seller/products/${product.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isPromoted: next }),
+    });
+    setProducts((prev) =>
+      prev.map((item) =>
+        item.id === product.id ? { ...item, is_promoted: next ?? false } : item,
+      ),
+    );
+  };
+
+  const deleteProduct = async (id: string) => {
+    const confirmed = window.confirm("Delete this product from warehouse?");
     if (!confirmed) return;
 
-    setImportingAll(true);
-    showToast("Starting import...", "info", true);
+    const response = await fetch(`/api/seller/products/${id}`, {
+      method: "DELETE",
+    });
 
-    let currentPage = 0;
-    let totalImported = 0;
-    let totalSkipped = 0;
-
-    try {
-      while (true) {
-        const res = await fetch("/api/seller/catalog/import-all", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            search,
-            category_id: categoryId,
-            brand_id: brandId,
-            page: currentPage,
-          }),
-        });
-        const json = await res.json();
-
-        if (!res.ok) {
-          showToast(json.error || "Import failed", "error");
-          return;
-        }
-
-        totalImported += json.imported ?? 0;
-        totalSkipped += json.skipped ?? 0;
-
-        if (json.hasMore) {
-          setToast({
-            msg: `Importing... ${(totalImported + totalSkipped).toLocaleString()} processed, ${totalImported.toLocaleString()} added.`,
-            tone: "info",
-            sticky: true,
-          });
-          currentPage = json.nextPage;
-        } else {
-          break;
-        }
-      }
-
-      showToast(
-        formatImportSummary(totalImported, totalSkipped),
-        totalImported > 0 ? "success" : "info",
-      );
-      fetchCatalog(page);
-    } finally {
-      setImportingAll(false);
+    if (response.ok) {
+      await refreshProducts(currentPage);
     }
+  };
+
+  const duplicateProduct = async (id: string) => {
+    const response = await fetch(`/api/seller/products/${id}/duplicate`, {
+      method: "POST",
+    });
+
+    if (response.ok) {
+      await refreshProducts(currentPage);
+    }
+  };
+
+  const exportCSV = () => {
+    if (products.length === 0) return;
+    const headers = ["#", "Name", "Category", "Stock", "Price", "Published", "Featured", "Status"];
+    const rows = products.map((p) => [
+      p.index,
+      `"${p.title.replace(/"/g, '""')}"`,
+      p.categories?.[0]?.name || "-",
+      p.stock_count,
+      p.price.toFixed(2),
+      p.is_active ? "Yes" : "No",
+      p.is_featured ? "Yes" : "No",
+      p.reason || "Active",
+    ]);
+    const csv = [headers.join(","),
+...rows.map((r) => r.join(",")), ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `warehouse-products-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   return (
-    <div className="space-y-5 relative">
-      {/* Toast */}
-      {toast && (
-        <div
-          className={`fixed top-5 right-5 z-50 flex max-w-md items-start gap-3 px-4 py-3 rounded-lg shadow-lg text-sm text-white transition-all ${
-            toast.tone === "success"
-              ? "bg-green-600"
-              : toast.tone === "error"
-                ? "bg-red-600"
-                : "bg-slate-800"
-          }`}
-        >
-          {toast.tone === "info" ? (
-            <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />
-          ) : toast.tone === "success" ? (
-            <Check className="mt-0.5 size-4 shrink-0" />
-          ) : null}
-          <div className="flex-1 leading-5">{toast.msg}</div>
-        </div>
-      )}
-
-      {/* Filter Bar */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-wrap items-center gap-3">
-        <input
-          type="text"
-          placeholder="Search by Product Name/Barcode"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[220px] text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 text-gray-700"
-        />
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-[150px]"
-        >
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-        <select
-          value={brandId}
-          onChange={(e) => setBrandId(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-[140px]"
-        >
-          <option value="">All Brands</option>
-          {brands.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-        {!loading && (
-          <span className="text-xs text-gray-400 ml-auto">
-            Base Pool: {basePoolTotal.toLocaleString()} &nbsp;|&nbsp; Remaining: {remainingTotal.toLocaleString()}
-          </span>
-        )}
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <Warehouse className="size-7 text-purple-600" />
+        <h1 className="text-2xl font-bold text-gray-900">Warehouse</h1>
       </div>
 
-      {/* Product Grid + Action Buttons Layout */}
-      <div className="flex gap-4">
-        {/* Scrollable product grid */}
-        <div className="flex-1 bg-white rounded-xl border border-gray-200 overflow-hidden">
-          <div className="h-[calc(100vh-310px)] overflow-y-auto p-4">
-            {loading ? (
-              <div className="flex items-center justify-center h-40">
-                <Loader2 className="size-8 animate-spin text-purple-400" />
-              </div>
-            ) : items.length === 0 ? (
-              <div className="flex flex-col items-center justify-center h-40 text-gray-400">
-                <Package className="size-12 mb-3" />
-                <p className="text-sm">No products found</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-5 gap-4">
-                {items.map((item) => {
-                  const isSelected = selected.has(item.id);
-                  return (
-                    <div
-                      key={item.id}
-                      onClick={() => toggleSelect(item.id)}
-                      className={`group relative rounded-lg border overflow-hidden transition-all ${
-                        item.imported
-                          ? "border-gray-200 opacity-60 cursor-not-allowed"
-                          : "cursor-pointer border-gray-200 hover:border-purple-400 hover:shadow-md"
-                      }`}
-                    >
-                      {/* Stock badge */}
-                      <div className="absolute top-2 left-2 z-10">
-                        <span className="bg-green-500 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                          In stock : {item.stock.toLocaleString()}
-                        </span>
-                      </div>
-
-                      {/* Already imported badge */}
-                      {item.imported && (
-                        <div className="absolute top-2 right-2 z-10 flex items-center gap-0.5 bg-blue-600 text-white text-[10px] font-semibold px-1.5 py-0.5 rounded">
-                          <ShoppingBag className="size-2.5" />
-                          <span>In Shop</span>
-                        </div>
-                      )}
-
-                      {/* Selected checkmark */}
-                      {isSelected && !item.imported && (
-                        <div className="absolute top-2 right-2 z-10 w-5 h-5 bg-purple-600 rounded-full flex items-center justify-center">
-                          <Check className="size-3 text-white" />
-                        </div>
-                      )}
-
-                      {/* Image */}
-                      <div className="relative w-full aspect-square bg-gray-100">
-                        {item.image ? (
-                          <Image
-                            src={item.image}
-                            alt={item.title}
-                            fill
-                            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                            className="object-cover"
-                          />
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center">
-                            <Package className="size-10 text-gray-300" />
-                          </div>
-                        )}
-                        {/* Hover/selected overlay with + icon */}
-                        {!item.imported && (
-                          <div
-                            className={`absolute inset-0 flex items-center justify-center transition-opacity ${
-                              isSelected
-                                ? "bg-purple-600/20 opacity-100"
-                                : "bg-black/25 opacity-0 group-hover:opacity-100"
-                            }`}
-                          >
-                            {!isSelected && (
-                              <div className="w-10 h-10 rounded-full border-2 border-white flex items-center justify-center">
-                                <Plus className="size-5 text-white" />
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Info */}
-                      <div className="p-2">
-                        <p className="text-xs font-medium text-gray-800 line-clamp-2 leading-tight">
-                          {item.title}
-                        </p>
-                        <p className="text-sm font-semibold text-gray-900 mt-1">
-                          ${item.price.toFixed(2)}
-                        </p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+      {/* Total Counter */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl px-8 py-5 text-center min-w-[200px]">
+          <div className="size-10 bg-white/20 rounded-full mx-auto mb-2 flex items-center justify-center">
+            <Package className="size-5" />
           </div>
-
-          {/* Pagination */}
-          {!loading && totalPages > 1 && (
-            <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 bg-gray-50">
-              <span className="text-xs text-gray-500">
-                Page {page} of {totalPages} &nbsp;·&nbsp; Base Pool {basePoolTotal.toLocaleString()} &nbsp;·&nbsp; Remaining {remainingTotal.toLocaleString()}
-              </span>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handlePageChange(page - 1)}
-                  disabled={page <= 1}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  <ChevronLeft className="size-3.5" /> Prev
-                </button>
-                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                  let p: number;
-                  if (totalPages <= 7) {
-                    p = i + 1;
-                  } else if (page <= 4) {
-                    p = i + 1;
-                  } else if (page >= totalPages - 3) {
-                    p = totalPages - 6 + i;
-                  } else {
-                    p = page - 3 + i;
-                  }
-                  return (
-                    <button
-                      key={p}
-                      onClick={() => handlePageChange(p)}
-                      className={`w-7 h-7 text-xs rounded-lg font-medium transition-colors ${
-                        p === page
-                          ? "bg-purple-600 text-white"
-                          : "border border-gray-200 text-gray-600 hover:bg-white"
-                      }`}
-                    >
-                      {p}
-                    </button>
-                  );
-                })}
-                <button
-                  onClick={() => handlePageChange(page + 1)}
-                  disabled={page >= totalPages}
-                  className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                >
-                  Next <ChevronRight className="size-3.5" />
-                </button>
-              </div>
-            </div>
-          )}
+          <p className="text-4xl font-black">{totalCount}</p>
+          <p className="text-sm opacity-90 font-medium">Warehouse Items</p>
         </div>
 
-        {/* Action Buttons Panel */}
-        <div className="flex flex-col justify-end gap-3 pb-2 shrink-0">
-          <button
-            onClick={importAll}
-            disabled={importingAll || loading || total === 0}
-            className="px-5 py-2.5 text-sm font-medium border-2 border-gray-700 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 whitespace-nowrap"
+        <div className="flex items-center gap-3 flex-wrap">
+          <Button
+            variant="outline"
+            className="gap-2 text-sm"
+            onClick={exportCSV}
+            disabled={products.length === 0}
           >
-            {importingAll ? <Loader2 className="size-4 animate-spin inline mr-1" /> : null}
-            Add all to My Product
-            {remainingTotal > 0 && (
-              <span className="ml-1.5 text-xs text-gray-400">({remainingTotal.toLocaleString()})</span>
-            )}
-          </button>
-          <button
-            onClick={() => importProducts(Array.from(selected))}
-            disabled={importing || selected.size === 0}
-            className="px-5 py-2.5 text-sm font-semibold bg-gray-900 text-white rounded-lg hover:bg-gray-700 transition-colors disabled:opacity-50 whitespace-nowrap"
-          >
-            {importing ? <Loader2 className="size-4 animate-spin inline mr-1" /> : null}
-            Add to My Product
-            {selected.size > 0 && (
-              <span className="ml-1.5 bg-white text-gray-900 text-xs font-bold rounded-full px-1.5 py-0.5">
-                {selected.size}
-              </span>
-            )}
-          </button>
+            <Download className="size-4" />
+            Export CSV
+          </Button>
+          <Link href="/seller/products/new" className="whitespace-nowrap">
+            <Button className="gap-2">
+              <Package className="size-4" />
+              Add Product
+            </Button>
+          </Link>
         </div>
+      </div>
+
+      {/* Warehouse Table */}
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+        <div className="flex items-center justify-between p-6 border-b border-gray-100">
+          <h2 className="text-xl font-semibold text-gray-800">
+            All Warehouse Products
+          </h2>
+          <div className="relative w-72">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-gray-400" />
+            <Input
+              placeholder="Search products..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+              }}
+              className="pl-11 h-11 text-sm border-gray-200 focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+            />
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100 text-gray-500 uppercase tracking-wider text-xs">
+                <th className="text-left px-6 py-4 font-semibold w-12">#</th>
+                <th className="text-left px-6 py-4 font-semibold">Image</th>
+                <th className="text-left px-6 py-4 font-semibold">Product Name</th>
+                <th className="text-left px-6 py-4 font-semibold">Category</th>
+                <th className="text-left px-6 py-4 font-semibold">Stock</th>
+                <th className="text-left px-6 py-4 font-semibold">Price</th>
+                <th className="text-center px-6 py-4 font-semibold">Active</th>
+                <th className="text-center px-6 py-4 font-semibold">Featured</th>
+                <th className="text-center px-6 py-4 font-semibold">Promo</th>
+                <th className="text-left px-6 py-4 font-semibold">Status</th>
+                <th className="text-right px-6 py-4 font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {loading ? (
+                <tr>
+                  <td colSpan={11} className="px-6 py-16 text-center text-gray-500 text-lg">
+                    <Package className="size-12 mx-auto mb-4 text-gray-300" />
+                    Loading warehouse...
+                  </td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={11} className="px-6 py-16 text-center text-red-500">
+                    {error}
+                  </td>
+                </tr>
+              ) : products.length === 0 ? (
+                <tr>
+                  <td colSpan={11} className="px-6 py-20 text-center text-gray-500">
+                    <Package className="size-16 mx-auto mb-4 text-gray-300" />
+                    <p className="text-lg font-medium mb-1">No products in warehouse</p>
+                    <p className="text-sm">Add your first product to get started.</p>
+                  </td>
+                </tr>
+              ) : (
+                products.map((product) => (
+                  <tr key={product.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 text-gray-500 font-mono text-sm">{product.index}</td>
+                    <td className="px-6 py-4">
+                      <div className="w-14 h-14 rounded-lg overflow-hidden bg-gray-50 border">
+                        <Image
+                          src={product.image_url || `/api/placeholder/56/56`}
+                          alt={product.title}
+                          width={56}
+                          height={56}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 max-w-md">
+                      <p className="font-medium text-gray-900 line-clamp-2 text-sm leading-tight">
+                        {product.title}
+                      </p>
+                      {product.sku && (
+                        <p className="text-xs text-gray-500 mt-1">SKU: {product.sku}</p>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="px-2.5 py-1 bg-gray-100 text-xs font-medium rounded-full text-gray-700">
+                        {product.categories?.[0]?.name || "Uncategorized"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                        product.stock_count > 0 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {product.stock_count}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 font-mono font-semibold text-indigo-600 text-sm">
+                      {formatCurrency(product.price)}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <ToggleSwitch
+                        active={product.is_active}
+                        onChange={(next) => togglePublished(product, next)}
+                      />
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <ToggleSwitch 
+                        active={Boolean(product.is_featured)} 
+                        onChange={(next) => toggleFeatured(product, next)} 
+                      />
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <ToggleSwitch 
+                        active={Boolean(product.is_promoted)} 
+                        onChange={(next) => togglePromoted(product, next)} 
+                      />
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${
+                        product.reason 
+                          ? 'bg-yellow-100 text-yellow-800' 
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {product.reason || "Active"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1">
+                        <Link
+                          href={`/product/${product.slug}`}
+                          className="size-9 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-600 flex items-center justify-center transition-colors"
+                          title="View Live"
+                        >
+                          <Eye className="size-4" />
+                        </Link>
+                        <Link
+                          href={`/seller/products/${product.id}/edit`}
+                          className="size-9 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-600 flex items-center justify-center transition-colors"
+                          title="Edit"
+                        >
+                          <Edit className="size-4" />
+                        </Link>
+                        <button
+                          onClick={() => duplicateProduct(product.id)}
+                          className="size-9 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-600 flex items-center justify-center transition-colors"
+                          title="Duplicate"
+                        >
+                          <Copy className="size-4" />
+                        </button>
+                        <button
+                          onClick={() => deleteProduct(product.id)}
+                          className="size-9 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 flex items-center justify-center transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-1 p-6 border-t border-gray-100 bg-gray-50">
+            <button
+              onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+              disabled={currentPage === 1 || loading}
+              className="size-10 rounded-lg flex items-center justify-center text-gray-500 hover:bg-white disabled:opacity-40 transition-colors"
+            >
+              <ChevronLeft className="size-5" />
+            </button>
+            {Array.from({ length: Math.min(7, totalPages) }, (_, i) => {
+              const pageNum = currentPage <= 3 
+                ? i + 1 
+                : currentPage >= totalPages - 3 
+                ? totalPages - 6 + i 
+                : currentPage - 3 + i;
+              return (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  disabled={loading}
+                  className={`size-10 rounded-lg font-semibold transition-all ${
+                    currentPage === pageNum
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "text-gray-600 hover:bg-white hover:shadow-sm"
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+            {totalPages > 7 && (
+              <>
+                <span className="px-2 text-gray-400">...</span>
+                <button
+                  onClick={() => setCurrentPage(totalPages)}
+                  className="size-10 rounded-lg text-gray-600 hover:bg-white transition-colors"
+                >
+                  {totalPages}
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
+              disabled={currentPage === totalPages || loading}
+              className="size-10 rounded-lg flex items-center justify-center text-gray-500 hover:bg-white disabled:opacity-40 transition-colors"
+            >
+              <ChevronRight className="size-5" />
+            </button>
+            <span className="text-sm text-gray-500 ml-4">
+              Page {currentPage} of {totalPages}
+            </span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+
+function ToggleSwitch({
+  active,
+  onChange,
+}: {
+  active: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onChange(!active);
+      }}
+      className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 ${
+        active ? "bg-green-600" : "bg-gray-200"
+      }`}
+    >
+      <span className={`pointer-events-none inline-block size-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+        active ? "translate-x-6" : "translate-x-1"
+      }`} />
+    </button>
+  );
+}
+

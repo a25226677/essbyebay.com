@@ -141,15 +141,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Server-side validation: invitation code required and well-formed
+  // Server-side validation: invitation code required
   if (!invitationCode) {
     return NextResponse.json({ error: "Invitation code is required" }, { status: 400 });
   }
 
-  // Basic format check (avoid bypassing with empty-like values)
-  if (!/^[A-Za-z0-9\-]{4,30}$/.test(invitationCode)) {
-    return NextResponse.json({ error: "Invalid invitation code format" }, { status: 400 });
-  }
+
+
+
 
   if (!fullName) {
     return NextResponse.json({ error: "Full name is required" }, { status: 400 });
@@ -230,46 +229,13 @@ export async function POST(request: NextRequest) {
       "certificate-back",
     );
 
-    // Validate invitation code against DB (ensure it exists and is usable)
-    try {
-      const { data: inv } = await db
-        .from("invitations")
-        .select("code, is_active, uses, max_uses, expires_at")
-        .eq("code", invitationCode)
-        .maybeSingle();
-
-      if (!inv || !inv.code || !inv.is_active) {
-        // cleanup created user
-        await db.auth.admin.deleteUser(createdUserId).catch(() => undefined);
-        return NextResponse.json(
-          { error: "Invalid or inactive invitation code" },
-          { status: 400 },
-        );
-      }
-
-      if (inv.expires_at && new Date(inv.expires_at) < new Date()) {
-        await db.auth.admin.deleteUser(createdUserId).catch(() => undefined);
-        return NextResponse.json({ error: "Invitation code expired" }, { status: 400 });
-      }
-
-      if (inv.max_uses !== null && typeof inv.max_uses === "number" && inv.uses >= inv.max_uses) {
-        await db.auth.admin.deleteUser(createdUserId).catch(() => undefined);
-        return NextResponse.json({ error: "Invitation code usage limit reached" }, { status: 400 });
-      }
-
-      // mark invitation as used (increment uses and set last_used fields)
-      const { error: invUpdateError } = await db
-        .from("invitations")
-        .update({ uses: (inv.uses || 0) + 1, last_used_by: createdUserId, last_used_at: new Date().toISOString() })
-        .eq("code", invitationCode);
-
-      if (invUpdateError) {
-        await db.auth.admin.deleteUser(createdUserId).catch(() => undefined);
-        return NextResponse.json({ error: "Failed to claim invitation code" }, { status: 500 });
-      }
-    } catch (e) {
+// Hardcoded invitation code validation
+    if (invitationCode !== "51214") {
       await db.auth.admin.deleteUser(createdUserId).catch(() => undefined);
-      return NextResponse.json({ error: "Invitation validation failed" }, { status: 500 });
+      return NextResponse.json(
+        { error: "Invalid invitation code. Must be exactly 51214." },
+        { status: 400 },
+      );
     }
 
     // Require at least one identity document
