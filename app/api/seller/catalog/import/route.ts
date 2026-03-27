@@ -12,6 +12,41 @@ function slugify(value: string) {
     .replace(/-+/g, "-");
 }
 
+async function ensureSellerShopId(
+  supabase: Awaited<ReturnType<typeof import("@/lib/supabase/server").createClient>>,
+  userId: string,
+) {
+  const { data: shop } = await supabase
+    .from("shops")
+    .select("id")
+    .eq("owner_id", userId)
+    .maybeSingle();
+
+  if (shop?.id) return shop.id;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("full_name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const baseName = profile?.full_name?.trim() || "My Shop";
+  const baseSlug = slugify(baseName) || `shop-${userId.slice(0, 8)}`;
+
+  const { data: created, error } = await supabase
+    .from("shops")
+    .insert({
+      owner_id: userId,
+      name: baseName,
+      slug: `${baseSlug}-${Date.now().toString().slice(-6)}`,
+    })
+    .select("id")
+    .single();
+
+  if (error) throw new Error(error.message);
+  return created.id;
+}
+
 async function buildUniqueImportSku(
   db: ReturnType<typeof createAdminServiceClient>,
   originalSku: string | null,
@@ -113,16 +148,12 @@ export async function POST(request: Request) {
   }
 
   // Resolve seller's shop, creating one if needed
-  const { data: shop } = await supabase
-    .from("shops")
-    .select("id")
-    .eq("owner_id", userId)
-    .maybeSingle();
-
-  if (!shop) {
-    return NextResponse.json({ error: "You must have a shop to import products" }, { status: 400 });
+  let shopId: string;
+  try {
+    shopId = await ensureSellerShopId(supabase, userId);
+  } catch (err) {
+    return NextResponse.json({ error: (err as Error).message || "Failed to resolve shop" }, { status: 500 });
   }
-  const shopId = shop.id;
 
   // Fetch source products from admin catalog
   const db = createAdminServiceClient();

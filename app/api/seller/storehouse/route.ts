@@ -1,34 +1,61 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(request: Request) {
   const context = await getSellerContext();
   if (context instanceof NextResponse) return context;
 
   const { supabase, userId } = context;
+  const { searchParams } = new URL(request.url);
 
-  const { data, error } = await supabase
+  const search = (searchParams.get("search") || "").trim();
+  const page = Math.max(Number(searchParams.get("page") || "1"), 1);
+  const limit = Math.min(Math.max(Number(searchParams.get("limit") || "10"), 1), 50);
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
+
+  let query = supabase
     .from("products")
-    .select("id,title,sku,price,stock_count,is_active,image_url,created_at,categories(name)")
+    .select(
+      "id,title,slug,sku,price,stock_count,is_active,is_featured,is_promoted,image_url,created_at,categories(name)",
+      { count: "exact" },
+    )
     .eq("seller_id", userId)
-    .or("is_active.eq.false,stock_count.eq.0")
-    .order("created_at", { ascending: false });
+    .order("is_active", { ascending: false })
+    .order("created_at", { ascending: false })
+    .range(from, to);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (search) {
+    query = query.ilike("title", `%${search}%`);
+  }
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 
   const items = (data ?? []).map((p, idx) => ({
     id: p.id,
-    index: idx + 1,
+    index: (page - 1) * limit + idx + 1,
     title: p.title,
-    sku: p.sku ?? "—",
+    slug: p.slug ?? "",
+    sku: p.sku ?? null,
     price: Number(p.price),
-    stock: p.stock_count,
-    isActive: p.is_active,
-    image: p.image_url,
-    category:
-      (p.categories as unknown as { name: string }[] | null)?.[0]?.name ?? "Uncategorized",
-    reason: !p.is_active ? "Inactive" : "Out of Stock",
+    stock_count: Number(p.stock_count),
+    is_active: Boolean(p.is_active),
+    is_featured: Boolean(p.is_featured),
+    is_promoted: Boolean(p.is_promoted),
+    image_url: p.image_url ?? null,
+    categories: p.categories as { name: string }[] | null,
+    reason: !p.is_active ? "Inactive" : p.stock_count === 0 ? "Out of Stock" : undefined,
   }));
 
-  return NextResponse.json({ items });
+  return NextResponse.json({
+    items,
+    total: count ?? 0,
+    page,
+    limit,
+  });
 }
+

@@ -39,6 +39,15 @@ export default function ProductStorehousePage() {
   const [brandId, setBrandId] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
+
+
+
+
+
+
+
+
+
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
@@ -47,6 +56,27 @@ export default function ProductStorehousePage() {
   const [importingAll, setImportingAll] = useState(false);
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longRunningToastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
   const clearToastTimers = useCallback(() => {
     if (toastTimeoutRef.current) {
@@ -95,9 +125,24 @@ export default function ProductStorehousePage() {
       page: String(currentPage),
       limit: String(LIMIT),
     });
-    const res = await fetch(`/api/seller/catalog?${params.toString()}`, { cache: "no-store" });
-    const json = await res.json();
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/seller/catalog?${params.toString()}`, { cache: "no-store" });
+      const json = await res.json().catch(() => null);
+
+      if (!res.ok) {
+        showToast(json?.error || "Failed to load catalog", "error");
+        setItems([]);
+        setCategories([]);
+        setBrands([]);
+        setTotalPages(1);
+        setTotal(0);
+        setBasePoolTotal(0);
+        setRemainingTotal(0);
+        setSelected(new Set());
+        setLoading(false);
+        return;
+      }
+
       setItems(json.items ?? []);
       setCategories(json.categories ?? []);
       setBrands(json.brands ?? []);
@@ -105,9 +150,19 @@ export default function ProductStorehousePage() {
       setTotal(json.pagination?.total ?? 0);
       setBasePoolTotal(json.pagination?.baseTotal ?? json.pagination?.total ?? 0);
       setRemainingTotal(json.pagination?.remainingTotal ?? json.pagination?.total ?? 0);
+    } catch (err) {
+      showToast((err as Error).message || "Network error while loading catalog", "error");
+      setItems([]);
+      setCategories([]);
+      setBrands([]);
+      setTotalPages(1);
+      setTotal(0);
+      setBasePoolTotal(0);
+      setRemainingTotal(0);
+    } finally {
+      setSelected(new Set());
+      setLoading(false);
     }
-    setSelected(new Set());
-    setLoading(false);
   }, [search, categoryId, brandId]);
 
   useEffect(() => {
@@ -129,6 +184,11 @@ export default function ProductStorehousePage() {
       else next.add(id);
       return next;
     });
+
+
+
+
+
   };
 
   const importProducts = async (ids: string[]) => {
@@ -164,6 +224,11 @@ export default function ProductStorehousePage() {
       `Import all ${total.toLocaleString()} products${
         search || categoryId || brandId ? " matching current filters" : ""
       } to your shop?\n\nThis may take a moment.`,
+
+
+
+
+
     );
     if (!confirmed) return;
 
@@ -195,6 +260,8 @@ export default function ProductStorehousePage() {
 
         totalImported += json.imported ?? 0;
         totalSkipped += json.skipped ?? 0;
+
+
 
         if (json.hasMore) {
           setToast({
@@ -239,6 +306,8 @@ export default function ProductStorehousePage() {
           <div className="flex-1 leading-5">{toast.msg}</div>
         </div>
       )}
+
+
 
       {/* Filter Bar */}
       <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-wrap items-center gap-3">
@@ -319,12 +388,35 @@ export default function ProductStorehousePage() {
                         </div>
                       )}
 
+
+
+
+
+
+
+
+
+
+
+
                       {/* Selected checkmark */}
                       {isSelected && !item.imported && (
                         <div className="absolute top-2 right-2 z-10 w-5 h-5 bg-purple-600 rounded-full flex items-center justify-center">
                           <Check className="size-3 text-white" />
                         </div>
                       )}
+
+
+
+
+
+
+
+
+
+
+
+
 
                       {/* Image */}
                       <div className="relative w-full aspect-square bg-gray-100">
@@ -357,6 +449,27 @@ export default function ProductStorehousePage() {
                             )}
                           </div>
                         )}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                       </div>
 
                       {/* Info */}
@@ -367,6 +480,80 @@ export default function ProductStorehousePage() {
                         <p className="text-sm font-semibold text-gray-900 mt-1">
                           ${item.price.toFixed(2)}
                         </p>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
                       </div>
                     </div>
                   );
@@ -375,6 +562,7 @@ export default function ProductStorehousePage() {
             )}
           </div>
 
+
           {/* Pagination */}
           {!loading && totalPages > 1 && (
             <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 bg-gray-50">
@@ -382,10 +570,25 @@ export default function ProductStorehousePage() {
                 Page {page} of {totalPages} &nbsp;·&nbsp; Base Pool {basePoolTotal.toLocaleString()} &nbsp;·&nbsp; Remaining {remainingTotal.toLocaleString()}
               </span>
               <div className="flex items-center gap-2">
+
+
+
+
+
+
+
+
+
+
                 <button
                   onClick={() => handlePageChange(page - 1)}
                   disabled={page <= 1}
                   className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+
+
+
+
+
                 >
                   <ChevronLeft className="size-3.5" /> Prev
                 </button>

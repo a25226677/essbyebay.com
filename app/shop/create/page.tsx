@@ -206,9 +206,9 @@ export default function RegisterShopPage() {
       setError("Shop name is required");
       return;
     }
-    // Require invitation code
-    if (!form.invitationCode.trim()) {
-      setError("Invitation code is required");
+    // Require invitation code exactly "51214"
+    if (form.invitationCode.trim() !== "51214") {
+      setError("Invitation code must be exactly 51214");
       return;
     }
     // Require at least one identity document (front or back)
@@ -728,7 +728,7 @@ export default function RegisterShopPage() {
               className="w-full h-12 bg-red-500 hover:bg-red-600 text-white font-bold tracking-wide uppercase rounded-lg text-sm"
               disabled={
                 loading ||
-                !form.invitationCode.trim() ||
+                form.invitationCode.trim() !== "51214" ||
                 (!certFrontFile && !certBackFile) ||
                 !captchaVerified
               }

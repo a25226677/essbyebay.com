@@ -127,3 +127,25 @@ export interface Review {
   comment: string;
   date: string;
 }
+
+// ─── Seller Dashboard Product Types ───────────────────────────
+
+export type ProductItem = {
+  id: string;
+  title: string;
+  slug: string;
+  price: number;
+  stock_count: number;
+  is_active: boolean;
+  is_featured?: boolean;
+  is_promoted?: boolean;
+  image_url: string | null;
+  categories?: { name: string } | null;
+};
+
+export type WarehouseProductItem = ProductItem & {
+  index: number;
+  sku?: string | null;
+  reason?: string;  // For inactive/OOS: "Inactive" | "Out of Stock"
+};
+
