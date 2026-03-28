@@ -1,8 +1,17 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
-import { Plus, Package, Loader2, Check, ChevronLeft, ChevronRight, ShoppingBag } from "lucide-react";
+import {
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Package,
+  RefreshCw,
+  Search,
+  ShoppingBag,
+} from "lucide-react";
 
 type CatalogItem = {
   id: string;
@@ -13,10 +22,25 @@ type CatalogItem = {
   image: string | null;
   category: string;
   brand: string;
-  imported: boolean;
+  imported?: boolean;
 };
 
 type FilterOption = { id: string; name: string };
+
+type CatalogResponse = {
+  items?: CatalogItem[];
+  categories?: FilterOption[];
+  brands?: FilterOption[];
+  pagination?: {
+    page?: number;
+    limit?: number;
+    total?: number;
+    pages?: number;
+    baseTotal?: number;
+    remainingTotal?: number;
+  };
+  error?: string;
+};
 
 type ToastState = {
   msg: string;
@@ -25,6 +49,7 @@ type ToastState = {
 };
 
 const LIMIT = 50;
+const SEARCH_DEBOUNCE_MS = 350;
 
 export default function ProductStorehousePage() {
   const [items, setItems] = useState<CatalogItem[]>([]);
@@ -32,8 +57,11 @@ export default function ProductStorehousePage() {
   const [brands, setBrands] = useState<FilterOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [importingAll, setImportingAll] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
+  const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [categoryId, setCategoryId] = useState("");
   const [brandId, setBrandId] = useState("");
@@ -44,7 +72,8 @@ export default function ProductStorehousePage() {
   const [total, setTotal] = useState(0);
   const [basePoolTotal, setBasePoolTotal] = useState(0);
   const [remainingTotal, setRemainingTotal] = useState(0);
-  const [importingAll, setImportingAll] = useState(false);
+  const [reloadNonce, setReloadNonce] = useState(0);
+
   const toastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longRunningToastRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -59,13 +88,16 @@ export default function ProductStorehousePage() {
     }
   }, []);
 
-  const showToast = useCallback((msg: string, tone: ToastState["tone"], sticky?: boolean) => {
-    clearToastTimers();
-    setToast({ msg, tone, sticky });
-    if (!sticky) {
-      toastTimeoutRef.current = setTimeout(() => setToast(null), 4000);
-    }
-  }, [clearToastTimers]);
+  const showToast = useCallback(
+    (msg: string, tone: ToastState["tone"], sticky?: boolean) => {
+      clearToastTimers();
+      setToast({ msg, tone, sticky });
+      if (!sticky) {
+        toastTimeoutRef.current = setTimeout(() => setToast(null), 4000);
+      }
+    },
+    [clearToastTimers],
+  );
 
   const formatImportSummary = (imported: number, skipped: number) => {
     const parts = [];
@@ -74,43 +106,98 @@ export default function ProductStorehousePage() {
     return parts.join(", ") || "No changes";
   };
 
-  const fetchCatalog = useCallback(async (pageNum: number = 1) => {
-    setLoading(true);
-    const params = new URLSearchParams({
-      page: String(pageNum),
-      limit: String(LIMIT),
-      search,
-      category_id: categoryId,
-      brand_id: brandId,
-    });
-    const res = await fetch(`/api/seller/catalog?${params.toString()}`, { cache: "no-store" });
-    const json = await res.json();
-    if (res.ok) {
-      setItems(json.items ?? []);
-      setCategories(json.categories ?? []);
-      setBrands(json.brands ?? []);
-      setTotalPages(json.pagination?.pages ?? 1);
-      setTotal(json.pagination?.total ?? 0);
-      setBasePoolTotal(json.pagination?.baseTotal ?? json.pagination?.total ?? 0);
-      setRemainingTotal(json.pagination?.remainingTotal ?? json.pagination?.total ?? 0);
-    }
-    setSelected(new Set());
-    setLoading(false);
-  }, [search, categoryId, brandId]);
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      const normalized = searchInput.trim();
+      setSearch((prev) => {
+        if (prev === normalized) return prev;
+        setPage(1);
+        return normalized;
+      });
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => clearTimeout(timeout);
+  }, [searchInput]);
+
+  const fetchCatalog = useCallback(
+    async (signal: AbortSignal) => {
+      setLoading(true);
+      setError(null);
+
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(LIMIT),
+      });
+      if (search) params.set("search", search);
+      if (categoryId) params.set("category_id", categoryId);
+      if (brandId) params.set("brand_id", brandId);
+
+      try {
+        const res = await fetch(`/api/seller/catalog?${params.toString()}`, {
+          cache: "no-store",
+          signal,
+        });
+        const json = (await res.json()) as CatalogResponse;
+
+        if (!res.ok) {
+          throw new Error(json.error || "Unable to load warehouse catalog");
+        }
+
+        setItems(json.items ?? []);
+        setCategories(json.categories ?? []);
+        setBrands(json.brands ?? []);
+        setTotalPages(json.pagination?.pages ?? 1);
+        setTotal(json.pagination?.total ?? 0);
+        setBasePoolTotal(json.pagination?.baseTotal ?? json.pagination?.total ?? 0);
+        setRemainingTotal(json.pagination?.remainingTotal ?? json.pagination?.total ?? 0);
+        setSelected(new Set());
+      } catch (err) {
+        if (signal.aborted) return;
+        const message =
+          err instanceof Error ? err.message : "Unable to load warehouse catalog";
+        setError(message);
+        setItems([]);
+        setTotalPages(1);
+        setTotal(0);
+        setBasePoolTotal(0);
+        setRemainingTotal(0);
+        setSelected(new Set());
+      } finally {
+        if (!signal.aborted) setLoading(false);
+      }
+    },
+    [page, search, categoryId, brandId],
+  );
 
   useEffect(() => {
-    setPage(1);
-    fetchCatalog(1);
-  }, [fetchCatalog]);
+    const controller = new AbortController();
+    void fetchCatalog(controller.signal);
 
-  const handlePageChange = (newPage: number) => {
-    setPage(newPage);
-    fetchCatalog(newPage);
-  };
+    return () => {
+      controller.abort();
+    };
+  }, [fetchCatalog, reloadNonce]);
+
+  useEffect(() => {
+    return () => {
+      clearToastTimers();
+    };
+  }, [clearToastTimers]);
+
+  const refreshCatalog = useCallback((resetToFirstPage?: boolean) => {
+    if (resetToFirstPage) {
+      setPage(1);
+    }
+    setReloadNonce((prev) => prev + 1);
+  }, []);
+
+  const selectedCount = selected.size;
+  const allVisibleSelected = useMemo(
+    () => items.length > 0 && items.every((item) => selected.has(item.id)),
+    [items, selected],
+  );
 
   const toggleSelect = (id: string) => {
-    const item = items.find((i) => i.id === id);
-    if (item?.imported) return;
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
@@ -119,43 +206,67 @@ export default function ProductStorehousePage() {
     });
   };
 
+  const toggleSelectAllVisible = () => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (allVisibleSelected) {
+        items.forEach((item) => next.delete(item.id));
+      } else {
+        items.forEach((item) => next.add(item.id));
+      }
+      return next;
+    });
+  };
+
   const importSelected = async () => {
-    if (selected.size === 0) return;
+    if (selectedCount === 0) return;
     setImporting(true);
-    showToast("Importing selected items...", "info", true);
+    showToast("Adding selected products...", "info", true);
 
     try {
       const res = await fetch("/api/seller/catalog/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: Array.from(selected) }),
+        body: JSON.stringify({ product_ids: Array.from(selected) }),
       });
-      const json = await res.json();
+      const json = (await res.json()) as {
+        error?: string;
+        imported?: number;
+        skipped?: number;
+      };
 
       if (!res.ok) {
-        showToast(json.error || "Import failed", "error");
-      } else {
-        showToast(
-          formatImportSummary(json.imported ?? 0, json.skipped ?? 0),
-          (json.imported ?? 0) > 0 ? "success" : "info",
-        );
-        fetchCatalog(page);
+        showToast(json.error || "Add to My Product failed", "error");
+        return;
       }
+
+      showToast(
+        formatImportSummary(json.imported ?? 0, json.skipped ?? 0),
+        (json.imported ?? 0) > 0 ? "success" : "info",
+      );
+      setSelected(new Set());
+      refreshCatalog(true);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Add to My Product failed";
+      showToast(message, "error");
     } finally {
       setImporting(false);
     }
   };
 
   const importAll = async () => {
+    if (remainingTotal === 0) return;
+
     const confirmed = window.confirm(
-      `Import all ${total.toLocaleString()} products${
+      `Add all ${remainingTotal.toLocaleString()} available products${
         search || categoryId || brandId ? " matching current filters" : ""
       } to your shop?\n\nThis may take a moment.`,
     );
     if (!confirmed) return;
 
     setImportingAll(true);
-    showToast("Starting import...", "info", true);
+    showToast("Starting add-all import...", "info", true);
 
     let currentPage = 0;
     let totalImported = 0;
@@ -168,15 +279,21 @@ export default function ProductStorehousePage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             search,
-            category_id: categoryId,
-            brand_id: brandId,
+            category_id: categoryId || null,
+            brand_id: brandId || null,
             page: currentPage,
           }),
         });
-        const json = await res.json();
+        const json = (await res.json()) as {
+          error?: string;
+          imported?: number;
+          skipped?: number;
+          hasMore?: boolean;
+          nextPage?: number;
+        };
 
         if (!res.ok) {
-          showToast(json.error || "Import failed", "error");
+          showToast(json.error || "Add all to My Product failed", "error");
           return;
         }
 
@@ -189,7 +306,7 @@ export default function ProductStorehousePage() {
             tone: "info",
             sticky: true,
           });
-          currentPage = json.nextPage;
+          currentPage = Number(json.nextPage ?? currentPage + 1);
         } else {
           break;
         }
@@ -199,262 +316,317 @@ export default function ProductStorehousePage() {
         formatImportSummary(totalImported, totalSkipped),
         totalImported > 0 ? "success" : "info",
       );
-      fetchCatalog(page);
+      setSelected(new Set());
+      refreshCatalog(true);
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Add all to My Product failed";
+      showToast(message, "error");
     } finally {
       setImportingAll(false);
     }
   };
 
+  const changePage = (nextPage: number) => {
+    if (nextPage < 1 || nextPage > totalPages || nextPage === page) return;
+    setPage(nextPage);
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <Package className="size-7 text-purple-600" />
-        <h1 className="text-2xl font-bold text-gray-900">Warehouse</h1>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold text-gray-900">Product Storehouse</h1>
+        <button
+          onClick={() => refreshCatalog()}
+          disabled={loading}
+          className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
+          Refresh
+        </button>
       </div>
 
-      {/* Total Counter */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl px-8 py-5 text-center min-w-[200px]">
-          <div className="size-10 bg-white/20 rounded-full mx-auto mb-2 flex items-center justify-center">
-            <Package className="size-5" />
-          </div>
-          <p className="text-4xl font-black">{total}</p>
-          <p className="text-sm opacity-90 font-medium">Warehouse Items</p>
+      <div className="rounded-xl border border-gray-200 bg-white p-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="relative min-w-[260px] flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="Search by Product Name/Barcode"
+              className="h-11 w-full rounded-lg border border-gray-200 pl-10 pr-3 text-sm text-gray-700 outline-none transition focus:border-sky-400"
+            />
+          </label>
+
+          <select
+            value={categoryId}
+            onChange={(e) => {
+              setCategoryId(e.target.value);
+              setPage(1);
+            }}
+            className="h-11 min-w-[170px] rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-sky-400"
+          >
+            <option value="">All categories</option>
+            {categories.map((category) => (
+              <option key={category.id} value={category.id}>
+                {category.name}
+              </option>
+            ))}
+          </select>
+
+          <select
+            value={brandId}
+            onChange={(e) => {
+              setBrandId(e.target.value);
+              setPage(1);
+            }}
+            className="h-11 min-w-[150px] rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700 outline-none transition focus:border-sky-400"
+          >
+            <option value="">All brands</option>
+            {brands.map((brand) => (
+              <option key={brand.id} value={brand.id}>
+                {brand.name}
+              </option>
+            ))}
+          </select>
+
+          <span className="ml-auto text-xs text-gray-500">
+            Base Pool: {basePoolTotal.toLocaleString()} | Remaining:{" "}
+            {remainingTotal.toLocaleString()}
+          </span>
         </div>
       </div>
 
-      {/* Filter Bar */}
-      <div className="bg-white rounded-xl border border-gray-200 p-3 flex flex-wrap items-center gap-3">
-        <input
-          type="text"
-          placeholder="Search by Product Name/Barcode"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="flex-1 min-w-[220px] text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-purple-400 text-gray-700"
-        />
-        <select
-          value={categoryId}
-          onChange={(e) => setCategoryId(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-[150px]"
-        >
-          <option value="">All categories</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-        <select
-          value={brandId}
-          onChange={(e) => setBrandId(e.target.value)}
-          className="text-sm border border-gray-200 rounded-lg px-3 py-2 text-gray-600 bg-white focus:outline-none focus:ring-2 focus:ring-purple-400 min-w-[140px]"
-        >
-          <option value="">All Brands</option>
-          {brands.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-        {!loading && (
-          <span className="text-xs text-gray-400 ml-auto">
-            Base Pool: {basePoolTotal.toLocaleString()} &nbsp;|&nbsp; Remaining: {remainingTotal.toLocaleString()}
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="rounded-xl border border-gray-200 bg-white">
+          <div className="border-b border-gray-100 px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-medium text-gray-700">
+                Available products ({total.toLocaleString()})
+              </p>
+              {!loading && items.length > 0 && (
+                <label className="inline-flex cursor-pointer items-center gap-2 text-xs text-gray-600">
+                  <input
+                    type="checkbox"
+                    checked={allVisibleSelected}
+                    onChange={toggleSelectAllVisible}
+                    className="size-4 rounded border-gray-300 accent-sky-600"
+                  />
+                  Select page
+                </label>
+              )}
+            </div>
+          </div>
+
+          <div className="min-h-[500px]">
+            {loading ? (
+              <div className="flex h-[500px] flex-col items-center justify-center gap-3 text-gray-500">
+                <Loader2 className="size-8 animate-spin text-sky-600" />
+                <p className="text-sm">Loading products...</p>
+              </div>
+            ) : error ? (
+              <div className="flex h-[500px] flex-col items-center justify-center gap-3 px-6 text-center">
+                <Package className="size-12 text-red-300" />
+                <p className="text-base font-medium text-gray-800">Unable to load products</p>
+                <p className="max-w-md text-sm text-gray-500">{error}</p>
+                <button
+                  onClick={() => refreshCatalog()}
+                  className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-medium text-white hover:bg-sky-700"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : items.length === 0 ? (
+              <div className="flex h-[500px] flex-col items-center justify-center gap-3 text-gray-500">
+                <Package className="size-14 text-gray-300" />
+                <p className="text-lg font-medium text-gray-700">No products found</p>
+                <p className="text-sm text-gray-500">
+                  Try adjusting your search or filters.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {items.map((item) => {
+                  const isSelected = selected.has(item.id);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className={`grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-center gap-3 px-4 py-3 transition ${
+                        isSelected ? "bg-sky-50" : "hover:bg-gray-50"
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => toggleSelect(item.id)}
+                        className="size-4 rounded border-gray-300 accent-sky-600"
+                      />
+
+                      <div className="relative h-12 w-12 overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+                        {item.image ? (
+                          <Image
+                            src={item.image}
+                            alt={item.title}
+                            fill
+                            className="object-cover"
+                            sizes="48px"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center">
+                            <Package className="size-4 text-gray-300" />
+                          </div>
+                        )}
+                        {isSelected && (
+                          <span className="absolute bottom-1 right-1 inline-flex size-4 items-center justify-center rounded-full bg-sky-600 text-white">
+                            <Check className="size-2.5" />
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-gray-900">{item.title}</p>
+                        <p className="truncate text-xs text-gray-500">
+                          SKU: {item.sku || "N/A"} | {item.category}
+                          {item.brand ? ` | ${item.brand}` : ""}
+                        </p>
+                      </div>
+
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-gray-900">
+                          ${item.price.toFixed(2)}
+                        </p>
+                        <p
+                          className={`text-xs ${
+                            item.stock > 0 ? "text-emerald-600" : "text-red-500"
+                          }`}
+                        >
+                          Stock: {item.stock}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <aside className="rounded-xl border border-gray-200 bg-white p-3">
+          <div className="space-y-3">
+            <button
+              onClick={importAll}
+              disabled={loading || importingAll || remainingTotal === 0}
+              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {importingAll ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="size-4 animate-spin" />
+                  Processing...
+                </span>
+              ) : (
+                "Add all to My Product"
+              )}
+            </button>
+
+            <button
+              onClick={importSelected}
+              disabled={loading || importing || selectedCount === 0}
+              className="w-full rounded-lg bg-gray-700 px-3 py-2.5 text-sm font-semibold text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {importing ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="size-4 animate-spin" />
+                  Processing...
+                </span>
+              ) : (
+                "Add to My Product"
+              )}
+            </button>
+
+            <div className="rounded-lg bg-gray-50 p-2.5 text-xs text-gray-600">
+              <p>Selected: {selectedCount.toLocaleString()}</p>
+              <p>Page: {page.toLocaleString()} / {totalPages.toLocaleString()}</p>
+              <p>Remaining: {remainingTotal.toLocaleString()}</p>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-between rounded-xl border border-gray-200 bg-white px-4 py-3">
+          <span className="text-xs text-gray-500">
+            Showing {(page - 1) * LIMIT + 1} -{" "}
+            {Math.min(page * LIMIT, total).toLocaleString()} of{" "}
+            {total.toLocaleString()}
           </span>
-        )}
-      </div>
 
-      {/* Import Actions */}
-      <div className="flex items-center gap-3">
-        <button
-          onClick={importSelected}
-          disabled={selected.size === 0 || importing}
-          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white text-sm font-medium rounded-lg hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {importing ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <Plus className="size-4" />
-          )}
-          Import Selected ({selected.size})
-        </button>
-        <button
-          onClick={importAll}
-          disabled={importingAll || total === 0}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-        >
-          {importingAll ? (
-            <Loader2 className="size-4 animate-spin" />
-          ) : (
-            <ShoppingBag className="size-4" />
-          )}
-          Import All ({total.toLocaleString()})
-        </button>
-      </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => changePage(page - 1)}
+              disabled={page <= 1}
+              className="inline-flex h-8 items-center gap-1 rounded-md border border-gray-200 px-2 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <ChevronLeft className="size-3.5" />
+              Prev
+            </button>
 
-      {/* Toast Notification */}
-      {toast && (
-        <div
-          className={`fixed bottom-6 right-6 z-50 px-5 py-3 rounded-xl shadow-lg text-sm font-medium transition-all ${
-            toast.tone === "success"
-              ? "bg-green-600 text-white"
-              : toast.tone === "error"
-              ? "bg-red-600 text-white"
-              : "bg-gray-800 text-white"
-          }`}
-        >
-          {toast.msg}
+            {Array.from({ length: Math.min(totalPages, 7) }, (_, index) => {
+              let pageNumber: number;
+              if (totalPages <= 7) {
+                pageNumber = index + 1;
+              } else if (page <= 4) {
+                pageNumber = index + 1;
+              } else if (page >= totalPages - 3) {
+                pageNumber = totalPages - 6 + index;
+              } else {
+                pageNumber = page - 3 + index;
+              }
+
+              return (
+                <button
+                  key={pageNumber}
+                  onClick={() => changePage(pageNumber)}
+                  className={`size-8 rounded-md text-xs font-medium ${
+                    pageNumber === page
+                      ? "bg-sky-600 text-white"
+                      : "border border-gray-200 text-gray-700 hover:bg-gray-50"
+                  }`}
+                >
+                  {pageNumber}
+                </button>
+              );
+            })}
+
+            <button
+              onClick={() => changePage(page + 1)}
+              disabled={page >= totalPages}
+              className="inline-flex h-8 items-center gap-1 rounded-md border border-gray-200 px-2 text-xs text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Next
+              <ChevronRight className="size-3.5" />
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Warehouse Table */}
-      <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-        <div className="flex items-center justify-between p-6 border-b border-gray-100">
-          <h2 className="text-xl font-semibold text-gray-800">
-            All Warehouse Products
-          </h2>
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 z-50 rounded-xl px-4 py-2.5 text-sm font-medium text-white shadow-lg ${
+            toast.tone === "success"
+              ? "bg-emerald-600"
+              : toast.tone === "error"
+                ? "bg-red-600"
+                : "bg-gray-800"
+          }`}
+        >
+          <span className="inline-flex items-center gap-2">
+            {toast.sticky && <ShoppingBag className="size-4" />}
+            {toast.msg}
+          </span>
         </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-gray-100 text-gray-500 uppercase tracking-wider text-xs">
-                <th className="text-left px-6 py-4 font-semibold w-12">#</th>
-                <th className="text-left px-6 py-4 font-semibold">Image</th>
-                <th className="text-left px-6 py-4 font-semibold">Product Name</th>
-                <th className="text-left px-6 py-4 font-semibold">Category</th>
-                <th className="text-left px-6 py-4 font-semibold">Stock</th>
-                <th className="text-left px-6 py-4 font-semibold">Price</th>
-                <th className="text-center px-6 py-4 font-semibold">Status</th>
-                <th className="text-right px-6 py-4 font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {loading ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-16 text-center text-gray-500 text-lg">
-                    <Package className="size-12 mx-auto mb-4 text-gray-300" />
-                    Loading warehouse...
-                  </td>
-                </tr>
-              ) : items.length === 0 ? (
-                <tr>
-                  <td colSpan={8} className="px-6 py-20 text-center text-gray-500">
-                    <Package className="size-16 mx-auto mb-4 text-gray-300" />
-                    <p className="text-lg font-medium mb-1">No products in warehouse</p>
-                    <p className="text-sm">Add your first product to get started.</p>
-                  </td>
-                </tr>
-              ) : (
-                items.map((item, index) => (
-                  <tr key={item.id} className="hover:bg-gray-50 transition-colors">
-                    <td className="px-6 py-4 text-gray-500 font-mono text-sm">{(page - 1) * LIMIT + index + 1}</td>
-                    <td className="px-6 py-4">
-                      <div className="relative w-14 h-14 rounded-lg overflow-hidden bg-gray-50 border">
-                        <Image
-                          src={item.image || `/api/placeholder/56/56`}
-                          alt={item.title}
-                          width={56}
-                          height={56}
-                          className="w-full h-full object-cover"
-                        />
-                        {item.imported && (
-                          <div className="absolute top-1 right-1 z-10 flex items-center gap-0.5 bg-blue-600 text-white text-[10px] font-semibold px-1 py-0.5 rounded">
-                            <ShoppingBag className="size-2" />
-                          </div>
-                        )}
-                        {selected.has(item.id) && !item.imported && (
-                          <div className="absolute top-1 right-1 z-10 w-5 h-5 bg-purple-600 rounded-full flex items-center justify-center">
-                            <Check className="size-3 text-white" />
-                          </div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <p className="font-medium text-gray-900 line-clamp-2">{item.title}</p>
-                      <p className="text-xs text-gray-500 mt-0.5">SKU: {item.sku}</p>
-                    </td>
-                    <td className="px-6 py-4 text-gray-600">{item.category}</td>
-                    <td className="px-6 py-4 text-gray-600">{item.stock}</td>
-                    <td className="px-6 py-4 font-medium text-gray-900">${item.price.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-center">
-                      {item.imported ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full">
-                          <ShoppingBag className="size-3" />
-                          In Shop
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-600 text-xs font-medium rounded-full">
-                          Available
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {!item.imported && (
-                        <button
-                          onClick={() => toggleSelect(item.id)}
-                          className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                            selected.has(item.id)
-                              ? "bg-purple-600 text-white"
-                              : "bg-gray-100 text-gray-700 hover:bg-purple-100 hover:text-purple-700"
-                          }`}
-                        >
-                          {selected.has(item.id) ? "Selected" : "Select"}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination */}
-        {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-100 px-4 py-3 bg-gray-50">
-            <span className="text-xs text-gray-500">
-              Page {page} of {totalPages} &nbsp;·&nbsp; Base Pool {basePoolTotal.toLocaleString()} &nbsp;·&nbsp; Remaining {remainingTotal.toLocaleString()}
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => handlePageChange(page - 1)}
-                disabled={page <= 1}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                <ChevronLeft className="size-3.5" /> Prev
-              </button>
-              {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
-                let p: number;
-                if (totalPages <= 7) {
-                  p = i + 1;
-                } else if (page <= 4) {
-                  p = i + 1;
-                } else if (page >= totalPages - 3) {
-                  p = totalPages - 6 + i;
-                } else {
-                  p = page - 3 + i;
-                }
-                return (
-                  <button
-                    key={p}
-                    onClick={() => handlePageChange(p)}
-                    className={`w-7 h-7 text-xs rounded-lg font-medium transition-colors ${
-                      p === page
-                        ? "bg-purple-600 text-white"
-                        : "border border-gray-200 text-gray-600 hover:bg-white"
-                    }`}
-                  >
-                    {p}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => handlePageChange(page + 1)}
-                disabled={page >= totalPages}
-                className="flex items-center gap-1 px-3 py-1.5 text-xs font-medium border border-gray-200 rounded-lg hover:bg-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              >
-                Next <ChevronRight className="size-3.5" />
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }

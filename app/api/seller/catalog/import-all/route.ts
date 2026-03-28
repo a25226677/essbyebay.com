@@ -1,6 +1,7 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { createAdminServiceClient } from "@/lib/supabase/admin-client";
 import { buildOwnedCatalogLookup, getCanonicalSourceProductId, isOwnedCatalogProduct } from "@/lib/seller-catalog";
+import { buildAllActiveNonOwnedFilter } from "@/lib/seller-storehouse-catalog";
 import { NextResponse } from "next/server";
 
 // Each request handles one page — keeps every DB query well under the statement timeout.
@@ -123,7 +124,7 @@ export async function POST(request: Request) {
       "id,title,sku,price,stock_count,image_url,category_id,brand_id,description,source_product_id",
     )
     .eq("is_active", true)
-    .is("shop_id", null)
+    .or(buildAllActiveNonOwnedFilter(userId))
     .order("created_at", { ascending: false })
     .range(from, to);
 
@@ -150,9 +151,13 @@ export async function POST(request: Request) {
 
   const reservedSlugs = new Set<string>();
   const reservedSkus = new Set<string>();
+  const seenCanonicalSourceIds = new Set<string>();
 
   const toInsert = sourceProducts
     .filter((p) => {
+      const canonicalSourceId = getCanonicalSourceProductId(p) || p.id;
+      if (seenCanonicalSourceIds.has(canonicalSourceId)) return false;
+      seenCanonicalSourceIds.add(canonicalSourceId);
       return !isOwnedCatalogProduct(p, ownedLookup);
     })
     .map((p) => {

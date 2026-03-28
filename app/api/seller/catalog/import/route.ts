@@ -1,6 +1,7 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { createAdminServiceClient } from "@/lib/supabase/admin-client";
 import { buildOwnedCatalogLookup, getCanonicalSourceProductId, isOwnedCatalogProduct } from "@/lib/seller-catalog";
+import { buildAllActiveNonOwnedFilter } from "@/lib/seller-storehouse-catalog";
 import { NextResponse } from "next/server";
 
 function slugify(value: string) {
@@ -134,9 +135,20 @@ export async function POST(request: Request) {
   if (context instanceof NextResponse) return context;
   const { supabase, userId } = context;
 
-  const body = await request.json();
-  // product_ids: string[] to import
-  const { product_ids } = body as { product_ids: string[] };
+  const body = (await request.json()) as {
+    product_ids?: unknown;
+    ids?: unknown;
+  };
+  // Accept legacy `ids` as well to avoid client breakage.
+  const rawIds = Array.isArray(body.product_ids)
+    ? body.product_ids
+    : Array.isArray(body.ids)
+      ? body.ids
+      : [];
+  const product_ids = rawIds
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
 
   if (!Array.isArray(product_ids) || product_ids.length === 0) {
     return NextResponse.json({ error: "product_ids array is required" }, { status: 400 });
@@ -155,13 +167,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: (err as Error).message || "Failed to resolve shop" }, { status: 500 });
   }
 
-  // Fetch source products from admin catalog
+  // Fetch selected source products from the global active pool (excluding seller's own rows).
   const db = createAdminServiceClient();
   const { data: sourceProducts, error: fetchError } = await db
     .from("products")
     .select("id,title,sku,price,stock_count,image_url,category_id,brand_id,description,source_product_id")
     .in("id", product_ids)
-    .is("shop_id", null)
+    .or(buildAllActiveNonOwnedFilter(userId))
     .eq("is_active", true);
 
   if (fetchError) {
@@ -179,14 +191,18 @@ export async function POST(request: Request) {
     .eq("seller_id", userId);
 
   const ownedLookup = buildOwnedCatalogLookup(existing || []);
+  const seenCanonicalSourceIds = new Set<string>();
   const reservedSkus = new Set<string>();
   const reservedSlugs = new Set<string>();
   const importableProducts = sourceProducts.filter((p) => {
+    const canonicalSourceId = getCanonicalSourceProductId(p) || p.id;
+    if (seenCanonicalSourceIds.has(canonicalSourceId)) return false;
+    seenCanonicalSourceIds.add(canonicalSourceId);
     return !isOwnedCatalogProduct(p, ownedLookup);
   });
   const toInsert = await Promise.all(
     importableProducts.map(async (p) => {
-      const canonicalSourceId = getCanonicalSourceProductId(p);
+      const canonicalSourceId = getCanonicalSourceProductId(p) || p.id;
       return {
         seller_id: userId,
         shop_id: shopId,
@@ -200,7 +216,7 @@ export async function POST(request: Request) {
         stock_count: p.stock_count ?? 1000,
         image_url: p.image_url ?? null,
         is_active: true,
-        source_product_id: canonicalSourceId || p.id,
+        source_product_id: canonicalSourceId,
       };
     }),
   );
