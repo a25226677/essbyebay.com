@@ -233,13 +233,21 @@ export default function ProductStorehousePage() {
           const attemptController = new AbortController();
           let timedOut = false;
 
-          const onAbort = () => attemptController.abort();
+          const onAbort = () => {
+            if (attemptController.signal.aborted) return;
+            attemptController.abort(
+              signal.reason ?? new DOMException("Request aborted", "AbortError"),
+            );
+          };
           if (signal.aborted) return;
           signal.addEventListener("abort", onAbort, { once: true });
 
           const timeoutId = setTimeout(() => {
             timedOut = true;
-            attemptController.abort();
+            if (attemptController.signal.aborted) return;
+            attemptController.abort(
+              new DOMException("Catalog request timed out", "TimeoutError"),
+            );
           }, CATALOG_REQUEST_TIMEOUT_MS);
 
           try {
@@ -346,7 +354,7 @@ export default function ProductStorehousePage() {
     void fetchCatalog(controller.signal);
 
     return () => {
-      controller.abort();
+      controller.abort(new DOMException("Catalog request cancelled", "AbortError"));
     };
   }, [fetchCatalog, reloadNonce]);
 

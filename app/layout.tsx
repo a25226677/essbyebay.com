@@ -4,6 +4,7 @@ import "./globals.css";
 import { Header } from "@/components/header";
 import { Footer } from "@/components/footer";
 import { MobileBottomNav } from "@/components/header/mobile-bottom-nav";
+import { ChunkLoadRecovery } from "@/components/chunk-load-recovery";
 import { Toaster } from "sonner";
 import { ChatwayWidget } from "@/components/chatway-widget";
 import { absoluteUrl, buildMetadata, seoConfig, siteUrl } from "@/lib/seo";
@@ -86,6 +87,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${openSans.className} antialiased`}>
+        <ChunkLoadRecovery />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData) }}
