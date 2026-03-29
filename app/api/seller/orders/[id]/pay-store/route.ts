@@ -101,6 +101,22 @@ export async function POST(
   const subtotal = sellerItems.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
   const profit = Math.max(0, subtotal - storehouseTotal);
 
+  // Read order lifecycle state so we can place profit in the correct bucket.
+  const { data: orderMeta, error: orderMetaError } = await db
+    .from("orders")
+    .select("order_code, created_at, status, delivery_status")
+    .eq("id", orderId)
+    .maybeSingle();
+
+  if (orderMetaError) {
+    return NextResponse.json({ error: orderMetaError.message }, { status: 500 });
+  }
+
+  const isAlreadyDelivered =
+    String(orderMeta?.delivery_status || "").toLowerCase() === "delivered" ||
+    String(orderMeta?.status || "").toLowerCase() === "delivered";
+  const nextPickupStatus = isAlreadyDelivered ? "picked_up" : "unpicked_up";
+
   // Get seller's current wallet balance
   const { data: profile, error: profileError } = await db
     .from("profiles")
@@ -128,11 +144,16 @@ export async function POST(
   }
 
   // Deduct from seller wallet balance
+  const nextWalletBalance =
+    currentBalance - storehouseTotal + (isAlreadyDelivered ? profit : 0);
+  const nextPendingBalance =
+    currentPending + (isAlreadyDelivered ? 0 : profit);
+
   const { error: balanceError } = await db
     .from("profiles")
     .update({
-      wallet_balance: currentBalance - storehouseTotal,
-      pending_balance: currentPending + profit,
+      wallet_balance: nextWalletBalance,
+      pending_balance: nextPendingBalance,
     })
     .eq("id", userId);
 
@@ -140,16 +161,9 @@ export async function POST(
     return NextResponse.json({ error: balanceError.message }, { status: 500 });
   }
 
-  // Fetch order code for display
-  const { data: orderRow } = await db
-    .from("orders")
-    .select("order_code, created_at")
-    .eq("id", orderId)
-    .maybeSingle();
-
   const orderCode =
-    orderRow?.order_code ||
-    `${new Date(orderRow?.created_at || Date.now()).toISOString().slice(0, 10).replace(/-/g, "")}-${orderId.slice(0, 8).toUpperCase()}`;
+    orderMeta?.order_code ||
+    `${new Date(orderMeta?.created_at || Date.now()).toISOString().slice(0, 10).replace(/-/g, "")}-${orderId.slice(0, 8).toUpperCase()}`;
 
   // Set unfreeze_date to 24 hours from now (standard freeze period)
   const unfreezeDate = new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString();
@@ -159,7 +173,7 @@ export async function POST(
   if (frozeOrder) {
     const { error } = await db
       .from("froze_orders")
-      .update({ payment_status: "paid", profit, unfreeze_date: unfreezeDate, pickup_status: "picked_up" })
+      .update({ payment_status: "paid", profit, unfreeze_date: unfreezeDate, pickup_status: nextPickupStatus })
       .eq("id", frozeOrder.id);
     updateError = error;
   } else {
@@ -170,7 +184,7 @@ export async function POST(
       amount: storehouseTotal,
       profit,
       payment_status: "paid",
-      pickup_status: "picked_up",
+      pickup_status: nextPickupStatus,
       unfreeze_date: unfreezeDate,
     });
     updateError = error;
@@ -188,7 +202,7 @@ export async function POST(
 
   const { error: orderUpdateError } = await db
     .from("orders")
-    .update({ pickup_status: "picked_up" })
+    .update({ pickup_status: nextPickupStatus })
     .eq("id", orderId);
 
   if (orderUpdateError) {
@@ -222,8 +236,8 @@ export async function POST(
     success: true,
     message: `Store payment of $${storehouseTotal.toFixed(2)} processed successfully`,
     deducted: storehouseTotal,
-    newBalance: currentBalance - storehouseTotal,
-    pendingBalance: currentPending + profit,
+    newBalance: nextWalletBalance,
+    pendingBalance: nextPendingBalance,
     profit,
   });
 }
