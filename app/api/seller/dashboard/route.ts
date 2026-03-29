@@ -83,6 +83,7 @@ export async function GET() {
     seller_id: string;
     product_id: string;
     line_total: number;
+    storehouse_price: number;
   };
 
   type FrozeOrderRow = {
@@ -95,7 +96,7 @@ export async function GET() {
     // Direct: order_items where seller_id = userId
     supabase
       .from("order_items")
-      .select("id, order_id, quantity, seller_id, product_id, line_total")
+      .select("id, order_id, quantity, seller_id, product_id, line_total, storehouse_price")
       .eq("seller_id", userId),
 
     // Fallback: order_items for any product the seller currently owns (batched)
@@ -103,7 +104,7 @@ export async function GET() {
       (chunk) =>
         supabase
           .from("order_items")
-          .select("id, order_id, quantity, seller_id, product_id, line_total")
+          .select("id, order_id, quantity, seller_id, product_id, line_total, storehouse_price")
           .in("product_id", chunk) as unknown as PromiseLike<{ data: OrderItemRow[] | null; error: { message: string } | null }>,
       sellerProductIds,
     ),
@@ -117,7 +118,7 @@ export async function GET() {
     // Pre-fetch seller profile to avoid redundant query later
     supabase
       .from("profiles")
-      .select("seller_views,wallet_balance")
+      .select("seller_views,wallet_balance,pending_balance")
       .eq("id", userId)
       .maybeSingle(),
   ]);
@@ -208,7 +209,9 @@ export async function GET() {
   // Use pre-fetched seller profile
   const sellerViews = sellerProfileRes.data?.seller_views ?? 0;
   const shopRating = Number(shop?.rating ?? 0);
-  const balance = Number(sellerProfileRes.data?.wallet_balance ?? 0);
+  const availableBalance = Number(sellerProfileRes.data?.wallet_balance ?? 0);
+  const pendingBalance = Number(sellerProfileRes.data?.pending_balance ?? 0);
+  const totalShopBalance = Number((availableBalance + pendingBalance).toFixed(2));
 
   // ── STEP 4: Fetch order details ───────────────────────────────────────────
   const ordersResult =
@@ -240,12 +243,23 @@ export async function GET() {
 
   const orderMap = new Map(orders.map((order) => [order.id, order]));
   const orderSalesMap = new Map<string, number>();
+  const orderProfitMap = new Map<string, number>();
   const deliveredOrderIds = new Set<string>();
 
   for (const row of orderItemRows) {
+    const lineTotal = Number(row.line_total || 0);
+    const quantity = Number(row.quantity || 0);
+    const storehouseUnit = Number(row.storehouse_price || 0);
+    const storehouseTotal = storehouseUnit * quantity;
+    const itemProfit = Math.max(0, Number((lineTotal - storehouseTotal).toFixed(2)));
+
     orderSalesMap.set(
       row.order_id,
-      Number(((orderSalesMap.get(row.order_id) || 0) + Number(row.line_total || 0)).toFixed(2)),
+      Number(((orderSalesMap.get(row.order_id) || 0) + lineTotal).toFixed(2)),
+    );
+    orderProfitMap.set(
+      row.order_id,
+      Number(((orderProfitMap.get(row.order_id) || 0) + itemProfit).toFixed(2)),
     );
   }
 
@@ -256,6 +270,7 @@ export async function GET() {
       ((Number(row.amount || 0) || 0) + (Number(row.profit || 0) || 0)).toFixed(2),
     );
     orderSalesMap.set(row.order_id, grossAmount);
+    orderProfitMap.set(row.order_id, Number((Number(row.profit || 0) || 0).toFixed(2)));
   }
 
   for (const order of orders) {
@@ -268,25 +283,29 @@ export async function GET() {
   const totalSales = Number(
     [...deliveredOrderIds].reduce((sum, orderId) => sum + (orderSalesMap.get(orderId) || 0), 0).toFixed(2),
   );
+  const totalProfit = Number(
+    [...deliveredOrderIds].reduce((sum, orderId) => sum + (orderProfitMap.get(orderId) || 0), 0).toFixed(2),
+  );
 
   // ── STEP 7: Calculate category breakdown ───────────────────────────────────
   const catMap: Record<string, { name: string; count: number }> = {};
   const uniqueCatIds = [...new Set(
     (categoryRowsResult.data ?? [])
-      .map((p: any) => p.category_id as string | null)
-      .filter(Boolean),
+      .map((p) => p.category_id)
+      .filter((id): id is string => Boolean(id)),
   )];
 
   // Fetch category names for valid IDs
+  type CategoryNameRow = { id: string; name: string };
   const { data: categories } = uniqueCatIds.length > 0
     ? await supabase
         .from("categories")
         .select("id,name")
         .in("id", uniqueCatIds)
-    : { data: [] };
+    : { data: [] as CategoryNameRow[] };
 
   const catNameMap = new Map(
-    (categories ?? []).map((c: any) => [c.id, c.name]),
+    ((categories ?? []) as CategoryNameRow[]).map((c) => [c.id, c.name]),
   );
 
   // Build category breakdown
@@ -331,9 +350,13 @@ export async function GET() {
     shop,
     stats: {
       productCount,
-      balance,
-      totalOrders: deliveredOrderIds.size,
+      balance: totalShopBalance,
+      availableBalance,
+      pendingBalance,
+      totalOrders: orders.length,
+      deliveredOrders: deliveredOrderIds.size,
       totalSales,
+      totalProfit,
       views: sellerViews,
       rating: shopRating,
     },

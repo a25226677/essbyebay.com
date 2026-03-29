@@ -9,6 +9,9 @@ export type UserData = {
   avatarUrl: string | null;
   creditScore: number;
   balance: number;
+  availableBalance: number;
+  pendingBalance: number;
+  totalShopBalance: number;
   guaranteeMoney: number;
   shopName: string;
   shopLogoUrl: string | null;
@@ -21,6 +24,9 @@ const DEFAULT: UserData = {
   avatarUrl: null,
   creditScore: 100,
   balance: 0,
+  availableBalance: 0,
+  pendingBalance: 0,
+  totalShopBalance: 0,
   guaranteeMoney: 0,
   shopName: "",
   shopLogoUrl: null,
@@ -51,6 +57,10 @@ export function useUserData(): { user: UserData; loading: boolean } {
           avatarUrl:    data.avatarUrl    ?? null,
           creditScore:  data.creditScore  ?? 100,
           balance:      data.balance      ?? 0,
+          availableBalance: data.availableBalance ?? data.balance ?? 0,
+          pendingBalance: data.pendingBalance ?? 0,
+          totalShopBalance:
+            data.totalShopBalance ?? Number(((data.availableBalance ?? data.balance ?? 0) + (data.pendingBalance ?? 0)).toFixed(2)),
           guaranteeMoney: data.guaranteeMoney ?? 0,
           shopName:     data.shopName     || "",
           shopLogoUrl:  data.shopLogoUrl  ?? null,

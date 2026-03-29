@@ -18,7 +18,7 @@ export async function GET() {
   const [{ data: profile }, { data: shop }] = await Promise.all([
     supabase
       .from("profiles")
-      .select("full_name, avatar_url, credit_score, wallet_balance, balance, guarantee_money, is_verified")
+      .select("full_name, avatar_url, credit_score, wallet_balance, pending_balance, balance, guarantee_money, is_verified")
       .eq("id", userId)
       .maybeSingle(),
     supabase
@@ -28,13 +28,20 @@ export async function GET() {
       .maybeSingle(),
   ]);
 
+  const availableBalance = Number(profile?.wallet_balance ?? profile?.balance ?? 0);
+  const pendingBalance = Number(profile?.pending_balance ?? 0);
+  const totalShopBalance = Number((availableBalance + pendingBalance).toFixed(2));
+
   return NextResponse.json({
     email: authUser?.email ?? "",
     fullName: profile?.full_name || authUser?.user_metadata?.full_name || "Seller",
     avatarUrl: profile?.avatar_url ?? null,
     creditScore:
       profile?.credit_score && profile.credit_score > 0 ? profile.credit_score : 100,
-    balance: profile?.wallet_balance ?? profile?.balance ?? 0,
+    balance: availableBalance,
+    availableBalance,
+    pendingBalance,
+    totalShopBalance,
     guaranteeMoney: profile?.guarantee_money ?? 0,
     shopName: shop?.name ?? "",
     shopLogoUrl: shop?.logo_url ?? null,

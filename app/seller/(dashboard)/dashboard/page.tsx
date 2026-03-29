@@ -20,7 +20,18 @@ import { useEffect, useState } from "react";
 
 type DashboardData = {
   shop: { id: string; name: string; is_verified: boolean; product_count: number; logo_url: string | null; rating: number } | null;
-  stats: { productCount: number; balance: number; totalOrders: number; totalSales: number; views: number; rating: number };
+  stats: {
+    productCount: number;
+    balance: number;
+    availableBalance?: number;
+    pendingBalance?: number;
+    totalOrders: number;
+    deliveredOrders?: number;
+    totalSales: number;
+    totalProfit?: number;
+    views: number;
+    rating: number;
+  };
   orders: { newOrder: number; processing: number; cancelled: number; onDelivery: number; delivered: number };
   categoryProducts: { name: string; count: number }[];
   salesData: { month: string; amount: number }[];
@@ -67,6 +78,11 @@ export default function SellerDashboardPage() {
   const maxSlide = Math.max(0, topProducts.length - 4);
   const maxSales = Math.max(...(data?.salesData.map((d) => d.amount) ?? [1]), 1);
 
+  const availableBalance = data?.stats.availableBalance ?? data?.stats.balance ?? 0;
+  const pendingBalance = data?.stats.pendingBalance ?? 0;
+  const totalShopBalance = data?.stats.balance ?? Number((availableBalance + pendingBalance).toFixed(2));
+  const deliveredOrders = data?.stats.deliveredOrders ?? data?.orders.delivered ?? 0;
+
   const statCards = data
     ? [
         { label: "Products", value: data.stats.productCount.toLocaleString(), icon: Package, color: "bg-sky-500", extraContent: (
@@ -76,9 +92,39 @@ export default function SellerDashboardPage() {
             </span>
           </div>
         ) },
-        { label: "Total Shop Balance", value: formatCurrency(data.stats.balance), icon: DollarSign, color: "bg-green-500" },
-        { label: "Total Orders", value: data.stats.totalOrders.toLocaleString(), icon: ShoppingCart, color: "bg-sky-400" },
-        { label: "Total Sales", value: formatCurrency(data.stats.totalSales), icon: TrendingUp, color: "bg-sky-600" },
+        {
+          label: "Total Shop Balance",
+          value: formatCurrency(totalShopBalance),
+          icon: DollarSign,
+          color: "bg-green-500",
+          extraContent: (
+            <div className="mt-3 text-xs opacity-90">
+              Available {formatCurrency(availableBalance)} | Pending {formatCurrency(pendingBalance)}
+            </div>
+          ),
+        },
+        {
+          label: "Total Orders",
+          value: data.stats.totalOrders.toLocaleString(),
+          icon: ShoppingCart,
+          color: "bg-sky-400",
+          extraContent: (
+            <div className="mt-3 text-xs opacity-90">
+              Delivered {deliveredOrders.toLocaleString()}
+            </div>
+          ),
+        },
+        {
+          label: "Delivered Sales",
+          value: formatCurrency(data.stats.totalSales),
+          icon: TrendingUp,
+          color: "bg-sky-600",
+          extraContent: (
+            <div className="mt-3 text-xs opacity-90">
+              Profit {formatCurrency(data.stats.totalProfit ?? 0)}
+            </div>
+          ),
+        },
       ]
     : [];
 

@@ -19,15 +19,17 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
 
   const displayName = profile.shopName || profile.fullName || "My Shop";
   const avatarUrl = profile.shopLogoUrl || profile.avatarUrl || "/logo.png";
-  const balance = profile.balance;
+  const totalShopBalance = profile.totalShopBalance ?? profile.balance;
+  const availableBalance = profile.availableBalance ?? profile.balance;
+  const pendingBalance = profile.pendingBalance ?? 0;
 
   const handleSignOut = async () => {
     setUserMenuOpen(false);
     try {
-      const res = await fetch("/api/auth/signout?next=/seller/login", { method: "POST" });
+      await fetch("/api/auth/signout?next=/seller/login", { method: "POST" });
       // Redirect to known location instead of relying on fetch's redirect URL
       window.location.href = "/seller/login";
-    } catch (e) {
+    } catch {
       window.location.href = "/seller/login";
     }
   };
@@ -87,9 +89,10 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
         <Link
           href="/seller/withdraw"
           className="flex items-center gap-1.5 text-sm text-sky-600 font-medium"
+          title={`Available: $${availableBalance.toFixed(2)} | Pending: $${pendingBalance.toFixed(2)}`}
         >
           <span>💰</span>
-          Balance: ${balance.toFixed(2)}
+          Shop Balance: ${totalShopBalance.toFixed(2)}
         </Link>
         <Link
           href="/seller/withdraw"
