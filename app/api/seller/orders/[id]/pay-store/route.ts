@@ -93,15 +93,17 @@ export async function POST(
     );
   }
 
-  // Calculate storehouse total (what seller owes) and profit
+  // Calculate storehouse total (what seller owes) and profit.
+  // releaseAmount = gross seller sale for this order slice.
   const storehouseTotal = sellerItems.reduce(
     (sum, item) => sum + Number(item.storehouse_price || 0) * Number(item.quantity || 0),
     0
   );
   const subtotal = sellerItems.reduce((sum, item) => sum + Number(item.line_total || 0), 0);
   const profit = Math.max(0, subtotal - storehouseTotal);
+  const releaseAmount = Number((storehouseTotal + profit).toFixed(2));
 
-  // Read order lifecycle state so we can place profit in the correct bucket.
+  // Read order lifecycle state so we can place the full release amount in the correct bucket.
   const { data: orderMeta, error: orderMetaError } = await db
     .from("orders")
     .select("order_code, created_at, status, delivery_status")
@@ -143,11 +145,12 @@ export async function POST(
     );
   }
 
-  // Deduct from seller wallet balance
+  // Deduct storehouse fee from wallet, then route release amount by lifecycle:
+  // delivered -> credit wallet now, otherwise -> hold in pending.
   const nextWalletBalance =
-    currentBalance - storehouseTotal + (isAlreadyDelivered ? profit : 0);
+    currentBalance - storehouseTotal + (isAlreadyDelivered ? releaseAmount : 0);
   const nextPendingBalance =
-    currentPending + (isAlreadyDelivered ? 0 : profit);
+    currentPending + (isAlreadyDelivered ? 0 : releaseAmount);
 
   const { error: balanceError } = await db
     .from("profiles")
@@ -239,5 +242,7 @@ export async function POST(
     newBalance: nextWalletBalance,
     pendingBalance: nextPendingBalance,
     profit,
+    release_amount: releaseAmount,
+    credited_to_wallet: isAlreadyDelivered ? releaseAmount : 0,
   });
 }

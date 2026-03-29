@@ -73,65 +73,6 @@ export async function PATCH(request: Request, { params }: Params) {
     const { error } = await db.from("orders").update(updates).eq("id", id);
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-    // When order is marked as delivered, release pending profit for all sellers with items in this order
-    if (updates.delivery_status === "delivered" || updates.status === "delivered") {
-      try {
-        // Get all sellers' items in this order
-        const { data: orderItems } = await db
-          .from("order_items")
-          .select("seller_id, line_total")
-          .eq("order_id", id);
-
-        if (orderItems && orderItems.length > 0) {
-          const sellerProfitMap = new Map<string, number>();
-          
-          // Get frozen orders for sellers in this order
-          const sellerIds = [...new Set((orderItems as any[]).map(item => item.seller_id).filter(Boolean))];
-          
-          for (const sellerId of sellerIds) {
-            const { data: frozeOrder } = await db
-              .from("froze_orders")
-              .select("profit, payment_status, pickup_status")
-              .eq("order_id", id)
-              .eq("seller_id", sellerId)
-              .maybeSingle();
-
-            if (frozeOrder?.payment_status === "paid" && frozeOrder?.pickup_status !== "picked_up") {
-              const { data: profile } = await db
-                .from("profiles")
-                .select("pending_balance,wallet_balance")
-                .eq("id", sellerId)
-                .single();
-
-              if (profile) {
-                const releasedProfit = Math.max(0, Number(frozeOrder.profit || 0));
-                const currentPending = Number(profile.pending_balance || 0);
-                const currentWallet = Number(profile.wallet_balance || 0);
-                
-                await db
-                  .from("profiles")
-                  .update({
-                    pending_balance: Math.max(0, currentPending - releasedProfit),
-                    wallet_balance: currentWallet + releasedProfit,
-                  })
-                  .eq("id", sellerId);
-
-                // Mark the frozen order as released so we don't credit the wallet twice
-                await db
-                  .from("froze_orders")
-                  .update({ pickup_status: "picked_up" })
-                  .eq("order_id", id)
-                  .eq("seller_id", sellerId);
-              }
-            }
-          }
-        }
-      } catch (err) {
-        // Non-blocking — profit credit failure should not block status update
-        console.error("Profit release error:", err);
-      }
-    }
-
     // Send order status email notification (non-blocking)
     if (updates.status || updates.delivery_status) {
       try {

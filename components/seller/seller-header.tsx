@@ -92,7 +92,15 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
           title={`Available: $${availableBalance.toFixed(2)} | Pending: $${pendingBalance.toFixed(2)}`}
         >
           <span>💰</span>
-          Shop Balance: ${totalShopBalance.toFixed(2)}
+          Total Shop Balance: ${totalShopBalance.toFixed(2)}
+        </Link>
+        <Link
+          href="/seller/withdraw"
+          className="flex items-center gap-1.5 text-sm text-emerald-600 font-medium"
+          title={`Available wallet ready to withdraw or spend`}
+        >
+          <span>💵</span>
+          Available Wallet: ${availableBalance.toFixed(2)}
         </Link>
         <Link
           href="/seller/withdraw"

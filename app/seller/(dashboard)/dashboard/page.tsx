@@ -5,6 +5,7 @@ import Image from "next/image";
 import {
   Package,
   DollarSign,
+  Wallet,
   ShoppingCart,
   TrendingUp,
   Star,
@@ -104,6 +105,17 @@ export default function SellerDashboardPage() {
           ),
         },
         {
+          label: "Available Wallet",
+          value: formatCurrency(availableBalance),
+          icon: Wallet,
+          color: "bg-emerald-600",
+          extraContent: (
+            <div className="mt-3 text-xs opacity-90">
+              Pending {formatCurrency(pendingBalance)}
+            </div>
+          ),
+        },
+        {
           label: "Total Orders",
           value: data.stats.totalOrders.toLocaleString(),
           icon: ShoppingCart,
@@ -148,9 +160,9 @@ export default function SellerDashboardPage() {
       )}
 
       {/* ── Stat Cards ── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         {loading
-          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          ? Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
           : statCards.map((stat) => {
               const Icon = stat.icon;
               return (
