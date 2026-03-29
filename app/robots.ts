@@ -5,6 +5,22 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
       {
+        userAgent: "GPTBot",
+        disallow: "/",
+      },
+      {
+        userAgent: "OAI-SearchBot",
+        disallow: "/",
+      },
+      {
+        userAgent: "ClaudeBot",
+        disallow: "/",
+      },
+      {
+        userAgent: "Claude-SearchBot",
+        disallow: "/",
+      },
+      {
         userAgent: "*",
         allow: "/",
         disallow: [
