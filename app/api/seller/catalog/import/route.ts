@@ -1,6 +1,6 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { createAdminServiceClient } from "@/lib/supabase/admin-client";
-import { buildOwnedCatalogLookup, getCanonicalSourceProductId, isOwnedCatalogProduct } from "@/lib/seller-catalog";
+import { buildOwnedCatalogLookup, getCanonicalSourceProductId } from "@/lib/seller-catalog";
 import { buildAllActiveNonOwnedFilter } from "@/lib/seller-storehouse-catalog";
 import { NextResponse } from "next/server";
 
@@ -187,7 +187,7 @@ export async function POST(request: Request) {
   // Check which canonical source products the seller already has.
   const { data: existing } = await supabase
     .from("products")
-    .select("title,source_product_id")
+    .select("source_product_id")
     .eq("seller_id", userId);
 
   const ownedLookup = buildOwnedCatalogLookup(existing || []);
@@ -198,7 +198,7 @@ export async function POST(request: Request) {
     const canonicalSourceId = getCanonicalSourceProductId(p) || p.id;
     if (seenCanonicalSourceIds.has(canonicalSourceId)) return false;
     seenCanonicalSourceIds.add(canonicalSourceId);
-    return !isOwnedCatalogProduct(p, ownedLookup);
+    return !ownedLookup.ownedSourceIds.has(canonicalSourceId);
   });
   const toInsert = await Promise.all(
     importableProducts.map(async (p) => {

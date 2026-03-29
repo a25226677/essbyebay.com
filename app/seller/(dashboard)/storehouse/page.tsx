@@ -60,6 +60,7 @@ type ImportAllProgressState = {
   batches: number;
   hasMore: boolean;
   phase: "running" | "done" | "error";
+  emptyReason: "no_importable_products" | null;
   message: string;
 };
 
@@ -449,7 +450,8 @@ export default function ProductStorehousePage() {
   };
 
   const importAll = async () => {
-    if (remainingTotal === 0 && !hasMore) return;
+    const hasImportableProducts = remainingTotal > 0 || hasMore;
+    if (!hasImportableProducts) return;
 
     const remainingDisplayLabel = exactTotals
       ? remainingTotal.toLocaleString()
@@ -475,6 +477,7 @@ export default function ProductStorehousePage() {
       batches: 0,
       hasMore: true,
       phase: "running",
+      emptyReason: null,
       message: "Starting import...",
     });
 
@@ -507,6 +510,9 @@ export default function ProductStorehousePage() {
           skipped?: number;
           attempted?: number;
           hasMore?: boolean;
+          empty?: boolean;
+          emptyReason?: string | null;
+          strategy?: "rpc" | "fallback";
         };
 
         if (!res.ok) {
@@ -516,6 +522,39 @@ export default function ProductStorehousePage() {
         const imported = Number(json.imported ?? 0);
         const skipped = Number(json.skipped ?? 0);
         const attempted = Number(json.attempted ?? imported + skipped);
+        const empty = Boolean(json.empty);
+        const emptyReason =
+          typeof json.emptyReason === "string" ? json.emptyReason : null;
+
+        if (
+          requestCount === 1 &&
+          attempted === 0 &&
+          empty &&
+          emptyReason === "no_importable_products"
+        ) {
+          setImportAllProgress((prev) =>
+            prev
+              ? {
+                  ...prev,
+                  imported: 0,
+                  skipped: 0,
+                  attempted: 0,
+                  targetTotal: 0,
+                  batches: 1,
+                  hasMore: false,
+                  phase: "done",
+                  emptyReason: "no_importable_products",
+                  elapsedSec: Math.floor((Date.now() - prev.startedAt) / 1000),
+                  message:
+                    "Already up to date. No importable products left for these filters.",
+                }
+              : prev,
+          );
+          showToast("All matching products are already in your shop.", "info");
+          setSelected(new Set());
+          refreshCatalog(true);
+          return;
+        }
 
         totalImported += imported;
         totalSkipped += skipped;
@@ -532,6 +571,7 @@ export default function ProductStorehousePage() {
                 attempted: totalAttempted,
                 batches: requestCount,
                 hasMore: hasMoreBatches,
+                emptyReason: null,
                 message: hasMoreBatches
                   ? "Importing products..."
                   : "Finalizing import...",
@@ -551,6 +591,7 @@ export default function ProductStorehousePage() {
               batches: requestCount,
               hasMore: false,
               phase: "done",
+              emptyReason: null,
               elapsedSec: Math.floor((Date.now() - prev.startedAt) / 1000),
               message: "Import completed",
             }
@@ -573,6 +614,7 @@ export default function ProductStorehousePage() {
               skipped: totalSkipped,
               hasMore: false,
               phase: "error",
+              emptyReason: null,
               elapsedSec: Math.floor((Date.now() - prev.startedAt) / 1000),
               message,
             }
@@ -610,10 +652,16 @@ export default function ProductStorehousePage() {
   const remainingLabel = exactTotals
     ? remainingTotal.toLocaleString()
     : `${remainingTotal.toLocaleString()}+`;
+  const canImportAll = remainingTotal > 0 || hasMore;
   const canPageNext = exactTotals ? page < totalPages : hasMore;
   const shouldShowPager = !loading && (exactTotals ? totalPages > 1 : page > 1 || hasMore);
+  const importIsEmptyDone =
+    importAllProgress?.phase === "done" &&
+    importAllProgress.emptyReason === "no_importable_products";
   const importProgressPercent =
-    importAllProgress && importAllProgress.targetTotal && importAllProgress.targetTotal > 0
+    importIsEmptyDone
+      ? 100
+      : importAllProgress && importAllProgress.targetTotal && importAllProgress.targetTotal > 0
       ? Math.min(
           100,
           Math.round(
@@ -811,7 +859,7 @@ export default function ProductStorehousePage() {
           <div className="space-y-3">
             <button
               onClick={importAll}
-              disabled={loading || importingAll || (remainingTotal === 0 && !hasMore)}
+              disabled={loading || importingAll || !canImportAll}
               className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {importingAll ? (
@@ -853,6 +901,8 @@ export default function ProductStorehousePage() {
                   <p className="font-semibold">
                     {importAllProgress.phase === "running"
                       ? "Add-all in progress"
+                      : importIsEmptyDone
+                        ? "Already up to date"
                       : importAllProgress.phase === "done"
                         ? "Add-all completed"
                         : "Add-all stopped"}
@@ -863,6 +913,11 @@ export default function ProductStorehousePage() {
                 </div>
 
                 <div className="space-y-1">
+                  {importIsEmptyDone && (
+                    <p className="rounded bg-white/80 px-2 py-1 text-[11px] font-medium">
+                      No importable products remain for these filters.
+                    </p>
+                  )}
                   <p>
                     Processed: {importAllProgress.attempted.toLocaleString()} out of{" "}
                     {importProgressTotalLabel}

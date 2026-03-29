@@ -4,7 +4,9 @@ import { NextResponse } from "next/server";
 
 const IMPORT_BATCH_SIZE = 200;
 const FALLBACK_SCAN_CHUNK_SIZE = 500;
-const FALLBACK_MAX_SCANNED_ROWS = 10000;
+const FALLBACK_MAX_SCANNED_ROWS = 5000;
+const FALLBACK_MAX_CHUNKS = 10;
+const FALLBACK_MAX_DURATION_MS = 6000;
 
 function slugify(value: string) {
   return value
@@ -129,15 +131,19 @@ async function runJsFallbackBatchImport(params: {
 }) {
   const { db, supabase, userId, shopId, search, categoryId, brandId } = params;
   const ownedSourceIds = await fetchOwnedSourceIds(supabase, userId);
+  const startedAt = Date.now();
 
   const selected: SourceRootRow[] = [];
   let scanOffset = 0;
   let scanned = 0;
+  let chunkCount = 0;
   let exhausted = false;
 
   while (
     selected.length < IMPORT_BATCH_SIZE + 1 &&
-    scanned < FALLBACK_MAX_SCANNED_ROWS
+    scanned < FALLBACK_MAX_SCANNED_ROWS &&
+    chunkCount < FALLBACK_MAX_CHUNKS &&
+    Date.now() - startedAt < FALLBACK_MAX_DURATION_MS
   ) {
     let query = db
       .from("products")
@@ -163,6 +169,7 @@ async function runJsFallbackBatchImport(params: {
       exhausted = true;
       break;
     }
+    chunkCount += 1;
 
     for (const row of rows) {
       scanned += 1;
@@ -185,6 +192,8 @@ async function runJsFallbackBatchImport(params: {
       skipped: 0,
       attempted: 0,
       hasMore: false,
+      empty: true,
+      emptyReason: "no_importable_products" as const,
     };
   }
 
@@ -217,11 +226,23 @@ async function runJsFallbackBatchImport(params: {
   const imported = Array.isArray(upserted) ? upserted.length : 0;
   const attempted = batch.length;
   const skipped = Math.max(attempted - imported, 0);
+  const budgetReached =
+    !exhausted &&
+    (scanned >= FALLBACK_MAX_SCANNED_ROWS ||
+      chunkCount >= FALLBACK_MAX_CHUNKS ||
+      Date.now() - startedAt >= FALLBACK_MAX_DURATION_MS);
   const hasMore =
     selected.length > IMPORT_BATCH_SIZE ||
-    (!exhausted && scanned >= FALLBACK_MAX_SCANNED_ROWS);
+    budgetReached;
 
-  return { imported, skipped, attempted, hasMore };
+  return {
+    imported,
+    skipped,
+    attempted,
+    hasMore,
+    empty: false,
+    emptyReason: null,
+  };
 }
 
 export async function POST(request: Request) {
@@ -295,7 +316,12 @@ export async function POST(request: Request) {
           categoryId,
           brandId,
         });
-        return NextResponse.json({ success: true, ...fallback, fallback: true });
+        return NextResponse.json({
+          success: true,
+          ...fallback,
+          fallback: true,
+          strategy: "fallback",
+        });
       } catch (fallbackErr) {
         return NextResponse.json(
           {
@@ -318,22 +344,16 @@ export async function POST(request: Request) {
   const hasMore = Boolean(result?.has_more) && attempted > 0;
 
   if (attempted === 0) {
-    try {
-      const fallback = await runJsFallbackBatchImport({
-        db,
-        supabase,
-        userId,
-        shopId,
-        search,
-        categoryId,
-        brandId,
-      });
-      if (fallback.attempted > 0) {
-        return NextResponse.json({ success: true, ...fallback, fallback: true });
-      }
-    } catch (fallbackErr) {
-      console.error("seller catalog import-all fallback failed", fallbackErr);
-    }
+    return NextResponse.json({
+      success: true,
+      imported: 0,
+      skipped: 0,
+      attempted: 0,
+      hasMore: false,
+      empty: true,
+      emptyReason: "no_importable_products",
+      strategy: "rpc",
+    });
   }
 
   return NextResponse.json({
@@ -342,5 +362,8 @@ export async function POST(request: Request) {
     skipped,
     attempted,
     hasMore,
+    empty: false,
+    emptyReason: null,
+    strategy: "rpc",
   });
 }

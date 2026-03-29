@@ -297,54 +297,6 @@ async function getCatalogViaFastFallback(
   };
 }
 
-async function getCatalogViaOpenFallback(
-  db: ReturnType<typeof createAdminServiceClient>,
-  userId: string,
-  filters: ReturnType<typeof normalizeFilters>,
-): Promise<CatalogPageResult> {
-  const { search, categoryId, brandId, page, limit } = filters;
-  const offset = (page - 1) * limit;
-
-  let query = db
-    .from("products")
-    .select(
-      `id,title,sku,price,stock_count,image_url,source_product_id,created_at,categories(id,name),brands(id,name)`,
-      { count: "exact" },
-    )
-    .eq("is_active", true)
-    .is("source_product_id", null)
-    .neq("seller_id", userId)
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .range(offset, offset + limit - 1);
-
-  if (search) query = query.ilike("title", `%${search}%`);
-  if (categoryId) query = query.eq("category_id", categoryId);
-  if (brandId) query = query.eq("brand_id", brandId);
-
-  const { data, error, count } = await query;
-  if (error) throw new Error(error.message);
-
-  const rows = (data as SourceRow[] | null) ?? [];
-  const total = Math.max(Number(count ?? 0), 0);
-  const pages = total > 0 ? Math.ceil(total / limit) : 1;
-
-  return {
-    items: rows.map(toCatalogItem),
-    pagination: {
-      page,
-      limit,
-      total,
-      pages,
-      baseTotal: total,
-      remainingTotal: total,
-      hasMore: page * limit < total,
-      exact: false,
-    },
-    strategy: "fallback",
-  };
-}
-
 export async function getSellerStorehouseCatalog(
   context: SellerContext,
   input: CatalogFilterInput,
@@ -370,27 +322,15 @@ export async function getSellerStorehouseCatalog(
   let catalogPage: CatalogPageResult;
   if (rpcResult) {
     catalogPage = rpcResult;
-    const suspiciousEmptyResult =
+    const noImportableRows =
       filters.page === 1 &&
       rpcResult.pagination.total === 0 &&
       rpcResult.pagination.baseTotal > 0;
 
-    if (suspiciousEmptyResult) {
-      const fallbackPage = await getCatalogViaFastFallback(context, db, filters);
-      if (fallbackPage.items.length > 0 || fallbackPage.pagination.total > 0) {
-        catalogPage = fallbackPage;
-        console.warn(
-          `[seller-catalog] rpc returned empty while base pool exists; using fallback strategy`,
-        );
-      } else {
-        const openFallbackPage = await getCatalogViaOpenFallback(db, userId, filters);
-        if (openFallbackPage.items.length > 0 || openFallbackPage.pagination.total > 0) {
-          catalogPage = openFallbackPage;
-          console.warn(
-            `[seller-catalog] rpc/fallback returned empty while base pool exists; using open fallback`,
-          );
-        }
-      }
+    if (noImportableRows) {
+      console.info(
+        `[seller-catalog] rpc reports no importable rows for seller while base pool exists`,
+      );
     }
   } else {
     catalogPage = await getCatalogViaFastFallback(context, db, filters);
