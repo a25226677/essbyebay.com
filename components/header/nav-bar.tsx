@@ -12,7 +12,7 @@ const navLinks = [
 ];
 
 export function NavBar() {
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
 
   return (
     <div className="hidden lg:block bg-[#2f3b51] border-t border-[#46536a]">

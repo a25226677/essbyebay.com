@@ -3,6 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 
 const quickLinks = [
   { label: "Terms & conditions", href: "/terms" },
@@ -19,13 +20,19 @@ const accountLinks = [
 ];
 
 export function Footer() {
+  const pathname = usePathname() || "";
   const [email, setEmail] = useState("");
+
+  const hideSiteFooter =
+    pathname.startsWith("/seller") || pathname.startsWith("/admin");
 
   const handleSubscribe = (e: React.FormEvent) => {
     e.preventDefault();
     // Handle newsletter subscription
     console.log("Subscribe:", email);
   };
+
+  if (hideSiteFooter) return null;
 
   return (
     <footer className="site-footer bg-[#2d3548] text-gray-300">

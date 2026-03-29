@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { safeImageSrc } from "@/lib/safe-image-src";
 
 export type UserData = {
   fullName: string;
@@ -38,7 +39,13 @@ export function useUserData(): { user: UserData; loading: boolean } {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const supabase = createClient();
+    let supabase: ReturnType<typeof createClient>;
+    try {
+      supabase = createClient();
+    } catch {
+      setLoading(false);
+      return;
+    }
 
     // Fetch all seller data from the server-side API route.
     // This uses getUser() on the server which always has the correct email
@@ -54,7 +61,7 @@ export function useUserData(): { user: UserData; loading: boolean } {
         setUser({
           fullName:     data.fullName     || "Seller",
           email:        data.email        || "",
-          avatarUrl:    data.avatarUrl    ?? null,
+          avatarUrl:    safeImageSrc(data.avatarUrl ?? null, "/logo.png"),
           creditScore:  data.creditScore  ?? 100,
           balance:      data.balance      ?? 0,
           availableBalance: data.availableBalance ?? data.balance ?? 0,
@@ -63,7 +70,7 @@ export function useUserData(): { user: UserData; loading: boolean } {
             data.totalShopBalance ?? Number(((data.availableBalance ?? data.balance ?? 0) + (data.pendingBalance ?? 0)).toFixed(2)),
           guaranteeMoney: data.guaranteeMoney ?? 0,
           shopName:     data.shopName     || "",
-          shopLogoUrl:  data.shopLogoUrl  ?? null,
+          shopLogoUrl:  safeImageSrc(data.shopLogoUrl ?? null, "/logo.png"),
           isVerified:   data.isVerified   ?? false,
         });
         setLoading(false);

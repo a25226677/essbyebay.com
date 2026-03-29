@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Bell, Globe, Printer, Menu, LogOut, User, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
 import { useUserData } from "@/lib/hooks/use-user-data";
+import { safeImageSrc } from "@/lib/safe-image-src";
 import { useState, useRef, useEffect } from "react";
 
 interface SellerHeaderProps {
@@ -18,7 +19,7 @@ export function SellerHeader({ onToggleSidebar, sidebarOpen }: SellerHeaderProps
   const userMenuRef = useRef<HTMLDivElement>(null);
 
   const displayName = profile.shopName || profile.fullName || "My Shop";
-  const avatarUrl = profile.shopLogoUrl || profile.avatarUrl || "/logo.png";
+  const avatarUrl = safeImageSrc(profile.shopLogoUrl || profile.avatarUrl, "/logo.png");
   const totalShopBalance = profile.totalShopBalance ?? profile.balance;
   const availableBalance = profile.availableBalance ?? profile.balance;
   const pendingBalance = profile.pendingBalance ?? 0;

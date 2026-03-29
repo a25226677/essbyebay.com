@@ -6,6 +6,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useUserData } from "@/lib/hooks/use-user-data";
+import { safeImageSrc } from "@/lib/safe-image-src";
 import {
   LayoutDashboard,
   Package,
@@ -100,7 +101,7 @@ const sidebarLinks: SidebarLink[] = [
 ];
 
 export function SellerSidebar() {
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
   const [expandedGroups, setExpandedGroups] = useState<string[]>(["Products"]);
   const [searchMenu, setSearchMenu] = useState("");
   const [newOrdersBadge, setNewOrdersBadge] = useState(0);
@@ -159,7 +160,7 @@ export function SellerSidebar() {
     return link.badge;
   };
 
-  const sellerImage = profile.shopLogoUrl || profile.avatarUrl || "/logo.png";
+  const sellerImage = safeImageSrc(profile.shopLogoUrl || profile.avatarUrl, "/logo.png");
   const sellerName = profile.shopName || profile.fullName || "My Shop";
 
   return (

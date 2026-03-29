@@ -9,11 +9,14 @@ import { useCartStore } from "@/lib/store";
 import { createClient } from "@/lib/supabase/client";
 
 export function MobileBottomNav() {
-  const pathname = usePathname();
+  const pathname = usePathname() || "";
   const totalItems = useCartStore((s) => s.totalItems);
   const [mounted, setMounted] = React.useState(false);
   const [accountHref, setAccountHref] = React.useState("/users/login");
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
+
+  const hideMobileNav =
+    pathname.startsWith("/seller") || pathname.startsWith("/admin");
 
   React.useEffect(() => {
     setMounted(true);
@@ -62,6 +65,8 @@ export function MobileBottomNav() {
     { href: "#", label: "Alerts", icon: Bell },
     { href: accountHref, label: isLoggedIn ? "Account" : "Login", icon: User },
   ];
+
+  if (hideMobileNav) return null;
 
   return (
     <nav className="mobile-bottom-nav fixed bottom-0 left-0 right-0 z-50 bg-[#1b233a] border-t border-[#2a3350] md:hidden">
