@@ -36,7 +36,7 @@ export default function SellerFunctionsPage() {
   const [sellerProfitPercent, setSellerProfitPercent] = useState<number | null>(null);
   const [editingStorehouse, setEditingStorehouse] = useState(false);
   const [editProfitValue, setEditProfitValue] = useState("");
-  const [applyToPending, setApplyToPending] = useState(true);
+  const applyToPending = true;
   const [savingStorehouse, setSavingStorehouse] = useState(false);
 
   const loadSettings = async () => {
@@ -160,13 +160,23 @@ export default function SellerFunctionsPage() {
       const res = await fetch("/api/admin/seller-functions/storehouse", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ sellerProfitPercent: num, applyToPending }),
+        body: JSON.stringify({
+          sellerProfitPercent: num,
+          applyToPending,
+          applyToAllOrders: true,
+          rebuildBalances: true,
+        }),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Failed to save storehouse settings");
-      setSellerProfitPercent(num);
+      const updatedOrderItems = Number(json.data?.updatedOrderItems ?? 0);
+      const updatedFrozeOrders = Number(json.data?.updatedFrozeOrders ?? 0);
+      const updatedProfiles = Number(json.data?.updatedProfiles ?? 0);
+      setSellerProfitPercent(json.data?.sellerProfitPercent ?? num);
       setStorehouseFactor(json.data?.storehouseFactor ?? (1 - num / 100));
-      toast.success(applyToPending ? `Updated and applied to ${json.data?.updated ?? 0} pending items` : "Updated storehouse factor");
+      toast.success(
+        `Updated to ${num}% and rebuilt ${updatedOrderItems} order items, ${updatedFrozeOrders} frozen rows, ${updatedProfiles} seller profiles.`,
+      );
       setEditingStorehouse(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to save");
@@ -216,8 +226,9 @@ export default function SellerFunctionsPage() {
           <div className="border border-gray-100 rounded-lg p-4">
             <p className="text-xs text-gray-500">Seller Profit Rate</p>
             <p className="text-2xl font-bold text-blue-600 my-1">{sellerProfitPercent !== null ? `${sellerProfitPercent}%` : "—"}</p>
-            <p className="text-[10px] text-gray-400">Profit kept by seller from sale (rest assigned to storehouse)</p>
-            <button onClick={() => { setEditingStorehouse(true); setEditProfitValue((sellerProfitPercent ?? 30).toString()); }}
+            <p className="text-[10px] text-gray-400">Profit kept by seller from sale (storehouse keeps the remaining share).</p>
+            <p className="text-[10px] text-gray-400 mt-1">Storehouse factor: {storehouseFactor !== null ? storehouseFactor.toFixed(2) : "—"}</p>
+            <button onClick={() => { setEditingStorehouse(true); setEditProfitValue((sellerProfitPercent ?? 20).toString()); }}
               className="mt-2 text-xs text-blue-500 hover:underline">Edit</button>
           </div>
         </div>
@@ -275,7 +286,7 @@ export default function SellerFunctionsPage() {
               <button onClick={() => setEditingStorehouse(false)}><X className="size-4 text-gray-500" /></button>
             </div>
             <div className="px-6 py-5 space-y-3">
-              <p className="text-xs text-gray-500">Seller keeps this percent from the sale. Example: 20% means seller profit is 20% and storehouse gets 80%.</p>
+              <p className="text-xs text-gray-500">Seller keeps this percent from each sale. Example: 20% means seller profit is 20% and storehouse is 80%.</p>
               <div>
                 <input type="number" min="0" max="100" step="0.5" value={editProfitValue}
                   onChange={(e) => setEditProfitValue(e.target.value)}
@@ -283,8 +294,8 @@ export default function SellerFunctionsPage() {
                 <div className="text-[11px] text-gray-400 mt-2">Profit percent: {editProfitValue || "-"}%</div>
               </div>
               <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={applyToPending} onChange={(e) => setApplyToPending(e.target.checked)} />
-                <span>Apply changes to pending frozen profits (will recalculate pending profit and update seller pending balances)</span>
+                <input type="checkbox" checked={applyToPending} disabled />
+                <span>Apply to all past + upcoming orders and rebuild seller wallet/pending balances.</span>
               </label>
             </div>
             <div className="flex justify-end gap-3 px-6 py-4 border-t border-gray-100">

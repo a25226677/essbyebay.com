@@ -50,6 +50,7 @@ type ToastState = {
 
 const LIMIT = 50;
 const SEARCH_DEBOUNCE_MS = 350;
+const MAX_IMPORT_ALL_BATCH_REQUESTS = 200;
 
 export default function ProductStorehousePage() {
   const [items, setItems] = useState<CatalogItem[]>([]);
@@ -268,12 +269,18 @@ export default function ProductStorehousePage() {
     setImportingAll(true);
     showToast("Starting add-all import...", "info", true);
 
-    let currentPage = 0;
     let totalImported = 0;
     let totalSkipped = 0;
+    let requestCount = 0;
+    let hasMore = true;
 
     try {
-      while (true) {
+      while (hasMore) {
+        requestCount += 1;
+        if (requestCount > MAX_IMPORT_ALL_BATCH_REQUESTS) {
+          throw new Error("Import stopped after too many batches. Please retry.");
+        }
+
         const res = await fetch("/api/seller/catalog/import-all", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -281,47 +288,58 @@ export default function ProductStorehousePage() {
             search,
             category_id: categoryId || null,
             brand_id: brandId || null,
-            page: currentPage,
           }),
+          cache: "no-store",
         });
+
         const json = (await res.json()) as {
           error?: string;
           imported?: number;
           skipped?: number;
+          attempted?: number;
           hasMore?: boolean;
-          nextPage?: number;
         };
 
         if (!res.ok) {
-          showToast(json.error || "Add all to My Product failed", "error");
-          return;
+          throw new Error(json.error || "Add all to My Product failed");
         }
 
-        totalImported += json.imported ?? 0;
-        totalSkipped += json.skipped ?? 0;
+        const imported = Number(json.imported ?? 0);
+        const skipped = Number(json.skipped ?? 0);
+        const attempted = Number(json.attempted ?? imported + skipped);
 
-        if (json.hasMore) {
-          setToast({
-            msg: `Importing... ${(totalImported + totalSkipped).toLocaleString()} processed, ${totalImported.toLocaleString()} added.`,
-            tone: "info",
-            sticky: true,
-          });
-          currentPage = Number(json.nextPage ?? currentPage + 1);
-        } else {
-          break;
+        totalImported += imported;
+        totalSkipped += skipped;
+
+        hasMore = Boolean(json.hasMore) && attempted > 0;
+
+        if (hasMore) {
+          showToast(
+            `Importing... ${formatImportSummary(totalImported, totalSkipped)}`,
+            "info",
+            true,
+          );
         }
       }
 
+      const totalMatching = totalImported + totalSkipped;
       showToast(
-        formatImportSummary(totalImported, totalSkipped),
+        `${formatImportSummary(totalImported, totalSkipped)} from ${totalMatching.toLocaleString()} matched`,
         totalImported > 0 ? "success" : "info",
       );
       setSelected(new Set());
       refreshCatalog(true);
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Add all to My Product failed";
-      showToast(message, "error");
+      const message = err instanceof Error ? err.message : "Add all to My Product failed";
+      if (totalImported > 0) {
+        showToast(
+          `${message}. Partial progress kept: ${formatImportSummary(totalImported, totalSkipped)}.`,
+          "error",
+        );
+        refreshCatalog(true);
+      } else {
+        showToast(message, "error");
+      }
     } finally {
       setImportingAll(false);
     }

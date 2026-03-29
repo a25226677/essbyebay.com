@@ -1,11 +1,8 @@
 import { getSellerContext } from "@/lib/supabase/seller-api";
 import { createAdminServiceClient } from "@/lib/supabase/admin-client";
-import { buildOwnedCatalogLookup, getCanonicalSourceProductId, isOwnedCatalogProduct } from "@/lib/seller-catalog";
-import { buildAllActiveNonOwnedFilter } from "@/lib/seller-storehouse-catalog";
 import { NextResponse } from "next/server";
 
-// Each request handles one page — keeps every DB query well under the statement timeout.
-const PAGE_SIZE = 50;
+const IMPORT_BATCH_SIZE = 200;
 
 function slugify(value: string) {
   return value
@@ -51,45 +48,10 @@ async function ensureSellerShopId(
   return created.id;
 }
 
-function buildImportSlug(
-  title: string,
-  sellerId: string,
-  canonicalSourceId: string,
-  reservedSlugs: Set<string>,
-) {
-  const baseSlug = slugify(title) || "product";
-  const sellerSuffix = sellerId.replace(/-/g, "").slice(0, 8).toLowerCase();
-  const sourceSuffix = canonicalSourceId.replace(/-/g, "").slice(0, 10).toLowerCase();
-  const candidateBase = `${baseSlug}-${sellerSuffix}-${sourceSuffix}`;
-  let candidate = candidateBase;
-  let attempt = 2;
-  while (reservedSlugs.has(candidate)) {
-    candidate = `${candidateBase}-${attempt}`;
-    attempt += 1;
-  }
-  reservedSlugs.add(candidate);
-  return candidate;
-}
-
-function buildImportSku(
-  originalSku: string | null,
-  sellerId: string,
-  canonicalSourceId: string,
-  reservedSkus: Set<string>,
-) {
-  const baseSku = originalSku?.trim();
-  if (!baseSku) return null;
-  const sellerSuffix = sellerId.replace(/-/g, "").slice(0, 6).toUpperCase();
-  const sourceSuffix = canonicalSourceId.replace(/-/g, "").slice(0, 6).toUpperCase();
-  const candidateBase = `${baseSku}-${sellerSuffix}-${sourceSuffix}`;
-  let candidate = candidateBase;
-  let attempt = 2;
-  while (reservedSkus.has(candidate)) {
-    candidate = `${candidateBase}-${attempt}`;
-    attempt += 1;
-  }
-  reservedSkus.add(candidate);
-  return candidate;
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    value,
+  );
 }
 
 export async function POST(request: Request) {
@@ -97,13 +59,40 @@ export async function POST(request: Request) {
   if (context instanceof NextResponse) return context;
   const { supabase, userId } = context;
 
-  const body = await request.json();
-  const { search = "", category_id = null, brand_id = null, page = 0 } = body as {
-    search?: string;
-    category_id?: string | null;
-    brand_id?: string | null;
-    page?: number;
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const payload = (body ?? {}) as {
+    search?: unknown;
+    category_id?: unknown;
+    brand_id?: unknown;
   };
+
+  const search = typeof payload.search === "string" ? payload.search.trim() : "";
+  const categoryIdRaw =
+    typeof payload.category_id === "string" ? payload.category_id.trim() : null;
+  const brandIdRaw =
+    typeof payload.brand_id === "string" ? payload.brand_id.trim() : null;
+  const categoryId = categoryIdRaw || null;
+  const brandId = brandIdRaw || null;
+
+  if (categoryId && !isUuid(categoryId)) {
+    return NextResponse.json(
+      { error: "Invalid category_id. Expected UUID." },
+      { status: 400 },
+    );
+  }
+
+  if (brandId && !isUuid(brandId)) {
+    return NextResponse.json(
+      { error: "Invalid brand_id. Expected UUID." },
+      { status: 400 },
+    );
+  }
 
   // Resolve seller's shop, creating one if needed
   let shopId: string;
@@ -114,87 +103,40 @@ export async function POST(request: Request) {
   }
 
   const db = createAdminServiceClient();
-  const normalizedSearch = search.trim();
-  const from = page * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
+  const { data, error } = await db.rpc("seller_import_catalog_products_batch", {
+    p_seller_id: userId,
+    p_shop_id: shopId,
+    p_search: search.length > 0 ? search : null,
+    p_category_id: categoryId,
+    p_brand_id: brandId,
+    p_limit: IMPORT_BATCH_SIZE,
+  });
 
-  let query = db
-    .from("products")
-    .select(
-      "id,title,sku,price,stock_count,image_url,category_id,brand_id,description,source_product_id",
-    )
-    .eq("is_active", true)
-    .or(buildAllActiveNonOwnedFilter(userId))
-    .order("created_at", { ascending: false })
-    .range(from, to);
-
-  if (normalizedSearch) query = query.ilike("title", `%${normalizedSearch}%`);
-  if (category_id) query = query.eq("category_id", category_id);
-  if (brand_id) query = query.eq("brand_id", brand_id);
-
-  const { data: sourceProducts, error: sourceError } = await query;
-  if (sourceError) {
-    console.error("seller catalog import-all source fetch failed", sourceError);
-    return NextResponse.json({ error: sourceError.message }, { status: 500 });
-  }
-
-  if (!sourceProducts || sourceProducts.length === 0) {
-    return NextResponse.json({ imported: 0, skipped: 0, hasMore: false });
-  }
-
-  const { data: alreadyOwned } = await supabase
-    .from("products")
-    .select("id,title,source_product_id")
-    .eq("seller_id", userId);
-
-  const ownedLookup = buildOwnedCatalogLookup(alreadyOwned || []);
-
-  const reservedSlugs = new Set<string>();
-  const reservedSkus = new Set<string>();
-  const seenCanonicalSourceIds = new Set<string>();
-
-  const toInsert = sourceProducts
-    .filter((p) => {
-      const canonicalSourceId = getCanonicalSourceProductId(p) || p.id;
-      if (seenCanonicalSourceIds.has(canonicalSourceId)) return false;
-      seenCanonicalSourceIds.add(canonicalSourceId);
-      return !isOwnedCatalogProduct(p, ownedLookup);
-    })
-    .map((p) => {
-      const canonicalSourceId = getCanonicalSourceProductId(p) || p.id;
-      return {
-        seller_id: userId,
-        shop_id: shopId,
-        category_id: p.category_id,
-        brand_id: p.brand_id,
-        title: p.title,
-        slug: buildImportSlug(p.title, userId, canonicalSourceId, reservedSlugs),
-        sku: buildImportSku(p.sku ?? null, userId, canonicalSourceId, reservedSkus),
-        description: p.description ?? null,
-        price: p.price,
-        stock_count: p.stock_count ?? 1000,
-        image_url: p.image_url ?? null,
-        is_active: true,
-        source_product_id: canonicalSourceId,
-      };
-    });
-
-  const skipped = sourceProducts.length - toInsert.length;
-  let imported = 0;
-
-  if (toInsert.length > 0) {
-    const { error: insertError } = await supabase.from("products").insert(toInsert);
-    if (insertError) {
-      console.error("seller catalog import-all insert failed", insertError);
-      return NextResponse.json({ error: insertError.message }, { status: 500 });
+  if (error) {
+    console.error("seller catalog import-all batch rpc failed", error);
+    if (error.code === "42883") {
+      return NextResponse.json(
+        {
+          error:
+            "Database migration missing for batched import-all. Run latest Supabase migrations and retry.",
+        },
+        { status: 500 },
+      );
     }
-    imported = toInsert.length;
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const result = Array.isArray(data) ? data[0] : null;
+  const imported = Number(result?.imported_count ?? 0);
+  const skipped = Number(result?.skipped_count ?? 0);
+  const attempted = Number(result?.attempted_count ?? imported + skipped);
+  const hasMore = Boolean(result?.has_more) && attempted > 0;
 
   return NextResponse.json({
+    success: true,
     imported,
     skipped,
-    hasMore: sourceProducts.length === PAGE_SIZE,
-    nextPage: page + 1,
+    attempted,
+    hasMore,
   });
 }
