@@ -57,6 +57,11 @@ export function AdminHeader() {
     setRefreshing(false);
   };
 
+  const goToProfile = () => {
+    setUserOpen(false);
+    router.push("/admin/settings");
+  };
+
   return (
     <header className="h-16 bg-white border-b border-gray-100 flex items-center px-4 gap-2 sticky top-0 z-30 shadow-sm">
       {/* Left Actions */}
@@ -150,7 +155,10 @@ export function AdminHeader() {
           </button>
           {userOpen && (
             <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-100 rounded-xl shadow-lg py-1 z-50">
-              <button className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-gray-700">
+              <button
+                onClick={goToProfile}
+                className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-gray-50 transition-colors text-gray-700"
+              >
                 <User className="size-4 text-gray-400" />
                 My Profile
               </button>
