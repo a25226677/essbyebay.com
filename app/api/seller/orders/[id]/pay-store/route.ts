@@ -22,10 +22,19 @@ export async function POST(
     // Continue without password (for backwards compatibility)
   }
 
+  const cleanedTransactionPassword = transactionPassword?.trim() || "";
+
   // Validate transaction password
-  if (!transactionPassword || !transactionPassword.trim()) {
+  if (!cleanedTransactionPassword) {
     return NextResponse.json(
       { error: "Transaction Password is required" },
+      { status: 400 }
+    );
+  }
+
+  if (!/^\d{6}$/.test(cleanedTransactionPassword)) {
+    return NextResponse.json(
+      { error: "Transaction password must be exactly 6 digits" },
       { status: 400 }
     );
   }
@@ -44,8 +53,15 @@ export async function POST(
     );
   }
 
+  if (!sellerProfile.transaction_password) {
+    return NextResponse.json(
+      { error: "No transaction password configured. Please update it in Settings or contact admin." },
+      { status: 400 }
+    );
+  }
+
   // Validate password matches
-  if (sellerProfile.transaction_password !== transactionPassword.trim()) {
+  if (sellerProfile.transaction_password !== cleanedTransactionPassword) {
     return NextResponse.json(
       { error: "Invalid Transaction Password" },
       { status: 401 }

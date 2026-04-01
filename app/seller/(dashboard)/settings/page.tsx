@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +33,14 @@ export default function ShopSettingPage() {
     logo_url: "",
     banner_url: "",
   });
+  const [securitySaving, setSecuritySaving] = useState(false);
+  const [securitySuccess, setSecuritySuccess] = useState("");
+  const [securityError, setSecurityError] = useState("");
+  const [securityForm, setSecurityForm] = useState({
+    currentTransactionPassword: "",
+    newTransactionPassword: "",
+    confirmTransactionPassword: "",
+  });
 
   useEffect(() => {
     async function loadShop() {
@@ -59,6 +68,72 @@ export default function ShopSettingPage() {
 
   const handleChange = (field: string, value: string) =>
     setFormData((prev) => ({ ...prev, [field]: value }));
+
+  const handleSecurityChange = (
+    field:
+      | "currentTransactionPassword"
+      | "newTransactionPassword"
+      | "confirmTransactionPassword",
+    value: string,
+  ) => {
+    setSecurityError("");
+    setSecuritySuccess("");
+    setSecurityForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleTransactionPasswordUpdate = async () => {
+    const current = securityForm.currentTransactionPassword.trim();
+    const next = securityForm.newTransactionPassword.trim();
+    const confirm = securityForm.confirmTransactionPassword.trim();
+
+    if (!current) {
+      setSecurityError("Current transaction password is required.");
+      return;
+    }
+
+    if (!/^\d{6}$/.test(next)) {
+      setSecurityError("New transaction password must be exactly 6 digits.");
+      return;
+    }
+
+    if (next !== confirm) {
+      setSecurityError("Transaction password confirmation does not match.");
+      return;
+    }
+
+    setSecuritySaving(true);
+    setSecurityError("");
+    setSecuritySuccess("");
+
+    try {
+      const res = await fetch("/api/seller/transaction-password", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          currentTransactionPassword: current,
+          newTransactionPassword: next,
+          confirmTransactionPassword: confirm,
+        }),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to update transaction password");
+      }
+
+      setSecuritySuccess("Transaction password updated successfully.");
+      setSecurityForm({
+        currentTransactionPassword: "",
+        newTransactionPassword: "",
+        confirmTransactionPassword: "",
+      });
+      setTimeout(() => setSecuritySuccess(""), 4000);
+    } catch (err) {
+      setSecurityError(err instanceof Error ? err.message : "Failed to update transaction password");
+    } finally {
+      setSecuritySaving(false);
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -206,6 +281,104 @@ export default function ShopSettingPage() {
               <Label className="text-sm mb-1.5 block text-gray-500">Shop Slug (read-only)</Label>
               <Input value={shop?.slug ?? ""} readOnly className="bg-gray-50 text-gray-500" />
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white rounded-xl border border-gray-200 p-5 space-y-4">
+        <h2 className="text-base font-bold text-gray-800">Security Settings</h2>
+
+        {securitySuccess && (
+          <div className="flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 rounded-lg px-4 py-3 text-sm">
+            <CheckCircle className="size-4 shrink-0" />
+            {securitySuccess}
+          </div>
+        )}
+
+        {securityError && (
+          <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
+            <AlertCircle className="size-4 shrink-0" />
+            {securityError}
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div className="rounded-lg border border-gray-200 p-4 space-y-3 bg-gray-50">
+            <h3 className="text-sm font-semibold text-gray-800">Main Account Password</h3>
+            <p className="text-xs text-gray-600">
+              Reset your seller login password using your registered email.
+            </p>
+            <Button variant="outline" asChild>
+              <Link href="/password/reset">Reset Login Password</Link>
+            </Button>
+          </div>
+
+          <div className="rounded-lg border border-gray-200 p-4 space-y-3 bg-gray-50">
+            <h3 className="text-sm font-semibold text-gray-800">Transaction Password</h3>
+            <p className="text-xs text-gray-600">
+              Update your 6-digit transaction password used for storehouse payments.
+            </p>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Current Transaction Password</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={securityForm.currentTransactionPassword}
+                onChange={(e) =>
+                  handleSecurityChange("currentTransactionPassword", e.target.value)
+                }
+                placeholder="Enter current 6-digit password"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">New Transaction Password</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={securityForm.newTransactionPassword}
+                onChange={(e) =>
+                  handleSecurityChange("newTransactionPassword", e.target.value)
+                }
+                placeholder="Enter new 6-digit password"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">Confirm New Password</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                value={securityForm.confirmTransactionPassword}
+                onChange={(e) =>
+                  handleSecurityChange("confirmTransactionPassword", e.target.value)
+                }
+                placeholder="Confirm new 6-digit password"
+              />
+            </div>
+
+            <p className="text-xs text-gray-500">
+              If you forgot this password, contact admin to reset it for your seller account.
+            </p>
+
+            <Button
+              onClick={handleTransactionPasswordUpdate}
+              disabled={securitySaving}
+              className="bg-sky-500 hover:bg-sky-600 text-white"
+            >
+              {securitySaving ? (
+                <>
+                  <Loader2 className="size-4 animate-spin mr-2" />
+                  Updating...
+                </>
+              ) : (
+                "Update Transaction Password"
+              )}
+            </Button>
           </div>
         </div>
       </div>

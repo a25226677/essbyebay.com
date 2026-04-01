@@ -8,6 +8,8 @@ import {
   DollarSign, Store, Calendar, Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 
 type SellerProfile = {
@@ -45,6 +47,11 @@ export default function SellerProfilePage() {
   const [profile, setProfile] = useState<SellerProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [toggling, setToggling] = useState(false);
+  const [savingSecurity, setSavingSecurity] = useState(false);
+  const [securityForm, setSecurityForm] = useState({
+    authPassword: "",
+    transactionPassword: "",
+  });
 
   useEffect(() => {
     async function load() {
@@ -100,6 +107,52 @@ export default function SellerProfilePage() {
       }
     } catch {
       toast.error("Failed to update verification");
+    }
+  };
+
+  const updateSecurity = async () => {
+    const authPassword = securityForm.authPassword.trim();
+    const transactionPassword = securityForm.transactionPassword.trim();
+
+    if (!authPassword && !transactionPassword) {
+      toast.error("Enter at least one password to update");
+      return;
+    }
+
+    if (authPassword && authPassword.length < 8) {
+      toast.error("Login password must be at least 8 characters");
+      return;
+    }
+
+    if (transactionPassword && !/^\d{6}$/.test(transactionPassword)) {
+      toast.error("Transaction password must be exactly 6 digits");
+      return;
+    }
+
+    setSavingSecurity(true);
+
+    try {
+      const payload: Record<string, string> = {};
+      if (authPassword) payload.auth_password = authPassword;
+      if (transactionPassword) payload.transaction_password = transactionPassword;
+
+      const res = await fetch(`/api/admin/users/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || "Failed to update seller security");
+      }
+
+      setSecurityForm({ authPassword: "", transactionPassword: "" });
+      toast.success("Seller security credentials updated");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update seller security");
+    } finally {
+      setSavingSecurity(false);
     }
   };
 
@@ -258,6 +311,48 @@ export default function SellerProfilePage() {
 
         {/* Right - Stats */}
         <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6 space-y-4">
+            <h3 className="text-sm font-semibold text-gray-700">Security Reset (Admin)</h3>
+            <p className="text-xs text-gray-500">
+              Reset seller login password and storehouse transaction password from here.
+            </p>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-600">New Login Password</Label>
+              <Input
+                type="password"
+                placeholder="At least 8 characters"
+                value={securityForm.authPassword}
+                onChange={(e) =>
+                  setSecurityForm((prev) => ({ ...prev, authPassword: e.target.value }))
+                }
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs text-gray-600">New Transaction Password</Label>
+              <Input
+                type="password"
+                inputMode="numeric"
+                maxLength={6}
+                placeholder="6 digits"
+                value={securityForm.transactionPassword}
+                onChange={(e) =>
+                  setSecurityForm((prev) => ({ ...prev, transactionPassword: e.target.value }))
+                }
+              />
+            </div>
+
+            <Button
+              size="sm"
+              onClick={updateSecurity}
+              disabled={savingSecurity}
+              className="w-full"
+            >
+              {savingSecurity ? "Updating..." : "Update Security Credentials"}
+            </Button>
+          </div>
+
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Statistics</h3>
             <div className="grid grid-cols-2 gap-4">

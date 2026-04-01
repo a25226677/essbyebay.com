@@ -149,6 +149,11 @@ export default function SellerOrderDetailPage() {
       return;
     }
 
+    if (!/^\d{6}$/.test(transactionPassword.trim())) {
+      setError("Transaction password must be exactly 6 digits.");
+      return;
+    }
+
     setPaying(true);
     setError("");
     try {
@@ -167,6 +172,10 @@ export default function SellerOrderDetailPage() {
           // Bad request errors (validation)
           if (errorMessage.includes("Transaction Password is required")) {
             errorMessage = "Password is required. Please enter your transaction password.";
+          } else if (errorMessage.includes("exactly 6 digits")) {
+            errorMessage = "Transaction password must be exactly 6 digits.";
+          } else if (errorMessage.includes("No transaction password configured")) {
+            errorMessage = "Transaction password is not configured. Please update it in Settings or contact admin.";
           } else if (errorMessage.includes("already paid")) {
             errorMessage = "This order has already been paid. No further action needed.";
           } else if (errorMessage.includes("Insufficient wallet balance")) {
@@ -488,29 +497,31 @@ export default function SellerOrderDetailPage() {
                 <span>Transaction Password</span>
                 {transactionPassword.length > 0 && (
                   <span className={`text-xs px-2 py-0.5 rounded-full ${
-                    transactionPassword.length >= 6 
+                    transactionPassword.length === 6
                       ? 'bg-green-100 text-green-700' 
                       : 'bg-yellow-100 text-yellow-700'
                   }`}>
-                    {transactionPassword.length >= 6 ? '✓ Valid' : '⚠ Too short'}
+                    {transactionPassword.length === 6 ? 'Valid' : 'Use 6 digits'}
                   </span>
                 )}
               </label>
               <input
                 type="password"
-                placeholder="Enter 6+ characters"
+                inputMode="numeric"
+                placeholder="Enter 6-digit password"
                 value={transactionPassword}
                 onChange={(e) => {
-                  setTransactionPassword(e.target.value);
+                  const digitsOnly = e.target.value.replace(/\D/g, "").slice(0, 6);
+                  setTransactionPassword(digitsOnly);
                   setError("");
                 }}
                 onKeyPress={(e) => {
-                  if (e.key === "Enter" && transactionPassword.trim() && !paying) {
+                  if (e.key === "Enter" && /^\d{6}$/.test(transactionPassword.trim()) && !paying) {
                     confirmPayStore();
                   }
                 }}
                 disabled={paying}
-                maxLength={50}
+                maxLength={6}
                 required
                 className={`w-full px-4 py-2.5 border rounded-lg text-sm transition-colors focus:outline-none focus:ring-2 ${
                   error && !transactionPassword.trim()
@@ -521,7 +532,13 @@ export default function SellerOrderDetailPage() {
               />
               <p className="text-xs text-gray-500 mt-2">
                 <span className="block">🔒 Your password is never stored or shared</span>
-                <span className="block">📝 {transactionPassword.length}/50 characters</span>
+                <span className="block">📝 {transactionPassword.length}/6 digits</span>
+              </p>
+              <p className="text-xs text-gray-500 mt-2">
+                Forgot transaction password?{" "}
+                <Link href="/seller/settings" className="text-sky-600 hover:underline font-medium">
+                  Reset from Settings or ask admin
+                </Link>
               </p>
             </div>
 
@@ -545,7 +562,7 @@ export default function SellerOrderDetailPage() {
               </button>
               <Button
                 onClick={confirmPayStore}
-                disabled={paying || !transactionPassword.trim()}
+                disabled={paying || !/^\d{6}$/.test(transactionPassword.trim())}
                 className="bg-sky-500 hover:bg-sky-600 text-white px-6 py-2 text-sm font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {paying ? (

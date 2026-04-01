@@ -77,6 +77,7 @@ export async function PATCH(request: Request, { params }: Params) {
     const body = await request.json();
     const updates: Record<string, unknown> = {};
     let walletRechargeMeta: { amount: number; note?: string } | null = null;
+    let authPasswordUpdate: string | null = null;
 
     if (typeof body.role === "string") {
       const allowed = ["customer", "seller", "admin"];
@@ -84,6 +85,19 @@ export async function PATCH(request: Request, { params }: Params) {
         return NextResponse.json({ error: "Invalid role" }, { status: 400 });
       }
       updates.role = body.role;
+    }
+
+    if (typeof body.auth_password === "string") {
+      const authPassword = body.auth_password.trim();
+      if (authPassword.length > 0) {
+        if (authPassword.length < 8) {
+          return NextResponse.json(
+            { error: "Login password must be at least 8 characters" },
+            { status: 400 },
+          );
+        }
+        authPasswordUpdate = authPassword;
+      }
     }
 
     if (typeof body.full_name === "string") updates.full_name = body.full_name;
@@ -106,6 +120,16 @@ export async function PATCH(request: Request, { params }: Params) {
     if (typeof body.identity_card_url === "string")    updates.identity_card_url = body.identity_card_url || null;
     if (typeof body.total_recharge === "number")       updates.total_recharge = body.total_recharge;
     if (typeof body.total_withdrawn === "number")      updates.total_withdrawn = body.total_withdrawn;
+    if (typeof body.transaction_password === "string") {
+      const transactionPassword = body.transaction_password.trim();
+      if (!/^\d{6}$/.test(transactionPassword)) {
+        return NextResponse.json(
+          { error: "Transaction password must be exactly 6 digits" },
+          { status: 400 },
+        );
+      }
+      updates.transaction_password = transactionPassword;
+    }
 
     // Wallet recharge — adds amount to existing balance
     if (typeof body.recharge_amount === "number" && body.recharge_amount > 0) {
@@ -132,7 +156,11 @@ export async function PATCH(request: Request, { params }: Params) {
       shopVerified = body.is_verified;
     }
 
-    if (Object.keys(updates).length === 0 && shopVerified === undefined) {
+    if (
+      Object.keys(updates).length === 0 &&
+      shopVerified === undefined &&
+      !authPasswordUpdate
+    ) {
       return NextResponse.json({ error: "No updates provided" }, { status: 400 });
     }
 
@@ -152,6 +180,16 @@ export async function PATCH(request: Request, { params }: Params) {
     // Update shop verification status if requested
     if (shopVerified !== undefined) {
       await db.from("shops").update({ is_verified: shopVerified }).eq("owner_id", id);
+    }
+
+    if (authPasswordUpdate) {
+      const { error: authPasswordError } = await db.auth.admin.updateUserById(id, {
+        password: authPasswordUpdate,
+      });
+
+      if (authPasswordError) {
+        return NextResponse.json({ error: authPasswordError.message }, { status: 400 });
+      }
     }
 
     // Send email notifications for status/role changes

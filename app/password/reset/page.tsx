@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -8,25 +8,66 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Mail } from "lucide-react";
 
+const RATE_LIMIT_COOLDOWN_SECONDS = 60;
+
+function getResetPasswordErrorMessage(message: string) {
+  const normalized = message.toLowerCase();
+  if (
+    normalized.includes("rate limit") ||
+    normalized.includes("too many requests")
+  ) {
+    return "Too many reset requests. Please wait 60 seconds and try again.";
+  }
+
+  return "We couldn't send the reset link right now. Please try again.";
+}
+
 export default function PasswordResetPage() {
   const [email, setEmail] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [cooldownSeconds, setCooldownSeconds] = useState(0);
+
+  useEffect(() => {
+    if (cooldownSeconds <= 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      setCooldownSeconds((previous) => Math.max(previous - 1, 0));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [cooldownSeconds]);
 
   const handleReset = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (cooldownSeconds > 0) {
+      setError(`Please wait ${cooldownSeconds}s before requesting another reset link.`);
+      return;
+    }
+
     setError("");
     setLoading(true);
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
       redirectTo: `${window.location.origin}/auth/callback?next=/password/update`,
     });
+
     if (error) {
-      setError(error.message);
+      setError(getResetPasswordErrorMessage(error.message));
+      const normalized = error.message.toLowerCase();
+      if (
+        normalized.includes("rate limit") ||
+        normalized.includes("too many requests")
+      ) {
+        setCooldownSeconds(RATE_LIMIT_COOLDOWN_SECONDS);
+      }
     } else {
       setSuccess(true);
     }
+
     setLoading(false);
   };
 
@@ -83,7 +124,17 @@ export default function PasswordResetPage() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            {cooldownSeconds > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Please wait {cooldownSeconds}s before requesting another email.
+              </p>
+            )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || cooldownSeconds > 0}
+            >
               {loading ? "Sending…" : "Send Reset Link"}
             </Button>
           </form>
