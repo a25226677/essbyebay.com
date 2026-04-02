@@ -1,12 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, Eye, EyeOff, RefreshCw, Save } from "lucide-react";
-import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+
+const REQUEST_TIMEOUT_MS = 12000;
+
+function withTimeout<T>(promise: PromiseLike<T> | T, message: string, timeoutMs = REQUEST_TIMEOUT_MS) {
+  return Promise.race<T>([
+    Promise.resolve(promise),
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]);
+}
 
 type ProfileForm = {
   full_name: string;
@@ -19,9 +29,30 @@ type PasswordForm = {
   confirmPassword: string;
 };
 
+type AdminSettingsPayload = {
+  data?: {
+    full_name?: string | null;
+    email?: string | null;
+    phone?: string | null;
+  };
+  error?: string;
+};
+
+async function getApiErrorMessage(response: Response, fallbackMessage: string) {
+  try {
+    const payload = (await response.json()) as { error?: string };
+    if (payload.error && payload.error.trim().length > 0) {
+      return payload.error;
+    }
+  } catch {
+    // Ignore JSON parsing errors and use fallback message.
+  }
+
+  return fallbackMessage;
+}
+
 export default function AdminSettingsPage() {
   const router = useRouter();
-  const supabase = useMemo(() => createClient(), []);
 
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
@@ -47,50 +78,70 @@ export default function AdminSettingsPage() {
   });
 
   useEffect(() => {
+    let isMounted = true;
+
     async function loadAdminProfile() {
-      setLoading(true);
-      setProfileError("");
+      if (isMounted) {
+        setLoading(true);
+        setProfileError("");
+      }
 
       try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+        const response = await withTimeout(
+          fetch("/api/admin/settings", {
+            method: "GET",
+            cache: "no-store",
+          }),
+          "Request timed out while loading admin settings.",
+        );
 
-        if (!user) {
+        if (!isMounted) {
+          return;
+        }
+
+        if (response.status === 401) {
           router.replace("/admin/login?next=/admin/settings");
           return;
         }
 
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles")
-          .select("role, full_name, phone")
-          .eq("id", user.id)
-          .maybeSingle();
-
-        if (profileError) {
-          setProfileError(profileError.message || "Failed to load admin profile.");
-          return;
-        }
-
-        if (!profile || profile.role !== "admin") {
+        if (response.status === 403) {
           router.replace("/admin/login?error=not_admin");
           return;
         }
 
+        if (!response.ok) {
+          setProfileError(await getApiErrorMessage(response, "Failed to load admin settings."));
+          return;
+        }
+
+        const payload = (await response.json()) as AdminSettingsPayload;
+        const profile = payload.data;
+
         setProfileForm({
-          full_name: profile.full_name || user.user_metadata?.full_name || "",
-          email: user.email || "",
-          phone: profile.phone || "",
+          full_name: profile?.full_name || "",
+          email: profile?.email || "",
+          phone: profile?.phone || "",
         });
-      } catch {
-        setProfileError("Failed to load admin settings.");
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        const errorMessage = error instanceof Error ? error.message : "Failed to load admin settings.";
+        setProfileError(errorMessage);
       } finally {
-        setLoading(false);
+        if (isMounted) {
+          setLoading(false);
+        }
       }
     }
 
     loadAdminProfile();
-  }, [router, supabase]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
 
   const handleProfileChange = (field: keyof ProfileForm, value: string) => {
     setProfileError("");
@@ -110,40 +161,37 @@ export default function AdminSettingsPage() {
     setProfileSuccess("");
 
     try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
+      const response = await withTimeout(
+        fetch("/api/admin/settings", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            full_name: profileForm.full_name,
+            phone: profileForm.phone,
+          }),
+        }),
+        "Request timed out while saving your profile.",
+      );
 
-      if (!user) {
-        setProfileError("Your session has expired. Please login again.");
+      if (response.status === 401) {
+        router.replace("/admin/login?next=/admin/settings");
         return;
       }
 
-      const { error: updateProfileError } = await supabase
-        .from("profiles")
-        .update({
-          full_name: profileForm.full_name.trim(),
-          phone: profileForm.phone.trim(),
-        })
-        .eq("id", user.id);
-
-      if (updateProfileError) {
-        setProfileError(updateProfileError.message || "Failed to update profile.");
+      if (response.status === 403) {
+        router.replace("/admin/login?error=not_admin");
         return;
       }
 
-      const { error: updateAuthError } = await supabase.auth.updateUser({
-        data: { full_name: profileForm.full_name.trim() },
-      });
-
-      if (updateAuthError) {
-        setProfileError(updateAuthError.message || "Failed to update profile.");
+      if (!response.ok) {
+        setProfileError(await getApiErrorMessage(response, "Failed to update profile."));
         return;
       }
 
       setProfileSuccess("Profile updated successfully.");
-    } catch {
-      setProfileError("Failed to update profile.");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update profile.";
+      setProfileError(errorMessage);
     } finally {
       setSavingProfile(false);
     }
@@ -168,19 +216,35 @@ export default function AdminSettingsPage() {
         return;
       }
 
-      const { error: passwordUpdateError } = await supabase.auth.updateUser({
-        password: newPassword,
-      });
+      const response = await withTimeout(
+        fetch("/api/admin/settings/password", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ newPassword }),
+        }),
+        "Request timed out while updating your password.",
+      );
 
-      if (passwordUpdateError) {
-        setPasswordError(passwordUpdateError.message || "Failed to update password.");
+      if (response.status === 401) {
+        router.replace("/admin/login?next=/admin/settings");
+        return;
+      }
+
+      if (response.status === 403) {
+        router.replace("/admin/login?error=not_admin");
+        return;
+      }
+
+      if (!response.ok) {
+        setPasswordError(await getApiErrorMessage(response, "Failed to update password."));
         return;
       }
 
       setPasswordForm({ newPassword: "", confirmPassword: "" });
       setPasswordSuccess("Password updated successfully.");
-    } catch {
-      setPasswordError("Failed to update password.");
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : "Failed to update password.";
+      setPasswordError(errorMessage);
     } finally {
       setSavingPassword(false);
     }
