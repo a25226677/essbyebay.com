@@ -3,6 +3,22 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createAdminServiceClient } from '@/lib/supabase/admin-client'
 
+const IMPERSONATE_SITE_ORIGIN = 'https://esellersstorebay.com'
+
+function toAdminUsersErrorUrl(message: string) {
+  return new URL(
+    `/admin/users?error=${encodeURIComponent(message)}`,
+    IMPERSONATE_SITE_ORIGIN,
+  )
+}
+
+function toSafeNextPath(rawValue: string | null) {
+  if (!rawValue || !rawValue.startsWith('/')) {
+    return '/seller/dashboard'
+  }
+  return rawValue
+}
+
 /**
  * Server-side admin impersonation route.
  * Usage: GET /api/admin/impersonate?email=target@example.com&redirect=/dashboard
@@ -12,10 +28,10 @@ export async function GET(request: NextRequest) {
     const url = request.nextUrl
     const searchParams = url.searchParams
     const targetEmail = searchParams.get('email')
-    const redirectTo = searchParams.get('redirect') || '/'
+    const safeNextPath = toSafeNextPath(searchParams.get('redirect'))
 
     if (!targetEmail) {
-      return NextResponse.redirect(new URL(`/admin/users?error=${encodeURIComponent('Email parameter is required')}`, request.nextUrl.origin))
+      return NextResponse.redirect(toAdminUsersErrorUrl('Email parameter is required'))
     }
 
     // Read cookies to resolve current session user
@@ -40,93 +56,141 @@ export async function GET(request: NextRequest) {
     const currentUser = currentUserData?.user
 
     if (!currentUser) {
-      return NextResponse.redirect(new URL('/auth/login', request.nextUrl.origin))
+      return NextResponse.redirect(new URL('/auth/login', IMPERSONATE_SITE_ORIGIN))
     }
 
     // Use service-role admin client for privileged operations
     const adminClient = createAdminServiceClient()
+    const normalizedTargetEmail = targetEmail.trim().toLowerCase()
 
-    // Find the auth user by email using the admin auth API
-    // `query` is not a valid option on this SDK method; fetch a page and filter locally.
-    const listRes = await adminClient.auth.admin.listUsers({ perPage: 100 });
-    const matched = (listRes.data?.users || []).find((u: any) => u.email?.toLowerCase() === targetEmail.toLowerCase());
-
-    if (!matched) {
-      return NextResponse.redirect(new URL(`/admin/users?error=${encodeURIComponent('User not found: ' + targetEmail)}`, request.nextUrl.origin))
-    }
-
-    const targetId = matched.id;
-
-    // Lookup profile for role (profiles table stores role)
-    const { data: dbUser, error: dbError } = await adminClient
-      .from('profiles')
-      .select('id, role')
-      .eq('id', targetId)
-      .single()
-
-    if (dbError || !dbUser) {
-      // If profile is missing, continue (we can still impersonate via auth)
-      console.warn('Profile not found for auth user id:', targetId);
-    }
-
-    // Prevent regular admins from impersonating superadmins by checking profile role if available
-    const { data: currentDbUser } = await adminClient
+    const { data: currentDbUser, error: currentDbUserError } = await adminClient
       .from('profiles')
       .select('role')
       .eq('id', currentUser.id)
-      .single()
+      .maybeSingle()
 
-    const currentRole = currentDbUser?.role
-    if (dbUser?.role === 'superadmin' && currentRole !== 'superadmin') {
-      return NextResponse.redirect(new URL(`/admin/users?error=${encodeURIComponent('Unauthorized: Admins cannot impersonate Super Admins')}`, request.nextUrl.origin))
+    if (currentDbUserError) {
+      return NextResponse.redirect(toAdminUsersErrorUrl(currentDbUserError.message))
     }
 
-    // Generate magic link and extract hashed token
-    const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({ type: 'magiclink', email: targetEmail })
-    if (linkError || !linkData?.properties) {
-      return NextResponse.redirect(new URL(`/admin/users?error=${encodeURIComponent('Failed to generate login link')}`, request.nextUrl.origin))
+    if (!currentDbUser || (currentDbUser.role !== 'admin' && currentDbUser.role !== 'superadmin')) {
+      return NextResponse.redirect(toAdminUsersErrorUrl('Admin access required'))
     }
 
-    const tokenHash = linkData.properties.hashed_token
-    if (!tokenHash) {
-      return NextResponse.redirect(new URL(`/admin/users?error=${encodeURIComponent('Failed to get authentication token')}`, request.nextUrl.origin))
+    let targetProfile: {
+      id: string
+      role: string | null
+      is_active: boolean | null
+      disable_login: boolean | null
+      email: string | null
+    } | null = null
+
+    const { data: profileByEmail, error: profileByEmailError } = await adminClient
+      .from('profiles')
+      .select('id, role, is_active, disable_login, email')
+      .ilike('email', normalizedTargetEmail)
+      .maybeSingle()
+
+    if (profileByEmailError) {
+      return NextResponse.redirect(toAdminUsersErrorUrl(profileByEmailError.message))
     }
 
-    // Determine canonical site base (use NEXT_PUBLIC_SITE_URL when available)
-    const siteBase = (process.env.NEXT_PUBLIC_SITE_URL && process.env.NEXT_PUBLIC_SITE_URL.trim()) || request.nextUrl.origin;
-    // Prepare response so we can set cookies on it
-    const redirectUrl = new URL(redirectTo, siteBase)
-    const response = NextResponse.redirect(redirectUrl)
+    targetProfile = profileByEmail
 
-    // Create server client that can set cookies on the response
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return cookieStore.getAll()
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              // NextResponse cookie options are compatible with Supabase cookie options
-              response.cookies.set(name, value, options)
-            })
-          },
-        },
+    let matchedAuthUser: { id: string; email?: string | null } | null = null
+
+    // Backward-compatible fallback for records where profile email is missing/out of sync.
+    if (!targetProfile) {
+      const perPage = 200
+      for (let page = 1; page <= 100; page += 1) {
+        const { data: usersPage, error: usersPageError } = await adminClient.auth.admin.listUsers({
+          page,
+          perPage,
+        })
+
+        if (usersPageError) {
+          return NextResponse.redirect(toAdminUsersErrorUrl(usersPageError.message))
+        }
+
+        const users = usersPage?.users || []
+        matchedAuthUser =
+          users.find((u) => u.email?.toLowerCase() === normalizedTargetEmail) || null
+
+        if (matchedAuthUser) break
+        if (users.length < perPage) break
       }
-    )
 
-    // Verify the OTP token (magic link) server-side to establish session cookies
-    const { data: sessionData, error: verifyError } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: 'magiclink' })
+      if (matchedAuthUser) {
+        const { data: profileById, error: profileByIdError } = await adminClient
+          .from('profiles')
+          .select('id, role, is_active, disable_login, email')
+          .eq('id', matchedAuthUser.id)
+          .maybeSingle()
 
-    if (verifyError || !sessionData?.session) {
-      return NextResponse.redirect(new URL(`/admin/users?error=${encodeURIComponent('Failed to establish session')}`, request.nextUrl.origin))
+        if (profileByIdError) {
+          return NextResponse.redirect(toAdminUsersErrorUrl(profileByIdError.message))
+        }
+
+        targetProfile = profileById
+      }
     }
 
-    return response
+    if (!targetProfile) {
+      return NextResponse.redirect(toAdminUsersErrorUrl(`User not found: ${targetEmail}`))
+    }
+
+    if (targetProfile.role !== 'seller') {
+      return NextResponse.redirect(toAdminUsersErrorUrl('Selected account is not a seller'))
+    }
+
+    if (targetProfile.is_active === false || targetProfile.disable_login === true) {
+      return NextResponse.redirect(toAdminUsersErrorUrl('This seller account is disabled'))
+    }
+
+    let sellerEmail = targetProfile.email || matchedAuthUser?.email || null
+    if (!sellerEmail) {
+      const { data: authUserData, error: authUserError } = await adminClient.auth.admin.getUserById(
+        targetProfile.id,
+      )
+
+      if (authUserError) {
+        return NextResponse.redirect(toAdminUsersErrorUrl(authUserError.message))
+      }
+
+      sellerEmail = authUserData.user?.email || null
+    }
+
+    if (!sellerEmail) {
+      return NextResponse.redirect(toAdminUsersErrorUrl('Seller email is missing'))
+    }
+
+    const redirectTo = `${IMPERSONATE_SITE_ORIGIN}/seller/auth-callback?next=${encodeURIComponent(safeNextPath)}`
+    const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+      type: 'magiclink',
+      email: sellerEmail,
+      options: { redirectTo },
+    })
+
+    if (linkError) {
+      return NextResponse.redirect(toAdminUsersErrorUrl(linkError.message))
+    }
+
+    const tokenHash = linkData?.properties?.hashed_token
+    const verificationType = linkData?.properties?.verification_type || 'magiclink'
+
+    if (!tokenHash) {
+      return NextResponse.redirect(toAdminUsersErrorUrl('Failed to get authentication token'))
+    }
+
+    const callbackUrl =
+      `${IMPERSONATE_SITE_ORIGIN}/seller/auth-callback` +
+      `?token_hash=${encodeURIComponent(tokenHash)}` +
+      `&type=${encodeURIComponent(verificationType)}` +
+      `&next=${encodeURIComponent(safeNextPath)}`
+
+    return NextResponse.redirect(new URL(callbackUrl))
   } catch (err) {
     console.error('Impersonation error:', err)
-    return NextResponse.redirect(new URL(`/admin/users?error=${encodeURIComponent('Internal server error')}`, request.nextUrl.origin))
+    return NextResponse.redirect(toAdminUsersErrorUrl('Internal server error'))
   }
 }
