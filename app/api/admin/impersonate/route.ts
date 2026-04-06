@@ -164,7 +164,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(toAdminUsersErrorUrl('Seller email is missing'))
     }
 
-    const redirectTo = `${IMPERSONATE_SITE_ORIGIN}/seller/auth-callback?next=${encodeURIComponent(safeNextPath)}`
+    const redirectTo = `${IMPERSONATE_SITE_ORIGIN}/auth/callback?next=${encodeURIComponent(safeNextPath)}`
     const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
       type: 'magiclink',
       email: sellerEmail,
@@ -183,7 +183,7 @@ export async function GET(request: NextRequest) {
     }
 
     const callbackUrl =
-      `${IMPERSONATE_SITE_ORIGIN}/seller/auth-callback` +
+      `${IMPERSONATE_SITE_ORIGIN}/auth/callback` +
       `?token_hash=${encodeURIComponent(tokenHash)}` +
       `&type=${encodeURIComponent(verificationType)}` +
       `&next=${encodeURIComponent(safeNextPath)}`

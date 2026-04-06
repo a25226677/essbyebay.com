@@ -59,7 +59,8 @@ export async function POST(request: Request) {
       );
     }
     const origin = ADMIN_LOGIN_AS_ORIGIN;
-    const redirectTo = `${origin}/seller/auth-callback?next=/seller/dashboard`;
+    const safeNextPath = "/seller/dashboard";
+    const redirectTo = `${origin}/auth/callback?next=${encodeURIComponent(safeNextPath)}`;
     const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
       type: "magiclink",
       email,
@@ -80,14 +81,13 @@ export async function POST(request: Request) {
       );
     }
 
-    // Build a direct callback URL using token_hash + type so the server-side
-    // auth-callback page can call verifyOtp() without relying on URL fragments
-    // (fragments are invisible to server components and would cause missing_auth_params).
+    // Build a direct callback URL using token_hash + type and route it through
+    // /auth/callback (route handler), which can persist auth cookies reliably.
     const callbackUrl =
-      `${origin}/seller/auth-callback` +
+      `${origin}/auth/callback` +
       `?token_hash=${encodeURIComponent(token_hash)}` +
       `&type=${encodeURIComponent(verification_type)}` +
-      `&next=/seller/dashboard`;
+      `&next=${encodeURIComponent(safeNextPath)}`;
 
     return NextResponse.json({ actionLink: callbackUrl });
   } catch (error) {
