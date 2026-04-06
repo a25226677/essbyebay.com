@@ -56,9 +56,10 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://esellersstorebay.com";
 
     const origin =
-      process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ||
+      SITE_URL?.replace(/\/$/, "") ||
       new URL(request.url).origin;
     const redirectTo = `${origin}/seller/auth-callback?next=/seller/dashboard`;
     const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
