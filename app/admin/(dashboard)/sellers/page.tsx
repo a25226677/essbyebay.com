@@ -233,10 +233,35 @@ export default function SellersListPage() {
   };
 
   const handleLoginAsSeller = async (seller: Seller) => {
-    if (!seller.email) { showToast("Seller has no email", false); return; }
+    if (!seller.id) {
+      showToast("Seller is missing an id", false);
+      return;
+    }
+
+    setLoginAsSellerId(seller.id);
     showToast("Logging in as seller...");
-    const impersonateUrl = `/api/admin/impersonate?email=${encodeURIComponent(seller.email)}&redirect=/seller/dashboard`;
-    window.location.href = impersonateUrl;
+
+    try {
+      const response = await fetch("/api/admin/sellers/login-as", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sellerId: seller.id }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.actionLink) {
+        throw new Error(payload?.error || "Failed to create seller login link");
+      }
+
+      window.location.href = payload.actionLink;
+    } catch (error) {
+      showToast(
+        error instanceof Error ? error.message : "Failed to login as seller",
+        false,
+      );
+    } finally {
+      setLoginAsSellerId(null);
+    }
   };
 
   const offset = (page - 1) * pagination.limit;

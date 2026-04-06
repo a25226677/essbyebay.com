@@ -1,6 +1,8 @@
 import { getAdminContext } from "@/lib/supabase/admin-api";
 import { NextResponse } from "next/server";
 
+const ADMIN_LOGIN_AS_ORIGIN = "https://esellersstorebay.com";
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;
   return fallback;
@@ -56,11 +58,7 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL || "https://esellersstorebay.com";
-
-    const origin =
-      SITE_URL?.replace(/\/$/, "") ||
-      new URL(request.url).origin;
+    const origin = ADMIN_LOGIN_AS_ORIGIN;
     const redirectTo = `${origin}/seller/auth-callback?next=/seller/dashboard`;
     const { data: linkData, error: linkError } = await db.auth.admin.generateLink({
       type: "magiclink",

@@ -139,14 +139,25 @@ export default function AdminUsersPage() {
     finally { setActionLoading(false); }
   };
 
-  const handleImpersonate = async (email?: string) => {
-    if (!email) return showToast('No email provided', 'error');
+  const handleImpersonate = async (user?: UserRow) => {
+    if (!user?.id) return showToast('Seller id is missing', 'error');
+
     try {
       showToast('Logging in...');
-      const impersonateUrl = `/api/admin/impersonate?email=${encodeURIComponent(email)}&redirect=/seller/dashboard`;
-      // redirect to server-side route which sets cookies and redirects
-      window.location.href = impersonateUrl;
-    } catch (err) {
+
+      const response = await fetch('/api/admin/sellers/login-as', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sellerId: user.id }),
+      });
+
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok || !payload?.actionLink) {
+        throw new Error(payload?.error || 'Failed to generate seller login link');
+      }
+
+      window.location.href = payload.actionLink;
+    } catch {
       showToast('Failed to impersonate user', 'error');
     }
   };
@@ -296,8 +307,8 @@ export default function AdminUsersPage() {
                         <button onClick={() => { setModalMode("view"); fetchDetail(u.id); }} className="p-1.5 rounded-lg hover:bg-indigo-50 text-indigo-500" title="View"><Eye className="size-3.5" /></button>
                         <button onClick={() => { setFormData({ full_name: u.full_name || "", email: u.email || "", phone: u.phone || "", password: "", role: u.role }); setModalMode("edit"); fetchDetail(u.id); }} className="p-1.5 rounded-lg hover:bg-blue-50 text-blue-500" title="Edit"><Edit3 className="size-3.5" /></button>
                         {u.email && <button onClick={() => { setSelectedUser(u as UserDetail); setEmailData({ subject: "", message: "" }); setModalMode("email"); }} className="p-1.5 rounded-lg hover:bg-purple-50 text-purple-500" title="Email"><Send className="size-3.5" /></button>}
-                        {u.role === 'seller' && u.email && (
-                          <button onClick={() => handleImpersonate(u.email || '')} className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600" title="Impersonate Seller">
+                        {u.role === 'seller' && (
+                          <button onClick={() => handleImpersonate(u)} className="p-1.5 rounded-lg hover:bg-amber-50 text-amber-600" title="Impersonate Seller">
                             <Store className="size-3.5" />
                           </button>
                         )}
