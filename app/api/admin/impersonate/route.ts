@@ -3,7 +3,7 @@ import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { createAdminServiceClient } from '@/lib/supabase/admin-client'
 
-const IMPERSONATE_SITE_ORIGIN = 'https://esellersstorebay.com'
+const IMPERSONATE_SITE_ORIGIN = 'https://@sellersstorebyebay.shop'
 
 function toAdminUsersErrorUrl(message: string) {
   return new URL(

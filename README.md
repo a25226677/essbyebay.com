@@ -14,7 +14,7 @@ Use these settings in Hostinger:
 Required environment variables:
 
 ```env
-NEXT_PUBLIC_SITE_URL=https://esellersstorebay.com
+NEXT_PUBLIC_SITE_URL=https://@sellersstorebyebay.shop
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 RESEND_API_KEY=...
@@ -22,9 +22,9 @@ RESEND_API_KEY=...
 
 Supabase auth settings:
 
-- Site URL: `https://esellersstorebay.com`
-- Redirect URL: `https://esellersstorebay.com/auth/callback`
-- Optional redirect URL: `https://www.esellersstorebay.com/auth/callback`
+- Site URL: `https://@sellersstorebyebay.shop`
+- Redirect URL: `https://@sellersstorebyebay.shop/auth/callback`
+- Optional redirect URL: `https://www.@sellersstorebyebay.shop/auth/callback`
 
 Local development:
 

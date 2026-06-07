@@ -51,7 +51,7 @@ export default function PrivacyPolicyPage() {
         <h2 className="text-lg font-semibold text-foreground">Contact Us</h2>
         <p>
           If you have any questions about this Privacy Policy, please contact us at
-          privacy@esellersstorebay.com.
+          privacy@sellersstorebyebay.shop.
         </p>
       </div>
     </div>

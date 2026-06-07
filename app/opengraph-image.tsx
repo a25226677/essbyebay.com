@@ -74,7 +74,7 @@ export default function OpenGraphImage() {
             <div>Beauty</div>
             <div>Home</div>
           </div>
-          <div style={{ opacity: 0.9 }}>esellersstorebay.com</div>
+          <div style={{ opacity: 0.9 }}>@sellersstorebyebay.shop</div>
         </div>
       </div>
     ),

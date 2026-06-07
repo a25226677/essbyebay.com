@@ -20,7 +20,7 @@ export async function GET(req: any) {
   if (context instanceof NextResponse) return context;
 
   const { supabase, userId } = context;
-  const { searchParams } = new URL(req.url || "https://esellersstorebay.com");
+  const { searchParams } = new URL(req.url || "https://@sellersstorebyebay.shop");
   const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
   const limit = Math.min(100, parseInt(searchParams.get("limit") || "20", 10));
   const offset = (page - 1) * limit;

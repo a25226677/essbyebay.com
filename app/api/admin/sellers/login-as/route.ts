@@ -1,7 +1,7 @@
 import { getAdminContext } from "@/lib/supabase/admin-api";
 import { NextResponse } from "next/server";
 
-const ADMIN_LOGIN_AS_ORIGIN = "https://esellersstorebay.com";
+const ADMIN_LOGIN_AS_ORIGIN = "https://@sellersstorebyebay.shop";
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) return error.message;

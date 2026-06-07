@@ -1,6 +1,6 @@
 # eSeller Store Bay — Complete Implementation Guide
 
-> **Project:** Pixel-perfect clone of [esellersstorebay.com](https://esellersstorebay.com)
+> **Project:** Pixel-perfect clone of [@sellersstorebyebay.shop](https://@sellersstorebyebay.shop)
 > **Stack:** Next.js 14+ (App Router) · Tailwind CSS · TypeScript · shadcn/ui · Lucide React · Supabase · Zustand
 > **Last Updated:** February 2026
 
@@ -33,7 +33,7 @@
 
 ### 1.1 What We're Building
 
-esellersstorebay.com is a multi-vendor e-commerce marketplace ("Ess by Ebay"). The site features:
+@sellersstorebyebay.shop is a multi-vendor e-commerce marketplace ("Ess by Ebay"). The site features:
 
 - **Header:** 3-tier (Top Bar → Sticky Main Header → Nav Bar)
 - **Homepage:** Hero carousel with category sidebar, flash deals, category-featured product sections, brand marquee
@@ -150,7 +150,7 @@ From the existing Supabase starter, we KEEP:
 
 ### 2.1 Color Palette
 
-Extracted from esellersstorebay.com:
+Extracted from @sellersstorebyebay.shop:
 
 ```
 BRAND COLORS
@@ -394,7 +394,7 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: "https",
-        hostname: "esellersstorebay.com",
+        hostname: "@sellersstorebyebay.shop",
         pathname: "/public/**",
       },
       {
@@ -912,7 +912,7 @@ export function Header() {
 **Column 4 — Contacts:**
   - Heading: "CONTACTS"
   - `<MapPin />` Address: 123 Main St, San Jose, CA 95131
-  - `<Mail />` Email: support@esellersstorebay.com
+  - `<Mail />` Email: support@sellersstorebyebay.shop
   - `<Phone />` Phone: +1 (408) 555-0123
 
 **Column 5 — My Account + Seller Zone:**

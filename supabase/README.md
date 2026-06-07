@@ -12,11 +12,11 @@ Run the SQL migration in your Supabase project:
 
 In Supabase Dashboard → Authentication → URL Configuration:
 
-- Site URL: `https://esellersstorebay.com`
+- Site URL: `https://@sellersstorebyebay.shop`
 - Additional Redirect URLs should include:
   - `http://localhost:3000/auth/callback`
-  - `https://esellersstorebay.com/auth/callback`
-  - `https://www.esellersstorebay.com/auth/callback`
+  - `https://@sellersstorebyebay.shop/auth/callback`
+  - `https://www.@sellersstorebyebay.shop/auth/callback`
 
 Password reset now uses:
 
@@ -27,7 +27,7 @@ Password reset now uses:
 In `.env.local`:
 
 ```env
-NEXT_PUBLIC_SITE_URL=https://esellersstorebay.com
+NEXT_PUBLIC_SITE_URL=https://@sellersstorebyebay.shop
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...
 RESEND_API_KEY=...
@@ -41,11 +41,11 @@ For Hostinger Node.js hosting:
 - Install command: `npm install`
 - Build command: `npm run build`
 - Start command: `npm run start`
-- Application URL / public domain: `https://esellersstorebay.com`
+- Application URL / public domain: `https://@sellersstorebyebay.shop`
 
 Make sure these environment variables are added in Hostinger:
 
-- `NEXT_PUBLIC_SITE_URL=https://esellersstorebay.com`
+- `NEXT_PUBLIC_SITE_URL=https://@sellersstorebyebay.shop`
 - `NEXT_PUBLIC_SUPABASE_URL=...`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=...`
 - `RESEND_API_KEY=...`

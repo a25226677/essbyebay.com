@@ -12,7 +12,7 @@ import { absoluteUrl, buildMetadata, seoConfig, siteUrl } from "@/lib/seo";
 const defaultUrl = process.env.NEXT_PUBLIC_SITE_URL || (
   process.env.NODE_ENV === "development"
     ? "http://localhost:3000"
-    : "https://esellersstorebay.com"
+    : "https://@sellersstorebyebay.shop"
 );
 
 export const metadata: Metadata = {

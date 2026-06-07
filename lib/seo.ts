@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 const fallbackSiteUrl =
   process.env.NODE_ENV === "development"
     ? "http://localhost:3000"
-    : "https://esellersstorebay.com";
+    : "https://@sellersstorebyebay.shop";
 
 export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || fallbackSiteUrl;
 

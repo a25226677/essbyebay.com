@@ -145,7 +145,7 @@ export function Footer() {
               </div>
               <div>
                 <p className="text-gray-500 mb-1">Email:</p>
-                <p className="text-gray-400">info@esellersstorebay.com</p>
+                <p className="text-gray-400">info@sellersstorebyebay.shop</p>
               </div>
             </div>
           </div>
