@@ -4,6 +4,8 @@ import type { Metadata } from "next";
 import { getProductBySlug } from "@/lib/storefront-data";
 import { buildMetadata, truncateDescription } from "@/lib/seo";
 
+export const dynamic = "force-dynamic";
+
 interface Props {
   params: Promise<{ slug: string }>;
 }

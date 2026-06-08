@@ -1,4 +1,3 @@
-import { createClient } from "@/lib/supabase/server";
 import { createAdminServiceClient } from "@/lib/supabase/admin-client";
 import type { BlogPost, Brand, Category, FlashDeal, Product, Shop } from "@/lib/types";
 import {
@@ -160,8 +159,14 @@ export async function getHomeStorefrontData() {
 
   const dbProducts = ((productRows || []) as ProductRow[]).map(rowToProduct);
 
+  console.log(`[storefront] fetched ${dbProducts.length} active products from database`);
+
   // Fall back to placeholder data when the database has no active products
   const usingPlaceholders = dbProducts.length === 0;
+  if (usingPlaceholders) {
+    console.warn("[storefront] no active products found in database — using placeholder data. " +
+      "Ensure products have is_active=true. Run the migration: 20260610_000030_allow_inhouse_admin_products.sql");
+  }
   const products = usingPlaceholders ? placeholderProducts : dbProducts;
 
   const countsByCategory = new Map<string, number>();

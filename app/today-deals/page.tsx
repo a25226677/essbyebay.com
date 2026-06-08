@@ -5,6 +5,8 @@ import { CountdownBanner } from "@/components/flash-deals/countdown-banner";
 import { getFlashDeals } from "@/lib/storefront-data";
 import { buildMetadata } from "@/lib/seo";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = buildMetadata({
   title: "Today’s Deals and Flash Sale Offers",
   description:

@@ -15,6 +15,8 @@ import { CategoryCard } from "@/components/category-card";
 import { ProductCard } from "@/components/product-card";
 import { buildMetadata } from "@/lib/seo";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = buildMetadata({
   title: "Multi-Vendor Marketplace for Fashion, Electronics and More",
   description:

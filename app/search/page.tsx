@@ -6,6 +6,8 @@ import { BreadcrumbNav } from "@/components/breadcrumb-nav";
 import { Search as SearchIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { buildMetadata } from "@/lib/seo";
 
+export const dynamic = "force-dynamic";
+
 const PER_PAGE = 24;
 
 type SearchProps = {

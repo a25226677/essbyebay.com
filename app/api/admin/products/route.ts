@@ -71,6 +71,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Product title is required." }, { status: 400 });
   }
 
+  // Auto-set seller_id to the authenticated admin's user ID for inhouse products
+  if (!allowed.seller_id) {
+    allowed.seller_id = userId;
+  }
+
+  // If no shop_id provided, look up whether the admin owns a shop
+  if (!allowed.shop_id) {
+    const { data: adminShop } = await db
+      .from("shops")
+      .select("id")
+      .eq("owner_id", userId)
+      .maybeSingle();
+    if (adminShop) {
+      allowed.shop_id = adminShop.id;
+    }
+    // If still no shop, the DB insert will fail unless shop_id is nullable (see migration)
+  }
+
   const { data, error } = await db.from("products").insert(allowed).select().single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ item: data }, { status: 201 });
