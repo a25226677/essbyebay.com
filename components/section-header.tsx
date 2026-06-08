@@ -9,9 +9,12 @@ interface SectionHeaderProps {
 
 export function SectionHeader({ title, badge, viewAllHref }: SectionHeaderProps) {
   return (
-    <div className="flex items-center justify-between mb-4 pb-2 border-b-2 border-gray-200">
-      <div className="flex items-center gap-2">
-        <h2 className="text-[15px] font-bold text-[#1b233a] uppercase tracking-wide">{title}</h2>
+    <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center gap-2.5">
+        <div className="w-[3px] h-[18px] bg-[#f77f00] rounded-sm flex-shrink-0" />
+        <h2 className="text-[14px] font-extrabold text-[#1b233a] uppercase tracking-wide">
+          {title}
+        </h2>
         {badge && (
           <span className="bg-[#e53e3e] text-white text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase">
             {badge}
