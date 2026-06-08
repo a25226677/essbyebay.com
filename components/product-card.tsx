@@ -10,20 +10,32 @@ import type { Product } from "@/lib/types";
 interface ProductCardProps {
   product: Product;
   variant?: "default" | "compact";
+  showNewBadge?: boolean;
 }
 
-export function ProductCard({ product, variant = "default" }: ProductCardProps) {
+function StarRating({ rating }: { rating: number }) {
+  const rounded = Math.round(rating);
+  return (
+    <span className="text-[12px] leading-none">
+      {Array.from({ length: 5 }, (_, i) => (
+        <span key={i} className={i < rounded ? "text-[#f77f00]" : "text-gray-300"}>
+          ★
+        </span>
+      ))}
+    </span>
+  );
+}
+
+export function ProductCard({ product, variant = "default", showNewBadge = false }: ProductCardProps) {
   const addToCart = useCartStore((s) => s.addItem);
   const wishlistAdd = useWishlistStore((s) => s.addItem);
   const wishlistRemove = useWishlistStore((s) => s.removeItem);
   const isInWishlist = useWishlistStore((s) => s.isInWishlist(product.id));
 
-  const toggleWishlist = () => {
-    if (isInWishlist) {
-      wishlistRemove(product.id);
-    } else {
-      wishlistAdd(product);
-    }
+  const toggleWishlist = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (isInWishlist) wishlistRemove(product.id);
+    else wishlistAdd(product);
   };
 
   const discountPercent =
@@ -34,12 +46,12 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
   return (
     <div
       className={cn(
-        "group relative bg-white rounded border border-gray-200 hover:shadow-lg transition-shadow overflow-hidden",
+        "group relative bg-white rounded-lg border border-gray-200 hover:border-[#f77f00]/40 hover:shadow-lg transition-all overflow-hidden flex flex-col",
         variant === "compact" && "w-[200px] md:w-[220px] flex-shrink-0 snap-start"
       )}
     >
-      {/* Image */}
-      <Link href={`/product/${product.slug}`} className="block relative aspect-square overflow-hidden bg-gray-50">
+      {/* ── Image area ── */}
+      <Link href={`/product/${product.slug}`} className="block relative aspect-square overflow-hidden bg-gray-50 flex-shrink-0">
         <Image
           src={product.image}
           alt={product.title}
@@ -48,20 +60,21 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
           className="object-cover group-hover:scale-105 transition-transform duration-300"
         />
 
-        {/* Discount badge */}
-        {discountPercent > 0 && (
-          <span className="absolute top-2 left-2 bg-[#e53e3e] text-white text-[10px] font-bold px-2 py-0.5 rounded-sm">
+        {/* Badge: discount (red) takes priority, then new (orange) */}
+        {discountPercent > 0 ? (
+          <span className="absolute top-2 left-2 bg-[#e53e3e] text-white text-[10px] font-bold px-2 py-0.5 rounded-sm z-10">
             -{discountPercent}%
           </span>
-        )}
+        ) : showNewBadge ? (
+          <span className="absolute top-2 left-2 bg-[#f77f00] text-white text-[10px] font-bold px-2 py-0.5 rounded-sm z-10">
+            New
+          </span>
+        ) : null}
 
-        {/* Hover action icons - right side vertical stack */}
-        <div className="product-card-actions absolute top-2 right-2 flex flex-col gap-1.5">
+        {/* Hover action icons */}
+        <div className="product-card-actions absolute top-2 right-2 flex flex-col gap-1.5 z-10">
           <button
-            onClick={(e) => {
-              e.preventDefault();
-              toggleWishlist();
-            }}
+            onClick={toggleWishlist}
             className={cn(
               "w-[30px] h-[30px] bg-white rounded-full shadow flex items-center justify-center hover:bg-[#f77f00] hover:text-white transition-colors text-gray-500",
               isInWishlist && "bg-[#f77f00] text-white"
@@ -83,28 +96,25 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
             <GitCompare size={13} />
           </button>
         </div>
-
-        {/* Add to cart - bottom hover */}
-        <button
-          onClick={(e) => {
-            e.preventDefault();
-            addToCart(product);
-          }}
-          className="product-card-actions absolute bottom-0 left-0 right-0 bg-[#f77f00] text-white text-xs font-semibold py-2 flex items-center justify-center gap-1.5 hover:bg-[#e67300] transition-colors"
-        >
-          <ShoppingCart size={13} />
-          Add to Cart
-        </button>
       </Link>
 
-      {/* Content */}
-      <div className="p-3">
+      {/* ── Content ── */}
+      <div className="p-3 flex flex-col flex-1">
         <Link href={`/product/${product.slug}`}>
           <h3 className="text-[13px] font-normal text-gray-700 line-clamp-2 hover:text-[#f77f00] transition-colors leading-[1.4] min-h-[36px]">
             {product.title}
           </h3>
         </Link>
 
+        {/* Star rating */}
+        <div className="flex items-center gap-1.5 mt-1.5">
+          <StarRating rating={product.rating} />
+          {product.reviewCount > 0 && (
+            <span className="text-[11px] text-gray-400">({product.reviewCount})</span>
+          )}
+        </div>
+
+        {/* Price row */}
         <div className="flex items-baseline gap-2 mt-1.5">
           <span className="text-[15px] font-bold text-[#f77f00]">
             ${product.price.toFixed(2)}
@@ -115,6 +125,15 @@ export function ProductCard({ product, variant = "default" }: ProductCardProps) 
             </span>
           )}
         </div>
+
+        {/* Add to Cart — always visible */}
+        <button
+          onClick={() => addToCart(product)}
+          className="mt-auto pt-2.5 w-full bg-[#f77f00] text-white text-[12px] font-semibold py-2 rounded flex items-center justify-center gap-1.5 hover:bg-[#e67300] active:scale-95 transition-all"
+        >
+          <ShoppingCart size={13} />
+          Add to Cart
+        </button>
       </div>
     </div>
   );
