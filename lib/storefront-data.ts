@@ -134,6 +134,10 @@ function rowToProduct(row: ProductRow): Product {
 export async function getHomeStorefrontData() {
   const supabase = createAdminServiceClient();
 
+  // Fetch categories, brands, and products in parallel.
+  // Products query intentionally omits the categories/brands JOIN to keep it
+  // simple and fast — category/brand names are resolved below using the
+  // separately-fetched lookup arrays instead of per-row subqueries.
   const [
     { data: categories, error: catErr },
     { data: brands, error: brandErr },
@@ -145,7 +149,7 @@ export async function getHomeStorefrontData() {
     supabase
       .from("products")
       .select(
-        "id,title,slug,price,compare_at_price,image_url,sku,stock_count,rating,review_count,categories(name,slug),brands(name)",
+        "id,title,slug,price,compare_at_price,image_url,sku,stock_count,rating,review_count,category_id,brand_id",
       )
       .eq("is_active", true)
       .order("created_at", { ascending: false })
@@ -157,7 +161,25 @@ export async function getHomeStorefrontData() {
   if (brandErr) console.error("[storefront] brands query error:", brandErr.message);
   if (prodErr) console.error("[storefront] products query error:", prodErr.message);
 
-  const dbProducts = ((productRows || []) as ProductRow[]).map(rowToProduct);
+  // Build lookup maps from the separately-fetched categories/brands so we can
+  // resolve names without a per-product JOIN in the products query.
+  type CatRow = { id: string; name: string; slug: string };
+  type BrandRow = { id: string; name: string };
+  const categoryById = new Map<string, { name: string; slug: string }>(
+    ((categories || []) as CatRow[]).map((c) => [c.id, { name: c.name, slug: c.slug }])
+  );
+  const brandById = new Map<string, { name: string }>(
+    ((brands || []) as BrandRow[]).map((b) => [b.id, { name: b.name }])
+  );
+
+  type ProductWithIds = ProductRow & { category_id?: string | null; brand_id?: string | null };
+  const augmented = ((productRows || []) as ProductWithIds[]).map((row) => ({
+    ...row,
+    categories: row.category_id ? (categoryById.get(row.category_id) ?? null) : null,
+    brands: row.brand_id ? (brandById.get(row.brand_id) ?? null) : null,
+  }));
+
+  const dbProducts = augmented.map(rowToProduct);
 
   console.log(`[storefront] fetched ${dbProducts.length} active products from database`);
 
