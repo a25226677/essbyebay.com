@@ -7,6 +7,9 @@ import { FlashDealsRow } from "@/components/home/flash-deals-row";
 import { TopCategoriesGrid } from "@/components/home/top-categories-grid";
 import { NewProductsGrid } from "@/components/home/new-products-grid";
 import { TopBrandsRow } from "@/components/home/top-brands-row";
+import { TrustBar } from "@/components/home/trust-bar";
+import { DealOfTheDay } from "@/components/home/deal-of-the-day";
+import { NewsletterStrip } from "@/components/home/newsletter-strip";
 import { SectionHeader } from "@/components/section-header";
 import { CategoryCard } from "@/components/category-card";
 import { ProductCard } from "@/components/product-card";
@@ -26,12 +29,19 @@ export default async function HomePage() {
 
   return (
     <div className="store-page-bg">
-      {/* ── Hero: Banner carousel + Today's Deal sidebar ── */}
+
+      {/* ── Trust Bar ── */}
+      <TrustBar />
+
+      {/* ── Hero: Banner carousel + Category Sidebar + Today's Deal ── */}
       <HeroSection
         categories={categories}
         bannerSlides={bannerSlides}
         flashDeals={flashDeals}
       />
+
+      {/* ── Deal of the Day ── */}
+      <DealOfTheDay flashDeals={flashDeals} />
 
       {/* ── Promotional Banners ── */}
       <PromoBanners />
@@ -41,12 +51,12 @@ export default async function HomePage() {
         <FlashDealsRow flashDeals={flashDeals} />
       </section>
 
-      {/* ── New Products ── */}
+      {/* ── New Arrivals ── */}
       <section className="store-page-container store-section">
         <NewProductsGrid products={products.slice(0, 12)} />
       </section>
 
-      {/* ── Per-Category Featured Sections (eBay-style: banner left + products right) ── */}
+      {/* ── Per-Category Featured Sections ── */}
       {categories.map((category) => {
         const catProducts = products.filter(
           (p) => p.category === category.slug
@@ -55,10 +65,10 @@ export default async function HomePage() {
         return (
           <section key={category.id} className="store-page-container py-3 lg:py-4">
             <div className="flex gap-3 items-stretch">
-              {/* ── Category Banner (left) ── */}
+              {/* Category Banner (left — md+ only) */}
               <Link
                 href={`/search?q=${encodeURIComponent(category.name)}`}
-                className="hidden md:flex flex-col flex-shrink-0 w-[160px] lg:w-[180px] rounded overflow-hidden bg-white border border-gray-200 hover:shadow-md transition-shadow group relative"
+                className="hidden md:flex flex-col flex-shrink-0 w-[160px] lg:w-[180px] rounded-lg overflow-hidden bg-white border border-gray-200 hover:shadow-md transition-shadow group relative"
               >
                 <div className="relative flex-1 min-h-[220px]">
                   <Image
@@ -71,14 +81,18 @@ export default async function HomePage() {
                   <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
                 </div>
                 <div className="absolute bottom-0 left-0 right-0 p-3">
-                  <p className="text-white text-sm font-semibold leading-tight drop-shadow">{category.name}</p>
-                  <span className="text-[11px] text-orange-300 font-medium mt-0.5 block">View All →</span>
+                  <p className="text-white text-sm font-semibold leading-tight drop-shadow">
+                    {category.name}
+                  </p>
+                  <span className="text-[11px] text-orange-300 font-medium mt-0.5 block">
+                    View All →
+                  </span>
                 </div>
               </Link>
 
-              {/* ── Products grid (right) ── */}
+              {/* Products grid */}
               <div className="flex-1 min-w-0">
-                {/* Mobile: show header above */}
+                {/* Mobile header */}
                 <div className="md:hidden mb-2">
                   <SectionHeader
                     title={category.name}
@@ -96,7 +110,7 @@ export default async function HomePage() {
         );
       })}
 
-      {/* ── Browse Categories — full card grid with top images ── */}
+      {/* ── Browse Categories ── */}
       <section className="bg-white">
         <div className="store-page-container py-8">
           <SectionHeader title="Browse Categories" viewAllHref="/categories" />
@@ -111,7 +125,7 @@ export default async function HomePage() {
         </div>
       </section>
 
-      {/* ── Top Categories — circular icon grid ── */}
+      {/* ── Top Categories ── */}
       <section className="bg-gradient-to-b from-white to-gray-50/80">
         <div className="store-page-container py-8">
           <TopCategoriesGrid categories={categories} />
@@ -124,6 +138,10 @@ export default async function HomePage() {
           <TopBrandsRow brands={brands} />
         </div>
       </section>
+
+      {/* ── Newsletter ── */}
+      <NewsletterStrip />
+
     </div>
   );
 }
