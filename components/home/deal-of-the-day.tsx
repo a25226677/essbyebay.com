@@ -10,17 +10,16 @@ interface DealOfTheDayProps {
 }
 
 function useCountdown(endTime: string) {
-  const getSecondsLeft = () => {
-    const diff = new Date(endTime).getTime() - Date.now();
-    return Math.max(0, Math.floor(diff / 1000));
-  };
-
-  const [seconds, setSeconds] = useState(getSecondsLeft);
+  const [seconds, setSeconds] = useState(0);
 
   useEffect(() => {
+    const getSecondsLeft = () => {
+      const diff = new Date(endTime).getTime() - Date.now();
+      return Math.max(0, Math.floor(diff / 1000));
+    };
+    setSeconds(getSecondsLeft());
     const id = setInterval(() => setSeconds(getSecondsLeft()), 1000);
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [endTime]);
 
   const h = Math.floor(seconds / 3600);

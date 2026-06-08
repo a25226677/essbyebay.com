@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Homepage Design Style</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; padding: 24px; }
+  h1 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; text-align: center; }
+  .subtitle { text-align: center; color: #666; font-size: 14px; margin-bottom: 28px; }
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 1000px; margin: 0 auto; }
+  .card { background: white; border-radius: 12px; overflow: hidden; border: 2px solid transparent; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.15); transform: translateY(-2px); }
+  .card.selected { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.15); }
+  .card-label { padding: 6px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+  .card-body { padding: 14px; border-top: 1px solid #f0f0f0; }
+  .card-body h3 { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+  .card-body p { font-size: 12px; color: #777; line-height: 1.5; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-top: 8px; }
+  .selected-indicator { text-align: center; margin-top: 20px; font-size: 13px; color: #6366f1; font-weight: 600; min-height: 20px; }
+
+  /* ── Mockup A: Amazon Dense ── */
+  .mock-a { background: #131921; }
+  .mock-a-nav { background: #232f3e; padding: 6px 10px; display: flex; align-items: center; gap: 8px; }
+  .mock-a-logo { background: #ff9900; color: #131921; font-size: 10px; font-weight: 900; padding: 2px 8px; border-radius: 2px; }
+  .mock-a-search { flex: 1; background: #ff9900; height: 26px; border-radius: 3px; display: flex; align-items: center; padding: 0 8px; }
+  .mock-a-search span { font-size: 9px; color: #131921; font-weight: 600; }
+  .mock-a-hero { height: 90px; background: linear-gradient(135deg, #1a3a5c 0%, #0f2d4a 100%); display: flex; align-items: center; padding: 0 14px; position: relative; overflow: hidden; }
+  .mock-a-hero-text { color: white; }
+  .mock-a-hero-text .tag { font-size: 8px; background: #ff9900; color: #131921; padding: 1px 5px; border-radius: 2px; font-weight: 700; display: inline-block; margin-bottom: 4px; }
+  .mock-a-hero-text h2 { font-size: 13px; font-weight: 800; line-height: 1.2; margin-bottom: 4px; }
+  .mock-a-hero-text .cta { font-size: 9px; background: #ff9900; color: #131921; padding: 3px 10px; border-radius: 2px; display: inline-block; font-weight: 700; }
+  .mock-a-hero-img { position: absolute; right: 10px; bottom: 0; width: 70px; height: 80px; background: linear-gradient(135deg, #2a5298, #1e3c72); border-radius: 4px 4px 0 0; opacity: 0.6; }
+  .mock-a-cats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; padding: 6px 8px; background: #1a252f; }
+  .mock-a-cat { background: #232f3e; border-radius: 3px; padding: 5px 4px; text-align: center; }
+  .mock-a-cat-icon { width: 20px; height: 20px; background: #ff9900; border-radius: 50%; margin: 0 auto 3px; opacity: 0.8; }
+  .mock-a-cat-label { font-size: 7px; color: #ccc; font-weight: 500; }
+  .mock-a-products { display: grid; grid-template-columns: repeat(4, 1fr); gap: 3px; padding: 6px 8px; background: #131921; }
+  .mock-a-product { background: #1c2932; border-radius: 3px; overflow: hidden; }
+  .mock-a-product-img { height: 40px; background: linear-gradient(135deg, #2a3f55, #1e2d3d); }
+  .mock-a-product-info { padding: 4px; }
+  .mock-a-product-title { font-size: 7px; color: #aaa; line-height: 1.3; margin-bottom: 2px; }
+  .mock-a-product-price { font-size: 9px; color: #ff9900; font-weight: 700; }
+
+  /* ── Mockup B: Modern Shopify ── */
+  .mock-b { background: #fafafa; }
+  .mock-b-nav { background: white; padding: 8px 12px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #eee; }
+  .mock-b-logo { font-size: 13px; font-weight: 800; color: #111; letter-spacing: -0.5px; }
+  .mock-b-nav-links { display: flex; gap: 12px; }
+  .mock-b-nav-links span { font-size: 9px; color: #555; font-weight: 500; }
+  .mock-b-nav-icons { display: flex; gap: 8px; }
+  .mock-b-icon { width: 16px; height: 16px; background: #ddd; border-radius: 50%; }
+  .mock-b-hero { height: 100px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 6px; }
+  .mock-b-hero-text { text-align: center; }
+  .mock-b-hero-eyebrow { font-size: 8px; color: rgba(255,255,255,0.8); text-transform: uppercase; letter-spacing: 0.15em; font-weight: 600; }
+  .mock-b-hero-h { font-size: 18px; font-weight: 800; color: white; letter-spacing: -0.5px; }
+  .mock-b-hero-cta { background: white; color: #764ba2; font-size: 9px; font-weight: 700; padding: 4px 14px; border-radius: 99px; margin-top: 4px; display: inline-block; }
+  .mock-b-cats { display: flex; gap: 8px; padding: 10px 12px; overflow: hidden; }
+  .mock-b-cat { text-align: center; flex-shrink: 0; }
+  .mock-b-cat-circle { width: 36px; height: 36px; border-radius: 50%; margin: 0 auto 4px; }
+  .mock-b-cat-label { font-size: 7px; color: #555; font-weight: 500; }
+  .mock-b-section-title { padding: 0 12px 6px; font-size: 12px; font-weight: 700; color: #111; }
+  .mock-b-products { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding: 0 12px 10px; }
+  .mock-b-product { background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .mock-b-product-img { height: 50px; background: linear-gradient(135deg, #f0f0f0, #e0e0e0); }
+  .mock-b-product-info { padding: 6px; }
+  .mock-b-product-title { font-size: 7px; color: #333; margin-bottom: 3px; }
+  .mock-b-product-price { font-size: 10px; font-weight: 700; color: #111; }
+  .mock-b-product-btn { width: 100%; background: #111; color: white; font-size: 7px; font-weight: 600; padding: 4px; text-align: center; margin-top: 4px; border-radius: 4px; }
+
+  /* ── Mockup C: Lazada/AliExpress Vibrant ── */
+  .mock-c { background: #f5f5f5; }
+  .mock-c-top { background: #f1353c; padding: 4px 10px; display: flex; align-items: center; gap: 8px; }
+  .mock-c-logo { color: white; font-size: 12px; font-weight: 900; letter-spacing: -0.5px; }
+  .mock-c-search { flex: 1; background: white; height: 22px; border-radius: 11px; display: flex; align-items: center; padding: 0 8px; }
+  .mock-c-search span { font-size: 8px; color: #999; }
+  .mock-c-search-btn { background: #f1353c; color: white; font-size: 8px; font-weight: 700; padding: 2px 8px; border-radius: 11px; margin-left: 4px; }
+  .mock-c-hero { height: 90px; background: linear-gradient(135deg, #f1353c 0%, #ff6b6b 50%, #ffa500 100%); display: flex; align-items: center; padding: 0 12px; position: relative; overflow: hidden; }
+  .mock-c-hero-text { color: white; z-index: 1; }
+  .mock-c-deal-tag { background: #ffeb3b; color: #f1353c; font-size: 7px; font-weight: 800; padding: 1px 6px; border-radius: 3px; display: inline-block; margin-bottom: 3px; text-transform: uppercase; }
+  .mock-c-hero-h { font-size: 14px; font-weight: 900; line-height: 1.2; margin-bottom: 5px; }
+  .mock-c-hero-cta { background: #ffeb3b; color: #f1353c; font-size: 9px; font-weight: 800; padding: 4px 12px; border-radius: 3px; display: inline-block; }
+  .mock-c-circles { display: flex; gap: 0; background: white; padding: 6px 8px; border-bottom: 2px solid #f5f5f5; overflow: hidden; }
+  .mock-c-circle-item { flex: 1; text-align: center; }
+  .mock-c-circle { width: 28px; height: 28px; border-radius: 50%; margin: 0 auto 2px; }
+  .mock-c-circle-label { font-size: 6.5px; color: #333; }
+  .mock-c-flash { background: white; padding: 6px 8px; margin: 4px 0; }
+  .mock-c-flash-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+  .mock-c-flash-title { font-size: 11px; font-weight: 800; color: #f1353c; }
+  .mock-c-flash-timer { background: #f1353c; color: white; font-size: 8px; font-weight: 700; padding: 1px 6px; border-radius: 3px; }
+  .mock-c-products { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; }
+  .mock-c-product { text-align: center; }
+  .mock-c-product-img { height: 45px; background: linear-gradient(135deg, #ffe4e4, #ffd0d0); border-radius: 4px; margin-bottom: 3px; }
+  .mock-c-product-price { font-size: 9px; font-weight: 700; color: #f1353c; }
+  .mock-c-product-orig { font-size: 7px; color: #999; text-decoration: line-through; }
+
+  /* ── Mockup D: Premium Dark ── */
+  .mock-d { background: #0a0a0a; }
+  .mock-d-nav { background: #0a0a0a; padding: 8px 14px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #222; }
+  .mock-d-logo { color: white; font-size: 14px; font-weight: 900; letter-spacing: 2px; text-transform: uppercase; }
+  .mock-d-nav-links { display: flex; gap: 14px; }
+  .mock-d-nav-links span { font-size: 8px; color: #888; font-weight: 500; letter-spacing: 0.1em; text-transform: uppercase; }
+  .mock-d-hero { height: 110px; background: linear-gradient(135deg, #1a1a1a 0%, #0a0a0a 100%); position: relative; overflow: hidden; display: flex; align-items: center; padding: 0 16px; }
+  .mock-d-hero-bg { position: absolute; right: 0; top: 0; bottom: 0; width: 55%; background: linear-gradient(135deg, #c9a96e 0%, #a07040 50%, #7a5230 100%); opacity: 0.3; }
+  .mock-d-hero-text { z-index: 1; }
+  .mock-d-eyebrow { font-size: 7px; color: #c9a96e; text-transform: uppercase; letter-spacing: 0.2em; font-weight: 600; margin-bottom: 5px; }
+  .mock-d-h { font-size: 17px; font-weight: 900; color: white; letter-spacing: -0.5px; line-height: 1.15; margin-bottom: 8px; }
+  .mock-d-cta { border: 1px solid #c9a96e; color: #c9a96e; font-size: 8px; font-weight: 600; padding: 4px 12px; display: inline-block; letter-spacing: 0.12em; text-transform: uppercase; }
+  .mock-d-divider { height: 1px; background: linear-gradient(to right, transparent, #333, transparent); margin: 8px 14px; }
+  .mock-d-products { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; padding: 6px 10px; }
+  .mock-d-product { }
+  .mock-d-product-img { height: 55px; background: linear-gradient(135deg, #1e1e1e, #2a2a2a); border: 1px solid #2a2a2a; margin-bottom: 5px; }
+  .mock-d-product-brand { font-size: 6px; color: #c9a96e; text-transform: uppercase; letter-spacing: 0.1em; }
+  .mock-d-product-title { font-size: 7.5px; color: #ccc; margin: 2px 0; }
+  .mock-d-product-price { font-size: 9px; color: white; font-weight: 700; }
+
+  .selected-indicator { display: none; }
+</style>
+</head>
+<body>
+  <h1>Which homepage style fits your brand?</h1>
+  <p class="subtitle">Click a card to select your preferred design direction</p>
+
+  <div class="cards">
+
+    <!-- Option A: Amazon Dense -->
+    <div class="card" onclick="selectCard(this, 'A')" data-choice="A">
+      <div class="mock-a">
+        <div class="mock-a-nav">
+          <div class="mock-a-logo">ESS</div>
+          <div class="mock-a-search"><span>Search for anything...</span></div>
+        </div>
+        <div class="mock-a-hero">
+          <div class="mock-a-hero-text">
+            <span class="tag">BEST DEALS</span>
+            <h2>Shop the Latest<br>Electronics &amp; Fashion</h2>
+            <span class="cta">Shop Now →</span>
+          </div>
+          <div class="mock-a-hero-img"></div>
+        </div>
+        <div class="mock-a-cats">
+          <div class="mock-a-cat"><div class="mock-a-cat-icon"></div><div class="mock-a-cat-label">Fashion</div></div>
+          <div class="mock-a-cat"><div class="mock-a-cat-icon" style="background:#7aa2ff"></div><div class="mock-a-cat-label">Electronics</div></div>
+          <div class="mock-a-cat"><div class="mock-a-cat-icon" style="background:#6fcf97"></div><div class="mock-a-cat-label">Sports</div></div>
+          <div class="mock-a-cat"><div class="mock-a-cat-icon" style="background:#eb5757"></div><div class="mock-a-cat-label">Home</div></div>
+          <div class="mock-a-cat"><div class="mock-a-cat-icon" style="background:#f2c94c"></div><div class="mock-a-cat-label">Beauty</div></div>
+        </div>
+        <div class="mock-a-products">
+          <div class="mock-a-product"><div class="mock-a-product-img"></div><div class="mock-a-product-info"><div class="mock-a-product-title">Wireless Headphones Pro</div><div class="mock-a-product-price">$49.99</div></div></div>
+          <div class="mock-a-product"><div class="mock-a-product-img" style="background: linear-gradient(135deg,#3a2f55,#2d2040)"></div><div class="mock-a-product-info"><div class="mock-a-product-title">Smart Watch Series X</div><div class="mock-a-product-price">$129.00</div></div></div>
+          <div class="mock-a-product"><div class="mock-a-product-img" style="background: linear-gradient(135deg,#2f4a3a,#1e3028)"></div><div class="mock-a-product-info"><div class="mock-a-product-title">Running Shoes Elite</div><div class="mock-a-product-price">$79.99</div></div></div>
+          <div class="mock-a-product"><div class="mock-a-product-img" style="background: linear-gradient(135deg,#4a3a2f,#302515)"></div><div class="mock-a-product-info"><div class="mock-a-product-title">Leather Bag Premium</div><div class="mock-a-product-price">$89.00</div></div></div>
+        </div>
+      </div>
+      <div class="card-label" style="background:#ff9900;color:#111;">Option A</div>
+      <div class="card-body">
+        <h3>Amazon-Style (Dense &amp; Utilitarian)</h3>
+        <p>Dark navy header, information-rich layout, maximum product density, discount-forward. Familiar to most shoppers. Great for large catalogues and high purchase frequency.</p>
+        <span class="badge" style="background:#fff8e7;color:#b7700a;">Best for: Mass market / high volume</span>
+      </div>
+    </div>
+
+    <!-- Option B: Modern Shopify -->
+    <div class="card" onclick="selectCard(this, 'B')" data-choice="B">
+      <div class="mock-b">
+        <div class="mock-b-nav">
+          <div class="mock-b-logo">ESS Store</div>
+          <div class="mock-b-nav-links"><span>Shop</span><span>Deals</span><span>Brands</span><span>Blog</span></div>
+          <div class="mock-b-nav-icons"><div class="mock-b-icon"></div><div class="mock-b-icon"></div></div>
+        </div>
+        <div class="mock-b-hero">
+          <div class="mock-b-hero-text">
+            <div class="mock-b-hero-eyebrow">New Season Arrivals</div>
+            <div class="mock-b-hero-h">Shop The Latest Trends</div>
+            <div class="mock-b-hero-cta">Explore Collection →</div>
+          </div>
+        </div>
+        <div class="mock-b-cats">
+          <div class="mock-b-cat"><div class="mock-b-cat-circle" style="background:linear-gradient(135deg,#f093fb,#f5576c)"></div><div class="mock-b-cat-label">Women</div></div>
+          <div class="mock-b-cat"><div class="mock-b-cat-circle" style="background:linear-gradient(135deg,#4facfe,#00f2fe)"></div><div class="mock-b-cat-label">Electronics</div></div>
+          <div class="mock-b-cat"><div class="mock-b-cat-circle" style="background:linear-gradient(135deg,#43e97b,#38f9d7)"></div><div class="mock-b-cat-label">Sports</div></div>
+          <div class="mock-b-cat"><div class="mock-b-cat-circle" style="background:linear-gradient(135deg,#fa709a,#fee140)"></div><div class="mock-b-cat-label">Beauty</div></div>
+          <div class="mock-b-cat"><div class="mock-b-cat-circle" style="background:linear-gradient(135deg,#a18cd1,#fbc2eb)"></div><div class="mock-b-cat-label">Home</div></div>
+          <div class="mock-b-cat"><div class="mock-b-cat-circle" style="background:linear-gradient(135deg,#ffecd2,#fcb69f)"></div><div class="mock-b-cat-label">Kids</div></div>
+        </div>
+        <div class="mock-b-section-title">✦ New Arrivals</div>
+        <div class="mock-b-products">
+          <div class="mock-b-product"><div class="mock-b-product-img" style="background:linear-gradient(135deg,#e0c3fc,#8ec5fc)"></div><div class="mock-b-product-info"><div class="mock-b-product-title">Premium Sneakers</div><div class="mock-b-product-price">$89</div><div class="mock-b-product-btn">Add to Cart</div></div></div>
+          <div class="mock-b-product"><div class="mock-b-product-img" style="background:linear-gradient(135deg,#ffecd2,#fcb69f)"></div><div class="mock-b-product-info"><div class="mock-b-product-title">Silk Blouse</div><div class="mock-b-product-price">$45</div><div class="mock-b-product-btn">Add to Cart</div></div></div>
+          <div class="mock-b-product"><div class="mock-b-product-img" style="background:linear-gradient(135deg,#a1c4fd,#c2e9fb)"></div><div class="mock-b-product-info"><div class="mock-b-product-title">Smart Speaker</div><div class="mock-b-product-price">$129</div><div class="mock-b-product-btn">Add to Cart</div></div></div>
+          <div class="mock-b-product"><div class="mock-b-product-img" style="background:linear-gradient(135deg,#d4fc79,#96e6a1)"></div><div class="mock-b-product-info"><div class="mock-b-product-title">Yoga Mat Pro</div><div class="mock-b-product-price">$35</div><div class="mock-b-product-btn">Add to Cart</div></div></div>
+        </div>
+      </div>
+      <div class="card-label" style="background:#764ba2;color:white;">Option B</div>
+      <div class="card-body">
+        <h3>Modern Boutique (Clean &amp; Minimal)</h3>
+        <p>White background, generous whitespace, gradient accents, clean typography. Feels premium and trustworthy. Popular with fashion &amp; lifestyle brands on Shopify.</p>
+        <span class="badge" style="background:#f3f0ff;color:#764ba2;">Best for: Fashion / lifestyle / premium</span>
+      </div>
+    </div>
+
+    <!-- Option C: Lazada/AliExpress Vibrant -->
+    <div class="card" onclick="selectCard(this, 'C')" data-choice="C">
+      <div class="mock-c">
+        <div class="mock-c-top">
+          <div class="mock-c-logo">ESS</div>
+          <div class="mock-c-search"><span>Search products...</span><div class="mock-c-search-btn">Search</div></div>
+        </div>
+        <div class="mock-c-hero">
+          <div class="mock-c-hero-text">
+            <div class="mock-c-deal-tag">⚡ FLASH SALE · 50% OFF</div>
+            <div class="mock-c-hero-h">Mega Sale Event<br>Best Prices Guaranteed!</div>
+            <div class="mock-c-hero-cta">Shop Now →</div>
+          </div>
+        </div>
+        <div class="mock-c-circles">
+          <div class="mock-c-circle-item"><div class="mock-c-circle" style="background:linear-gradient(135deg,#ff6b6b,#ee5a24)"></div><div class="mock-c-circle-label">Flash Sale</div></div>
+          <div class="mock-c-circle-item"><div class="mock-c-circle" style="background:linear-gradient(135deg,#a29bfe,#6c5ce7)"></div><div class="mock-c-circle-label">Electronics</div></div>
+          <div class="mock-c-circle-item"><div class="mock-c-circle" style="background:linear-gradient(135deg,#55efc4,#00b894)"></div><div class="mock-c-circle-label">Sports</div></div>
+          <div class="mock-c-circle-item"><div class="mock-c-circle" style="background:linear-gradient(135deg,#ffeaa7,#fdcb6e)"></div><div class="mock-c-circle-label">Fashion</div></div>
+          <div class="mock-c-circle-item"><div class="mock-c-circle" style="background:linear-gradient(135deg,#fd79a8,#e84393)"></div><div class="mock-c-circle-label">Beauty</div></div>
+          <div class="mock-c-circle-item"><div class="mock-c-circle" style="background:linear-gradient(135deg,#74b9ff,#0984e3)"></div><div class="mock-c-circle-label">Home</div></div>
+        </div>
+        <div class="mock-c-flash">
+          <div class="mock-c-flash-header">
+            <div class="mock-c-flash-title">⚡ Today's Best Deals</div>
+            <div class="mock-c-flash-timer">02:14:38</div>
+          </div>
+          <div class="mock-c-products">
+            <div class="mock-c-product"><div class="mock-c-product-img"></div><div class="mock-c-product-price">$12.99</div><div class="mock-c-product-orig">$25.99</div></div>
+            <div class="mock-c-product"><div class="mock-c-product-img" style="background:linear-gradient(135deg,#d4e4ff,#bdd4f5)"></div><div class="mock-c-product-price">$34.00</div><div class="mock-c-product-orig">$68.00</div></div>
+            <div class="mock-c-product"><div class="mock-c-product-img" style="background:linear-gradient(135deg,#d4ffd4,#b5f0b5)"></div><div class="mock-c-product-price">$7.50</div><div class="mock-c-product-orig">$15.00</div></div>
+            <div class="mock-c-product"><div class="mock-c-product-img" style="background:linear-gradient(135deg,#ffd4e4,#f5bdcc)"></div><div class="mock-c-product-price">$22.00</div><div class="mock-c-product-orig">$44.00</div></div>
+          </div>
+        </div>
+      </div>
+      <div class="card-label" style="background:#f1353c;color:white;">Option C</div>
+      <div class="card-body">
+        <h3>Lazada/AliExpress (Vibrant &amp; Deal-Forward)</h3>
+        <p>Bright red branding, bold discounts, countdown timers, high energy. Optimized to drive urgency and impulse buys. Very familiar in Southeast Asian &amp; global markets.</p>
+        <span class="badge" style="background:#fff0f0;color:#c0392b;">Best for: Deals / discount / value</span>
+      </div>
+    </div>
+
+    <!-- Option D: Premium Dark -->
+    <div class="card" onclick="selectCard(this, 'D')" data-choice="D">
+      <div class="mock-d">
+        <div class="mock-d-nav">
+          <div class="mock-d-logo">ESS</div>
+          <div class="mock-d-nav-links"><span>Collections</span><span>New In</span><span>Brands</span><span>Sale</span></div>
+        </div>
+        <div class="mock-d-hero">
+          <div class="mock-d-hero-bg"></div>
+          <div class="mock-d-hero-text">
+            <div class="mock-d-eyebrow">New Collection · 2026</div>
+            <div class="mock-d-h">Elevate Your Style.<br>Premium Picks.</div>
+            <div class="mock-d-cta">Discover Now</div>
+          </div>
+        </div>
+        <div class="mock-d-divider"></div>
+        <div class="mock-d-products">
+          <div class="mock-d-product"><div class="mock-d-product-img"></div><div class="mock-d-product-brand">Luxe</div><div class="mock-d-product-title">Leather Watch Band</div><div class="mock-d-product-price">$149</div></div>
+          <div class="mock-d-product"><div class="mock-d-product-img" style="background:linear-gradient(135deg,#2a2010,#1a1508)"></div><div class="mock-d-product-brand">Elite</div><div class="mock-d-product-title">Gold Cufflinks Set</div><div class="mock-d-product-price">$89</div></div>
+          <div class="mock-d-product"><div class="mock-d-product-img" style="background:linear-gradient(135deg,#101a2a,#080f1a)"></div><div class="mock-d-product-brand">Prestige</div><div class="mock-d-product-title">Silk Tie Collection</div><div class="mock-d-product-price">$65</div></div>
+          <div class="mock-d-product"><div class="mock-d-product-img" style="background:linear-gradient(135deg,#1a101a,#0f080f)"></div><div class="mock-d-product-brand">Royal</div><div class="mock-d-product-title">Cashmere Scarf</div><div class="mock-d-product-price">$199</div></div>
+        </div>
+      </div>
+      <div class="card-label" style="background:#c9a96e;color:#0a0a0a;">Option D</div>
+      <div class="card-body">
+        <h3>Premium Dark (Luxury &amp; Sophisticated)</h3>
+        <p>Dark background, gold accents, editorial feel, generous spacing. Signals exclusivity and quality. Works best for curated catalogues with higher price points.</p>
+        <span class="badge" style="background:#fdf9f0;color:#a07040;">Best for: Luxury / curated / high-end</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div class="selected-indicator" id="indicator"></div>
+
+  <script>
+    let selected = null;
+    function selectCard(el, choice) {
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      selected = choice;
+      document.getElementById('indicator').style.display = 'block';
+      document.getElementById('indicator').textContent = `You selected Option ${choice} — let me know in the chat!`;
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Full Homepage Design — Approach 3</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #e8eaf0; padding: 24px; }
+  h1 { font-size: 20px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; text-align: center; }
+  .subtitle { text-align: center; color: #666; font-size: 13px; margin-bottom: 24px; }
+
+  .layout { display: flex; gap: 24px; max-width: 1200px; margin: 0 auto; }
+  .annotations { width: 280px; flex-shrink: 0; }
+  .annotation { background: white; border-radius: 8px; padding: 12px 14px; margin-bottom: 10px; border-left: 3px solid #f77f00; box-shadow: 0 1px 4px rgba(0,0,0,0.08); }
+  .annotation h4 { font-size: 12px; font-weight: 700; color: #1b233a; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+  .annotation-num { background: #f77f00; color: white; font-size: 9px; font-weight: 800; width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .annotation p { font-size: 11px; color: #666; line-height: 1.5; }
+  .annotation.new { border-left-color: #16a34a; }
+  .annotation.new h4 .annotation-num { background: #16a34a; }
+  .annotation.new h4::after { content: 'NEW'; font-size: 8px; background: #dcfce7; color: #16a34a; padding: 1px 5px; border-radius: 99px; font-weight: 700; }
+  .annotation.improved { border-left-color: #3b82f6; }
+  .annotation.improved h4 .annotation-num { background: #3b82f6; }
+  .annotation.improved h4::after { content: 'IMPROVED'; font-size: 8px; background: #dbeafe; color: #2563eb; padding: 1px 5px; border-radius: 99px; font-weight: 700; }
+
+  /* Page mockup */
+  .page { flex: 1; min-width: 0; }
+  .mockup { border: 1px solid #d0d4e0; border-radius: 10px; overflow: hidden; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.12); }
+
+  /* Section labels */
+  .section-label { position: absolute; right: -4px; top: 50%; transform: translateY(-50%); background: #f77f00; color: white; font-size: 8px; font-weight: 700; padding: 1px 5px; border-radius: 2px; white-space: nowrap; z-index: 10; }
+  .section-label.new-label { background: #16a34a; }
+  .section-label.imp-label { background: #3b82f6; }
+  .section-wrap { position: relative; }
+
+  /* ── 1. Existing Header ── */
+  .s-nav { background: #2f3b51; padding: 0 14px; height: 44px; display: flex; align-items: center; gap: 10px; }
+  .nav-logo { color: white; font-size: 14px; font-weight: 900; letter-spacing: -0.5px; flex-shrink: 0; }
+  .nav-cats-btn { background: #4a5468; color: white; font-size: 9px; font-weight: 600; height: 28px; padding: 0 10px; border-radius: 3px 0 0 3px; display: flex; align-items: center; gap: 4px; border: 1px solid #6a7488; border-right: none; white-space: nowrap; }
+  .nav-search { flex: 1; height: 28px; background: #4a5468; border: 1px solid #6a7488; border-left: none; border-right: none; display: flex; align-items: center; padding: 0 8px; }
+  .nav-search span { font-size: 9px; color: #aaa; }
+  .nav-search-btn { background: linear-gradient(to right, #6674ea, #7650be); color: white; font-size: 9px; font-weight: 600; height: 28px; padding: 0 12px; border-radius: 0 3px 3px 0; white-space: nowrap; display: flex; align-items: center; }
+  .nav-icons { display: flex; gap: 6px; align-items: center; }
+  .nav-icon { width: 20px; height: 20px; border-radius: 50%; background: rgba(255,255,255,0.2); }
+
+  /* ── 2. NEW Trust Bar ── */
+  .s-trust { background: #1b233a; height: 28px; display: flex; align-items: center; justify-content: center; gap: 0; }
+  .trust-item { display: flex; align-items: center; gap: 5px; padding: 0 18px; border-right: 1px solid #2d3a50; }
+  .trust-item:last-child { border-right: none; }
+  .trust-icon { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .trust-text { font-size: 8.5px; color: #aabbcc; font-weight: 500; white-space: nowrap; }
+
+  /* ── 3. Subnav ── */
+  .s-subnav { background: #263348; height: 26px; display: flex; align-items: center; gap: 16px; padding: 0 14px; overflow: hidden; }
+  .subnav-link { font-size: 8px; color: #ccc; font-weight: 500; white-space: nowrap; }
+  .subnav-link.hot { color: #f77f00; font-weight: 700; }
+
+  /* ── 4. Hero ── */
+  .s-hero { display: flex; }
+  .hero-sidebar { width: 130px; background: white; border-right: 1px solid #eee; flex-shrink: 0; }
+  .hero-sidebar-item { padding: 5px 8px; font-size: 8px; color: #333; border-bottom: 1px solid #f5f5f5; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+  .hero-sidebar-item.active { background: #fff8f0; color: #f77f00; font-weight: 700; border-left: 2px solid #f77f00; padding-left: 6px; }
+  .hero-sidebar-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .hero-carousel { flex: 1; height: 140px; background: linear-gradient(135deg, #1b233a 0%, #2f3b51 100%); display: flex; align-items: center; padding: 0 20px; position: relative; overflow: hidden; }
+  .hero-img-placeholder { position: absolute; right: 20px; bottom: 0; width: 90px; height: 130px; background: rgba(255,255,255,0.06); border-radius: 6px 6px 0 0; }
+  .hero-text { z-index: 1; }
+  .hero-eyebrow { display: inline-flex; align-items: center; gap: 4px; background: rgba(247,127,0,0.2); border: 1px solid rgba(247,127,0,0.4); color: #f5a623; font-size: 7.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; padding: 2px 7px; border-radius: 99px; margin-bottom: 6px; }
+  .hero-eyebrow-dot { width: 5px; height: 5px; border-radius: 50%; background: #f77f00; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .hero-h { font-size: 18px; font-weight: 900; color: white; line-height: 1.15; margin-bottom: 6px; letter-spacing: -0.3px; }
+  .hero-sub { font-size: 9px; color: rgba(255,255,255,0.65); margin-bottom: 10px; line-height: 1.5; }
+  .hero-cta { background: #f77f00; color: white; font-size: 9px; font-weight: 700; padding: 5px 14px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 3px 10px rgba(247,127,0,0.35); }
+  .hero-dots { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 4px; }
+  .hero-dot { width: 16px; height: 5px; border-radius: 99px; background: #f77f00; }
+  .hero-dot.inactive { width: 5px; background: rgba(255,255,255,0.4); }
+
+  /* ── 5. NEW Deal of the Day ── */
+  .s-dotd { background: linear-gradient(135deg, #1b233a 0%, #2a3550 100%); padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .dotd-left { display: flex; flex-direction: column; gap: 2px; }
+  .dotd-eyebrow { font-size: 8px; color: #f77f00; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; display: flex; align-items: center; gap: 4px; }
+  .dotd-title { font-size: 12px; font-weight: 800; color: white; }
+  .dotd-price { font-size: 10px; color: #aaa; }
+  .dotd-price strong { color: #f77f00; font-size: 14px; }
+  .dotd-timer { display: flex; gap: 4px; align-items: center; }
+  .dotd-timer-block { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 4px 8px; text-align: center; min-width: 36px; }
+  .dotd-timer-num { font-size: 14px; font-weight: 800; color: white; line-height: 1; }
+  .dotd-timer-label { font-size: 6px; color: #8899aa; text-transform: uppercase; margin-top: 1px; }
+  .dotd-sep { font-size: 14px; font-weight: 700; color: #f77f00; }
+  .dotd-cta { background: #f77f00; color: white; font-size: 9px; font-weight: 700; padding: 6px 14px; border-radius: 4px; white-space: nowrap; }
+
+  /* ── 6. Flash Deals with timer ── */
+  .s-section { padding: 10px 14px; background: white; }
+  .s-section.alt { background: #f8f9fb; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .section-title { display: flex; align-items: center; gap: 6px; }
+  .title-bar { width: 3px; height: 16px; background: #f77f00; border-radius: 2px; }
+  .title-text { font-size: 11px; font-weight: 800; color: #1b233a; text-transform: uppercase; letter-spacing: 0.04em; }
+  .title-badge { background: #e53e3e; color: white; font-size: 7.5px; font-weight: 700; padding: 1px 5px; border-radius: 2px; }
+  .section-right { display: flex; align-items: center; gap: 8px; }
+  .timer-inline { display: flex; gap: 2px; align-items: center; }
+  .timer-box { background: #1b233a; color: white; font-size: 9px; font-weight: 700; padding: 2px 4px; border-radius: 2px; min-width: 20px; text-align: center; }
+  .timer-sep-sm { font-size: 9px; color: #1b233a; font-weight: 700; }
+  .view-all { font-size: 9px; color: #f77f00; font-weight: 600; display: flex; align-items: center; gap: 2px; }
+
+  .products-grid { display: grid; gap: 6px; }
+  .products-grid.g6 { grid-template-columns: repeat(6, 1fr); }
+  .products-grid.g5 { grid-template-columns: repeat(5, 1fr); }
+  .product-card { background: white; border: 1px solid #eee; border-radius: 6px; overflow: hidden; }
+  .product-card.shadow { box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+  .product-img { height: 60px; background: linear-gradient(135deg, #f0f2f8, #e4e8f4); position: relative; }
+  .product-img.v2 { background: linear-gradient(135deg, #e0e8f0, #d4dce8); }
+  .product-img.v3 { background: linear-gradient(135deg, #e8f0e0, #d8e8d0); }
+  .product-img.v4 { background: linear-gradient(135deg, #f0e8e0, #e4d8d0); }
+  .product-img.v5 { background: linear-gradient(135deg, #f0e0f0, #e0d0e0); }
+  .product-img.v6 { background: linear-gradient(135deg, #e0f0f0, #d0e4e4); }
+  .discount-badge { position: absolute; top: 4px; left: 4px; background: #e53e3e; color: white; font-size: 7px; font-weight: 700; padding: 1px 4px; border-radius: 2px; }
+  .bestseller-badge { position: absolute; top: 4px; left: 4px; background: #f77f00; color: white; font-size: 7px; font-weight: 700; padding: 1px 4px; border-radius: 2px; }
+  .product-body { padding: 6px; }
+  .product-name { font-size: 8.5px; color: #333; line-height: 1.35; margin-bottom: 3px; }
+  .product-stars { color: #f77f00; font-size: 9px; letter-spacing: -0.5px; margin-bottom: 2px; }
+  .product-stars span { color: #999; font-size: 8px; }
+  .product-pricing { display: flex; align-items: baseline; gap: 4px; margin-bottom: 4px; }
+  .product-price { font-size: 11px; font-weight: 700; color: #f77f00; }
+  .product-orig { font-size: 8px; color: #bbb; text-decoration: line-through; }
+  .product-cart-btn { width: 100%; background: #f77f00; color: white; font-size: 7.5px; font-weight: 700; padding: 3px; text-align: center; border-radius: 3px; }
+
+  /* ── Promo banners ── */
+  .promo-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+  .promo-banner { height: 55px; border-radius: 5px; overflow: hidden; position: relative; }
+  .promo-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 14px; }
+  .promo-label { font-size: 11px; font-weight: 800; color: white; margin-bottom: 2px; }
+  .promo-sub { font-size: 8px; color: rgba(255,255,255,0.8); margin-bottom: 5px; }
+  .promo-btn { display: inline-block; background: white; color: #333; font-size: 7px; font-weight: 700; padding: 2px 8px; border-radius: 2px; }
+  .promo-full { height: 50px; border-radius: 5px; overflow: hidden; position: relative; }
+
+  /* ── Newsletter ── */
+  .s-newsletter { background: linear-gradient(135deg, #f77f00 0%, #e67300 100%); padding: 12px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .nl-text h4 { font-size: 12px; font-weight: 800; color: white; margin-bottom: 2px; }
+  .nl-text p { font-size: 9px; color: rgba(255,255,255,0.85); }
+  .nl-form { display: flex; gap: 4px; }
+  .nl-input { height: 26px; background: white; border-radius: 3px; padding: 0 10px; font-size: 9px; color: #999; display: flex; align-items: center; min-width: 140px; }
+  .nl-btn { background: #1b233a; color: white; font-size: 9px; font-weight: 700; height: 26px; padding: 0 12px; border-radius: 3px; display: flex; align-items: center; white-space: nowrap; }
+
+  /* ── Footer (simplified) ── */
+  .s-footer { background: #2d3548; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+  .footer-logo { color: #ccc; font-size: 10px; font-weight: 700; }
+  .footer-links { display: flex; gap: 10px; }
+  .footer-links span { font-size: 8px; color: #888; }
+  .footer-copy { font-size: 8px; color: #666; }
+
+  /* Brand strip */
+  .brands-strip { display: flex; gap: 6px; overflow: hidden; }
+  .brand-logo { flex: 1; height: 28px; background: #f8f9fa; border: 1px solid #eee; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
+  .brand-logo span { font-size: 7.5px; color: #888; font-weight: 700; letter-spacing: 0.06em; }
+
+  /* Divider */
+  .divider { height: 4px; background: #f0f2f5; }
+</style>
+</head>
+<body>
+  <h1>Full Homepage Design — Approach 3</h1>
+  <p class="subtitle">Full-page wireframe with all sections. Annotated on the right. Navy + Orange palette.</p>
+
+  <div class="layout">
+
+    <!-- Page mockup -->
+    <div class="page">
+      <div class="mockup">
+
+        <!-- 1. Header (existing, polished) -->
+        <div class="section-wrap">
+          <div class="s-nav">
+            <span class="nav-logo">ESS</span>
+            <div class="nav-cats-btn">☰ All Categories ▾</div>
+            <div class="nav-search"><span>Search for anything in our store...</span></div>
+            <div class="nav-search-btn">Search</div>
+            <div class="nav-icons">
+              <div class="nav-icon"></div>
+              <div class="nav-icon"></div>
+              <div class="nav-icon" style="background:#f77f00"></div>
+            </div>
+          </div>
+          <div class="section-label imp-label">① Header</div>
+        </div>
+
+        <!-- 2. Trust Bar (NEW) -->
+        <div class="section-wrap">
+          <div class="s-trust">
+            <div class="trust-item"><div class="trust-icon" style="background:#f77f00"></div><span class="trust-text">🚚 Free Shipping on $50+</span></div>
+            <div class="trust-item"><div class="trust-icon" style="background:#22c55e"></div><span class="trust-text">↩ 30-Day Easy Returns</span></div>
+            <div class="trust-item"><div class="trust-icon" style="background:#3b82f6"></div><span class="trust-text">🔒 Secure Payment</span></div>
+            <div class="trust-item"><div class="trust-icon" style="background:#a855f7"></div><span class="trust-text">💬 24/7 Customer Support</span></div>
+          </div>
+          <div class="section-label new-label">② Trust Bar NEW</div>
+        </div>
+
+        <!-- 3. Subnav -->
+        <div class="section-wrap">
+          <div class="s-subnav">
+            <span class="subnav-link">⚡ Flash Deals</span>
+            <span class="subnav-link">✨ New Arrivals</span>
+            <span class="subnav-link">🏷️ Top Brands</span>
+            <span class="subnav-link">👗 Women</span>
+            <span class="subnav-link">👔 Men</span>
+            <span class="subnav-link">💻 Electronics</span>
+            <span class="subnav-link">🏠 Home &amp; Garden</span>
+            <span class="subnav-link hot">🔥 Today's Deals</span>
+          </div>
+          <div class="section-label imp-label">③ Subnav</div>
+        </div>
+
+        <!-- 4. Hero with category sidebar (IMPROVED) -->
+        <div class="section-wrap">
+          <div class="s-hero">
+            <div class="hero-sidebar">
+              <div class="hero-sidebar-item active"><div class="hero-sidebar-dot" style="background:#f77f00"></div>Women Fashion</div>
+              <div class="hero-sidebar-item"><div class="hero-sidebar-dot" style="background:#3b82f6"></div>Electronics</div>
+              <div class="hero-sidebar-item"><div class="hero-sidebar-dot" style="background:#22c55e"></div>Sports &amp; Outdoor</div>
+              <div class="hero-sidebar-item"><div class="hero-sidebar-dot" style="background:#ec4899"></div>Beauty &amp; Health</div>
+              <div class="hero-sidebar-item"><div class="hero-sidebar-dot" style="background:#f59e0b"></div>Home &amp; Garden</div>
+              <div class="hero-sidebar-item"><div class="hero-sidebar-dot" style="background:#8b5cf6"></div>Kids &amp; Toys</div>
+              <div class="hero-sidebar-item"><div class="hero-sidebar-dot" style="background:#14b8a6"></div>Jewelry &amp; Watches</div>
+              <div class="hero-sidebar-item"><div class="hero-sidebar-dot" style="background:#ef4444"></div>Phone Accessories</div>
+              <div class="hero-sidebar-item"><div class="hero-sidebar-dot" style="background:#84cc16"></div>Computer &amp; Office</div>
+            </div>
+            <div class="hero-carousel">
+              <div class="hero-text">
+                <span class="hero-eyebrow"><span class="hero-eyebrow-dot"></span>Best Deals This Week</span>
+                <div class="hero-h">Shop the Latest<br>Electronics &amp; Fashion</div>
+                <div class="hero-sub">Discover top deals across 200+ categories<br>from trusted sellers worldwide.</div>
+                <span class="hero-cta">Shop Now →</span>
+              </div>
+              <div class="hero-img-placeholder"></div>
+              <div class="hero-dots">
+                <div class="hero-dot"></div>
+                <div class="hero-dot inactive"></div>
+                <div class="hero-dot inactive"></div>
+                <div class="hero-dot inactive"></div>
+              </div>
+            </div>
+          </div>
+          <div class="section-label imp-label">④ Hero + Sidebar</div>
+        </div>
+
+        <!-- 5. Deal of the Day (NEW) -->
+        <div class="section-wrap">
+          <div class="s-dotd">
+            <div class="dotd-left">
+              <div class="dotd-eyebrow">⭐ Deal of the Day</div>
+              <div class="dotd-title">Premium Wireless Earbuds — Pro Edition</div>
+              <div class="dotd-price">Only <strong>$29.99</strong> <span style="text-decoration:line-through;font-size:11px;color:#667;">$65.00</span> · Save 54%</div>
+            </div>
+            <div class="dotd-timer">
+              <div class="dotd-timer-block"><div class="dotd-timer-num">04</div><div class="dotd-timer-label">HRS</div></div>
+              <div class="dotd-sep">:</div>
+              <div class="dotd-timer-block"><div class="dotd-timer-num">22</div><div class="dotd-timer-label">MIN</div></div>
+              <div class="dotd-sep">:</div>
+              <div class="dotd-timer-block"><div class="dotd-timer-num">15</div><div class="dotd-timer-label">SEC</div></div>
+            </div>
+            <div class="dotd-cta">Grab This Deal →</div>
+          </div>
+          <div class="section-label new-label">⑤ Deal of the Day NEW</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- 6. Flash Deals with countdown -->
+        <div class="section-wrap">
+          <div class="s-section alt">
+            <div class="section-header">
+              <div class="section-title">
+                <div class="title-bar"></div>
+                <div class="title-text">Flash Deals</div>
+                <div class="title-badge">HOT</div>
+              </div>
+              <div class="section-right">
+                <div class="timer-inline">
+                  <div class="timer-box">02</div><div class="timer-sep-sm">:</div>
+                  <div class="timer-box">14</div><div class="timer-sep-sm">:</div>
+                  <div class="timer-box">38</div>
+                </div>
+                <div class="view-all">View all →</div>
+              </div>
+            </div>
+            <div class="products-grid g6">
+              <div class="product-card shadow"><div class="product-img"><span class="discount-badge">-40%</span></div><div class="product-body"><div class="product-name">Wireless Headphones</div><div class="product-stars">★★★★☆ <span>(128)</span></div><div class="product-pricing"><span class="product-price">$49</span><span class="product-orig">$82</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+              <div class="product-card shadow"><div class="product-img v2"><span class="bestseller-badge">Best Seller</span></div><div class="product-body"><div class="product-name">Smart Watch Series X</div><div class="product-stars">★★★★★ <span>(94)</span></div><div class="product-pricing"><span class="product-price">$129</span><span class="product-orig">$172</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+              <div class="product-card shadow"><div class="product-img v3"></div><div class="product-body"><div class="product-name">Running Shoes Elite</div><div class="product-stars">★★★★☆ <span>(67)</span></div><div class="product-pricing"><span class="product-price">$79</span><span class="product-orig">$110</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+              <div class="product-card shadow"><div class="product-img v4"><span class="discount-badge">-15%</span></div><div class="product-body"><div class="product-name">Leather Tote Bag</div><div class="product-stars">★★★★☆ <span>(42)</span></div><div class="product-pricing"><span class="product-price">$89</span><span class="product-orig">$105</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+              <div class="product-card shadow"><div class="product-img v5"></div><div class="product-body"><div class="product-name">Perfume Gift Set</div><div class="product-stars">★★★★★ <span>(55)</span></div><div class="product-pricing"><span class="product-price">$55</span><span class="product-orig">$70</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+              <div class="product-card shadow"><div class="product-img v6"><span class="discount-badge">-35%</span></div><div class="product-body"><div class="product-name">Polarized Sunglasses</div><div class="product-stars">★★★☆☆ <span>(31)</span></div><div class="product-pricing"><span class="product-price">$35</span><span class="product-orig">$54</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+            </div>
+          </div>
+          <div class="section-label imp-label">⑥ Flash Deals</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- 7. Promo Banners (improved) -->
+        <div class="section-wrap">
+          <div class="s-section">
+            <div class="promo-grid">
+              <div class="promo-banner" style="background:linear-gradient(135deg,#1a3a5c,#0d2137)">
+                <div class="promo-overlay"><div class="promo-label">Laptops Sale</div><div class="promo-sub">Up to 40% off top brands</div><div class="promo-btn">Shop Now</div></div>
+              </div>
+              <div class="promo-banner" style="background:linear-gradient(135deg,#4a1a5c,#2d0d37)">
+                <div class="promo-overlay"><div class="promo-label">Your Favorite Gadget</div><div class="promo-sub">Discover the latest tech</div><div class="promo-btn">Explore</div></div>
+              </div>
+            </div>
+            <div class="promo-full" style="background:linear-gradient(135deg,#1a1a2e,#2d3048)">
+              <div class="promo-overlay"><div class="promo-label" style="font-size:14px;letter-spacing:0.05em;">MAXIMUM ENGINE PERFORMANCE</div><div class="promo-sub" style="max-width:200px;">Premium auto parts &amp; accessories for every build</div><div class="promo-btn" style="background:#f77f00;color:white;">Shop Automotive</div></div>
+            </div>
+          </div>
+          <div class="section-label imp-label">⑦ Promo Banners</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- 8. New Products -->
+        <div class="section-wrap">
+          <div class="s-section alt">
+            <div class="section-header">
+              <div class="section-title"><div class="title-bar"></div><div class="title-text">New Arrivals</div></div>
+              <div class="view-all">View all →</div>
+            </div>
+            <div class="products-grid g6">
+              <div class="product-card shadow"><div class="product-img v3"><span class="bestseller-badge">New</span></div><div class="product-body"><div class="product-name">Yoga Mat Premium</div><div class="product-stars">★★★★☆ <span>(18)</span></div><div class="product-pricing"><span class="product-price">$35</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+              <div class="product-card shadow"><div class="product-img v4"><span class="bestseller-badge">New</span></div><div class="product-body"><div class="product-name">Silk Blouse Collection</div><div class="product-stars">★★★★☆ <span>(7)</span></div><div class="product-pricing"><span class="product-price">$45</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+              <div class="product-card shadow"><div class="product-img v2"></div><div class="product-body"><div class="product-name">Smart Speaker 3rd Gen</div><div class="product-stars">★★★★★ <span>(12)</span></div><div class="product-pricing"><span class="product-price">$79</span><span class="product-orig">$99</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+              <div class="product-card shadow"><div class="product-img v5"></div><div class="product-body"><div class="product-name">Vitamin C Serum</div><div class="product-stars">★★★★☆ <span>(29)</span></div><div class="product-pricing"><span class="product-price">$28</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+              <div class="product-card shadow"><div class="product-img v6"></div><div class="product-body"><div class="product-name">Linen Throw Pillow</div><div class="product-stars">★★★☆☆ <span>(5)</span></div><div class="product-pricing"><span class="product-price">$22</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+              <div class="product-card shadow"><div class="product-img"><span class="bestseller-badge">New</span></div><div class="product-body"><div class="product-name">Noise Cancelling Buds</div><div class="product-stars">★★★★★ <span>(3)</span></div><div class="product-pricing"><span class="product-price">$59</span></div><div class="product-cart-btn">+ Add to Cart</div></div></div>
+            </div>
+          </div>
+          <div class="section-label imp-label">⑧ New Arrivals</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- 9. Top Brands -->
+        <div class="section-wrap">
+          <div class="s-section">
+            <div class="section-header">
+              <div class="section-title"><div class="title-bar"></div><div class="title-text">Top Brands</div></div>
+              <div class="view-all">View all →</div>
+            </div>
+            <div class="brands-strip">
+              <div class="brand-logo"><span>SAMSUNG</span></div>
+              <div class="brand-logo"><span>NIKE</span></div>
+              <div class="brand-logo"><span>APPLE</span></div>
+              <div class="brand-logo"><span>ADIDAS</span></div>
+              <div class="brand-logo"><span>SONY</span></div>
+              <div class="brand-logo"><span>PUMA</span></div>
+              <div class="brand-logo"><span>LG</span></div>
+            </div>
+          </div>
+          <div class="section-label imp-label">⑨ Brands Strip</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <!-- 10. Newsletter (NEW) -->
+        <div class="section-wrap">
+          <div class="s-newsletter">
+            <div class="nl-text">
+              <h4>📧 Get Exclusive Deals in Your Inbox</h4>
+              <p>Join 50,000+ subscribers and never miss a sale. Unsubscribe anytime.</p>
+            </div>
+            <div class="nl-form">
+              <div class="nl-input">Your email address...</div>
+              <div class="nl-btn">Subscribe Now</div>
+            </div>
+          </div>
+          <div class="section-label new-label">⑩ Newsletter NEW</div>
+        </div>
+
+        <!-- Footer -->
+        <div class="s-footer">
+          <span class="footer-logo">ESS by eBay</span>
+          <div class="footer-links"><span>Privacy</span><span>Terms</span><span>Returns</span><span>Support</span></div>
+          <span class="footer-copy">© 2026 ESS by eBay. All Rights Reserved.</span>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Annotations -->
+    <div class="annotations">
+      <h3 style="font-size:13px;font-weight:700;color:#1b233a;margin-bottom:12px;text-align:center;">Section Guide</h3>
+
+      <div class="annotation improved">
+        <h4><span class="annotation-num">①</span> Header</h4>
+        <p>Keeping existing header. No changes needed — already professional.</p>
+      </div>
+
+      <div class="annotation new">
+        <h4><span class="annotation-num">②</span> Trust Bar</h4>
+        <p>New thin dark bar: Free Shipping · 30-Day Returns · Secure Payment · 24/7 Support. Huge credibility signal.</p>
+      </div>
+
+      <div class="annotation improved">
+        <h4><span class="annotation-num">③</span> Subnav</h4>
+        <p>Quick category links. Polished with emojis and a "Today's Deals" hot link in orange.</p>
+      </div>
+
+      <div class="annotation improved">
+        <h4><span class="annotation-num">④</span> Hero + Sidebar</h4>
+        <p>Category sidebar added on the left (Amazon-style). Lists all categories with colour dots. Banner carousel on the right, unchanged logic.</p>
+      </div>
+
+      <div class="annotation new">
+        <h4><span class="annotation-num">⑤</span> Deal of the Day</h4>
+        <p>Full-width dark banner. Shows one featured product with title, original/sale price, animated live countdown timer, and CTA button.</p>
+      </div>
+
+      <div class="annotation improved">
+        <h4><span class="annotation-num">⑥</span> Flash Deals</h4>
+        <p>Improved section header with orange left-bar. Countdown timer. Each product card now shows: star ratings, review count, strikethrough original price, and Add to Cart button.</p>
+      </div>
+
+      <div class="annotation improved">
+        <h4><span class="annotation-num">⑦</span> Promo Banners</h4>
+        <p>Existing banners polished: sharper text hierarchy, better CTA button styling, improved overlay gradients.</p>
+      </div>
+
+      <div class="annotation improved">
+        <h4><span class="annotation-num">⑧</span> New Arrivals</h4>
+        <p>Same grid, improved product cards. "New" badges, star ratings, and Add to Cart button now always visible (not just on hover).</p>
+      </div>
+
+      <div class="annotation improved">
+        <h4><span class="annotation-num">⑨</span> Brand Strip</h4>
+        <p>Brand logo row cleaned up with consistent sizing and subtle border/shadow treatment.</p>
+      </div>
+
+      <div class="annotation new">
+        <h4><span class="annotation-num">⑩</span> Newsletter</h4>
+        <p>Orange gradient strip before footer. Email input + Subscribe button. Social proof copy ("Join 50,000+ subscribers").</p>
+      </div>
+
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:12px;margin-top:4px;">
+        <p style="font-size:11px;font-weight:700;color:#166534;margin-bottom:6px;">Files to change:</p>
+        <ul style="font-size:10.5px;color:#166534;padding-left:14px;line-height:2;">
+          <li>app/page.tsx</li>
+          <li>app/globals.css</li>
+          <li>components/home/hero-section.tsx</li>
+          <li>components/home/flash-deals-row.tsx</li>
+          <li>components/home/promo-banners.tsx</li>
+          <li>components/home/new-products-grid.tsx</li>
+          <li>components/section-header.tsx</li>
+          <li>components/product-card.tsx</li>
+          <li><strong>NEW:</strong> components/home/trust-bar.tsx</li>
+          <li><strong>NEW:</strong> components/home/deal-of-the-day.tsx</li>
+          <li><strong>NEW:</strong> components/home/newsletter-strip.tsx</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="text-align:center;margin-top:20px;font-size:13px;color:#555;">
+    Does this design look right? Let me know in the chat — any sections to change, add, or remove?
+  </div>
+</body>
+</html>

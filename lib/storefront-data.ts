@@ -1,6 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminServiceClient } from "@/lib/supabase/admin-client";
 import type { BlogPost, Brand, Category, FlashDeal, Product, Shop } from "@/lib/types";
-import { bannerSlides as placeholderBannerSlides } from "@/lib/placeholder-data";
+import {
+  bannerSlides as placeholderBannerSlides,
+  products as placeholderProducts,
+  categories as placeholderCategories,
+  brands as placeholderBrands,
+} from "@/lib/placeholder-data";
 
 const DEFAULT_PRODUCT_IMAGE = "/images/placeholders/product-1.svg";
 const DEFAULT_CATEGORY_IMAGE = "/images/placeholders/computers.svg";
@@ -25,7 +31,7 @@ type ProductRow = {
   price: number | string;
   compare_at_price: number | string | null;
   image_url: string | null;
-  description: string | null;
+  description?: string | null;
   sku: string | null;
   stock_count: number;
   rating: number | string;
@@ -60,14 +66,16 @@ function toNumber(value: number | string | null | undefined, fallback = 0) {
 }
 
 export async function getActiveBannerSlides() {
-  const supabase = await createClient();
+  const supabase = createAdminServiceClient();
 
-  const { data: rows } = await supabase
+  const { data: rows, error } = await supabase
     .from("banners")
     .select("id,title,subtitle,image_url,link,button_text")
     .eq("is_active", true)
     .order("sort_order", { ascending: true })
     .limit(10);
+
+  if (error) console.error("[storefront] banners query error:", error.message);
 
   const mapped = ((rows || []) as BannerRow[])
     // Only keep rows that have a real remote image — skip local SVG/placeholder paths
@@ -125,23 +133,36 @@ function rowToProduct(row: ProductRow): Product {
 }
 
 export async function getHomeStorefrontData() {
-  const supabase = await createClient();
+  const supabase = createAdminServiceClient();
 
-  const [{ data: categories }, { data: brands }, { data: productRows }, bannerSlides] = await Promise.all([
+  const [
+    { data: categories, error: catErr },
+    { data: brands, error: brandErr },
+    { data: productRows, error: prodErr },
+    bannerSlides,
+  ] = await Promise.all([
     supabase.from("categories").select("id,name,slug,image_url").order("name"),
     supabase.from("brands").select("id,name,slug,logo_url").order("name"),
     supabase
       .from("products")
       .select(
-        "id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
+        "id,title,slug,price,compare_at_price,image_url,sku,stock_count,rating,review_count,categories(name,slug),brands(name)",
       )
       .eq("is_active", true)
       .order("created_at", { ascending: false })
-      .limit(500),
+      .limit(100),
     getActiveBannerSlides(),
   ]);
 
-  const products = ((productRows || []) as ProductRow[]).map(rowToProduct);
+  if (catErr) console.error("[storefront] categories query error:", catErr.message);
+  if (brandErr) console.error("[storefront] brands query error:", brandErr.message);
+  if (prodErr) console.error("[storefront] products query error:", prodErr.message);
+
+  const dbProducts = ((productRows || []) as ProductRow[]).map(rowToProduct);
+
+  // Fall back to placeholder data when the database has no active products
+  const usingPlaceholders = dbProducts.length === 0;
+  const products = usingPlaceholders ? placeholderProducts : dbProducts;
 
   const countsByCategory = new Map<string, number>();
   products.forEach((product) => {
@@ -163,6 +184,15 @@ export async function getHomeStorefrontData() {
     slug: brand.slug,
     logo: brand.logo_url || DEFAULT_BRAND_LOGO,
   }));
+
+  // When using placeholder products, also fall back categories and brands so
+  // per-category sections and brand logos match the placeholder slugs
+  const finalCategories = usingPlaceholders && mappedCategories.length === 0
+    ? placeholderCategories
+    : mappedCategories;
+  const finalBrands = usingPlaceholders && mappedBrands.length === 0
+    ? placeholderBrands
+    : mappedBrands;
 
   const flashDeals: FlashDeal[] = products
     .filter((product) => product.originalPrice && product.originalPrice > product.price)
@@ -207,8 +237,8 @@ export async function getHomeStorefrontData() {
 
     // use the fallback deals instead of empty list
     return {
-      categories: mappedCategories,
-      brands: mappedBrands,
+      categories: finalCategories,
+      brands: finalBrands,
       products,
       flashDeals: fallback,
       bannerSlides,
@@ -216,8 +246,8 @@ export async function getHomeStorefrontData() {
   }
 
   return {
-    categories: mappedCategories,
-    brands: mappedBrands,
+    categories: finalCategories,
+    brands: finalBrands,
     products,
     flashDeals,
     bannerSlides,
@@ -225,7 +255,7 @@ export async function getHomeStorefrontData() {
 }
 
 export async function getProductBySlug(slug: string) {
-  const supabase = await createClient();
+  const supabase = createAdminServiceClient();
 
   const { data } = await supabase
     .from("products")
@@ -261,7 +291,7 @@ export async function getProductBySlug(slug: string) {
 }
 
 export async function getShopWithProducts(shopSlug: string, options?: { topSelling?: boolean }) {
-  const supabase = await createClient();
+  const supabase = createAdminServiceClient();
 
   const { data: shopRow } = await supabase
     .from("shops")
@@ -310,7 +340,7 @@ export async function searchStoreProducts(
   page = 1,
   perPage = 24,
 ): Promise<{ products: Product[]; total: number }> {
-  const supabase = await createClient();
+  const supabase = createAdminServiceClient();
   const term = query.trim();
   if (!term) return { products: [], total: 0 };
 
@@ -335,7 +365,7 @@ export async function searchStoreProducts(
 }
 
 export async function getBlogPosts() {
-  const supabase = await createClient();
+  const supabase = createAdminServiceClient();
 
   const { data: rows } = await supabase
     .from("blog_posts")

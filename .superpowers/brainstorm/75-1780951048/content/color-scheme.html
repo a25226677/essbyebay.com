@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Color Scheme</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; padding: 24px; }
+  h1 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; text-align: center; }
+  .subtitle { text-align: center; color: #666; font-size: 14px; margin-bottom: 28px; }
+  .cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; max-width: 1000px; margin: 0 auto; }
+  .card { background: white; border-radius: 12px; overflow: hidden; border: 2px solid transparent; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.15); transform: translateY(-2px); }
+  .card.selected { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.15); }
+  .card-label { padding: 6px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+  .card-body { padding: 14px; border-top: 1px solid #f0f0f0; }
+  .card-body h3 { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 4px; }
+  .card-body p { font-size: 12px; color: #777; line-height: 1.5; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-top: 8px; }
+
+  /* Shared mini nav structure */
+  .mini-nav { height: 44px; display: flex; align-items: center; padding: 0 12px; gap: 8px; }
+  .mini-logo { font-size: 13px; font-weight: 900; letter-spacing: -0.5px; }
+  .mini-search { flex: 1; height: 28px; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; }
+  .mini-search span { font-size: 9px; opacity: 0.8; }
+  .mini-search-btn { width: 40px; height: 28px; border-radius: 0 4px 4px 0; display: flex; align-items: center; justify-content: center; }
+  .mini-icons { display: flex; gap: 6px; }
+  .mini-icon { width: 18px; height: 18px; border-radius: 50%; opacity: 0.7; }
+  .mini-subnav { height: 28px; display: flex; align-items: center; gap: 14px; padding: 0 12px; }
+  .mini-subnav span { font-size: 8px; font-weight: 500; opacity: 0.9; }
+  .mini-hero { height: 80px; display: flex; align-items: center; padding: 0 14px; }
+  .mini-hero-badge { font-size: 7px; font-weight: 800; padding: 2px 6px; border-radius: 2px; display: inline-block; margin-bottom: 4px; }
+  .mini-hero-h { font-size: 14px; font-weight: 800; color: white; line-height: 1.2; margin-bottom: 4px; }
+  .mini-hero-cta { font-size: 8px; font-weight: 700; padding: 3px 10px; border-radius: 3px; display: inline-block; }
+  .mini-products { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; padding: 8px 10px; }
+  .mini-product { border-radius: 3px; overflow: hidden; }
+  .mini-product-img { height: 36px; }
+  .mini-product-info { padding: 4px; }
+  .mini-product-price { font-size: 8px; font-weight: 700; }
+  .mini-product-title { font-size: 6.5px; opacity: 0.7; margin-bottom: 2px; }
+  .palettes { display: flex; gap: 6px; padding: 8px 10px 4px; }
+  .swatch { width: 20px; height: 20px; border-radius: 50%; border: 2px solid rgba(255,255,255,0.3); }
+  .swatch-label { font-size: 8px; margin-top: 2px; text-align: center; }
+
+  /* Option A: Current (Navy + Orange) */
+  .scheme-a .mini-nav { background: #2f3b51; }
+  .scheme-a .mini-logo { color: white; }
+  .scheme-a .mini-search { background: #4a5468; }
+  .scheme-a .mini-search span { color: #ccc; }
+  .scheme-a .mini-search-btn { background: #f77f00; }
+  .scheme-a .mini-subnav { background: #1b233a; }
+  .scheme-a .mini-subnav span { color: #ccc; }
+  .scheme-a .mini-hero { background: linear-gradient(135deg, #1b233a 0%, #2f3b51 100%); }
+  .scheme-a .mini-hero-badge { background: #f77f00; color: white; }
+  .scheme-a .mini-hero-cta { background: #f77f00; color: white; }
+  .scheme-a .mini-products { background: #f4f5f7; }
+  .scheme-a .mini-product { background: white; }
+  .scheme-a .mini-product-img { background: linear-gradient(135deg, #e8eaf0, #d8dce8); }
+  .scheme-a .mini-product-price { color: #f77f00; }
+  .scheme-a .palettes { background: #f4f5f7; }
+
+  /* Option B: Amazon Classic (Black + Orange) */
+  .scheme-b .mini-nav { background: #131921; }
+  .scheme-b .mini-logo { color: white; }
+  .scheme-b .mini-search { background: white; }
+  .scheme-b .mini-search span { color: #555; }
+  .scheme-b .mini-search-btn { background: #febd69; }
+  .scheme-b .mini-subnav { background: #232f3e; }
+  .scheme-b .mini-subnav span { color: #ddd; }
+  .scheme-b .mini-hero { background: linear-gradient(135deg, #1a3a5c 0%, #0d2137 100%); }
+  .scheme-b .mini-hero-badge { background: #febd69; color: #131921; }
+  .scheme-b .mini-hero-cta { background: #febd69; color: #131921; }
+  .scheme-b .mini-products { background: #f3f3f3; }
+  .scheme-b .mini-product { background: white; }
+  .scheme-b .mini-product-img { background: linear-gradient(135deg, #eaeaea, #dcdcdc); }
+  .scheme-b .mini-product-price { color: #b12704; }
+  .scheme-b .palettes { background: #f3f3f3; }
+
+  /* Option C: Modern Blue + Orange */
+  .scheme-c .mini-nav { background: #0f3460; }
+  .scheme-c .mini-logo { color: white; }
+  .scheme-c .mini-search { background: white; }
+  .scheme-c .mini-search span { color: #555; }
+  .scheme-c .mini-search-btn { background: #e94560; }
+  .scheme-c .mini-subnav { background: #16213e; }
+  .scheme-c .mini-subnav span { color: #aac; }
+  .scheme-c .mini-hero { background: linear-gradient(135deg, #0f3460 0%, #16213e 100%); }
+  .scheme-c .mini-hero-badge { background: #e94560; color: white; }
+  .scheme-c .mini-hero-cta { background: #e94560; color: white; }
+  .scheme-c .mini-products { background: #f0f4ff; }
+  .scheme-c .mini-product { background: white; }
+  .scheme-c .mini-product-img { background: linear-gradient(135deg, #e4eaff, #d4deff); }
+  .scheme-c .mini-product-price { color: #e94560; }
+  .scheme-c .palettes { background: #f0f4ff; }
+
+  /* Option D: Deep Green + Gold */
+  .scheme-d .mini-nav { background: #1b3a2d; }
+  .scheme-d .mini-logo { color: #f0c040; }
+  .scheme-d .mini-search { background: #2a5040; }
+  .scheme-d .mini-search span { color: #aac; }
+  .scheme-d .mini-search-btn { background: #f0c040; }
+  .scheme-d .mini-subnav { background: #142a20; }
+  .scheme-d .mini-subnav span { color: #9bc; }
+  .scheme-d .mini-hero { background: linear-gradient(135deg, #142a20 0%, #1b3a2d 100%); }
+  .scheme-d .mini-hero-badge { background: #f0c040; color: #142a20; }
+  .scheme-d .mini-hero-cta { background: #f0c040; color: #142a20; }
+  .scheme-d .mini-products { background: #f2f8f4; }
+  .scheme-d .mini-product { background: white; }
+  .scheme-d .mini-product-img { background: linear-gradient(135deg, #e0f0e8, #d0e8d8); }
+  .scheme-d .mini-product-price { color: #1b7a4d; }
+  .scheme-d .palettes { background: #f2f8f4; }
+</style>
+</head>
+<body>
+  <h1>Which color scheme do you prefer?</h1>
+  <p class="subtitle">All use the same Amazon-dense layout — just different brand colors</p>
+
+  <div class="cards">
+
+    <!-- Option A: Current Navy + Orange -->
+    <div class="card scheme-a" onclick="selectCard(this,'A')" data-choice="A">
+      <div class="mini-nav">
+        <span class="mini-logo">ESS</span>
+        <div class="mini-search" style="border-radius:4px 0 0 4px;"><span>Search for anything</span></div>
+        <div class="mini-search-btn"></div>
+        <div class="mini-icons">
+          <div class="mini-icon" style="background:white;"></div>
+          <div class="mini-icon" style="background:white;"></div>
+        </div>
+      </div>
+      <div class="mini-subnav">
+        <span>All Categories</span><span>Flash Deals</span><span>New Arrivals</span><span>Brands</span><span>Blog</span>
+      </div>
+      <div class="mini-hero">
+        <div>
+          <span class="mini-hero-badge">BEST DEALS</span>
+          <div class="mini-hero-h">Shop the Latest<br>Electronics &amp; Fashion</div>
+          <span class="mini-hero-cta">Shop Now →</span>
+        </div>
+      </div>
+      <div class="mini-products">
+        <div class="mini-product"><div class="mini-product-img"></div><div class="mini-product-info"><div class="mini-product-title">Headphones</div><div class="mini-product-price">$49.99</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#e0e8f0,#d0d8e8)"></div><div class="mini-product-info"><div class="mini-product-title">Smart Watch</div><div class="mini-product-price">$129</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#e8f0e0,#d8e8d0)"></div><div class="mini-product-info"><div class="mini-product-title">Sneakers</div><div class="mini-product-price">$79</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#f0e8e0,#e8d8d0)"></div><div class="mini-product-info"><div class="mini-product-title">Leather Bag</div><div class="mini-product-price">$89</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#f0e0e8,#e8d0d8)"></div><div class="mini-product-info"><div class="mini-product-title">Perfume</div><div class="mini-product-price">$55</div></div></div>
+      </div>
+      <div class="palettes">
+        <div><div class="swatch" style="background:#2f3b51"></div></div>
+        <div><div class="swatch" style="background:#1b233a"></div></div>
+        <div><div class="swatch" style="background:#f77f00"></div></div>
+        <div><div class="swatch" style="background:white;border-color:#ddd"></div></div>
+      </div>
+      <div class="card-label" style="background:#2f3b51;color:white;">Option A — Keep Current</div>
+      <div class="card-body">
+        <h3>Navy Blue + Orange (Current)</h3>
+        <p>Your existing palette — dark navy header, orange accent, clean white product cards. Already looks professional. We'd just refine and polish the layout.</p>
+        <span class="badge" style="background:#e8f0fe;color:#2f3b51;">Minimal change · Fast to implement</span>
+      </div>
+    </div>
+
+    <!-- Option B: Amazon Black + Gold -->
+    <div class="card scheme-b" onclick="selectCard(this,'B')" data-choice="B">
+      <div class="mini-nav">
+        <span class="mini-logo">ESS</span>
+        <div class="mini-search" style="border-radius:4px 0 0 4px;"><span>Search for anything</span></div>
+        <div class="mini-search-btn"></div>
+        <div class="mini-icons">
+          <div class="mini-icon" style="background:#febd69;"></div>
+          <div class="mini-icon" style="background:#febd69;"></div>
+        </div>
+      </div>
+      <div class="mini-subnav">
+        <span>All Categories</span><span>Flash Deals</span><span>New Arrivals</span><span>Brands</span><span>Blog</span>
+      </div>
+      <div class="mini-hero">
+        <div>
+          <span class="mini-hero-badge">BEST DEALS</span>
+          <div class="mini-hero-h">Shop the Latest<br>Electronics &amp; Fashion</div>
+          <span class="mini-hero-cta">Shop Now →</span>
+        </div>
+      </div>
+      <div class="mini-products">
+        <div class="mini-product"><div class="mini-product-img"></div><div class="mini-product-info"><div class="mini-product-title">Headphones</div><div class="mini-product-price">$49.99</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#e8e8e8,#ddd)"></div><div class="mini-product-info"><div class="mini-product-title">Smart Watch</div><div class="mini-product-price">$129</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#eee,#e0e0e0)"></div><div class="mini-product-info"><div class="mini-product-title">Sneakers</div><div class="mini-product-price">$79</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#e5e5e5,#d8d8d8)"></div><div class="mini-product-info"><div class="mini-product-title">Leather Bag</div><div class="mini-product-price">$89</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#ebebeb,#dcdcdc)"></div><div class="mini-product-info"><div class="mini-product-title">Perfume</div><div class="mini-product-price">$55</div></div></div>
+      </div>
+      <div class="palettes" style="background:#f3f3f3">
+        <div><div class="swatch" style="background:#131921"></div></div>
+        <div><div class="swatch" style="background:#232f3e"></div></div>
+        <div><div class="swatch" style="background:#febd69"></div></div>
+        <div><div class="swatch" style="background:#b12704"></div></div>
+      </div>
+      <div class="card-label" style="background:#131921;color:#febd69;">Option B — Amazon Classic</div>
+      <div class="card-body">
+        <h3>Black + Gold/Amber (Amazon Classic)</h3>
+        <p>Near-black header (#131921), amber/gold search bar, dark red price text — almost identical to Amazon. Maximum familiarity for shoppers worldwide.</p>
+        <span class="badge" style="background:#fffbe8;color:#a07010;">High trust · Shoppers recognize it instantly</span>
+      </div>
+    </div>
+
+    <!-- Option C: Blue + Red -->
+    <div class="card scheme-c" onclick="selectCard(this,'C')" data-choice="C">
+      <div class="mini-nav">
+        <span class="mini-logo">ESS</span>
+        <div class="mini-search" style="border-radius:4px 0 0 4px;"><span>Search for anything</span></div>
+        <div class="mini-search-btn"></div>
+        <div class="mini-icons">
+          <div class="mini-icon" style="background:white;"></div>
+          <div class="mini-icon" style="background:white;"></div>
+        </div>
+      </div>
+      <div class="mini-subnav">
+        <span>All Categories</span><span>Flash Deals</span><span>New Arrivals</span><span>Brands</span><span>Blog</span>
+      </div>
+      <div class="mini-hero">
+        <div>
+          <span class="mini-hero-badge">BEST DEALS</span>
+          <div class="mini-hero-h">Shop the Latest<br>Electronics &amp; Fashion</div>
+          <span class="mini-hero-cta">Shop Now →</span>
+        </div>
+      </div>
+      <div class="mini-products">
+        <div class="mini-product"><div class="mini-product-img"></div><div class="mini-product-info"><div class="mini-product-title">Headphones</div><div class="mini-product-price">$49.99</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#dde4f5,#ccd4ee)"></div><div class="mini-product-info"><div class="mini-product-title">Smart Watch</div><div class="mini-product-price">$129</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#e0e6f8,#d0d8f0)"></div><div class="mini-product-info"><div class="mini-product-title">Sneakers</div><div class="mini-product-price">$79</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#dce6f0,#ccd8e8)"></div><div class="mini-product-info"><div class="mini-product-title">Leather Bag</div><div class="mini-product-price">$89</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#e4dcf0,#d8cce8)"></div><div class="mini-product-info"><div class="mini-product-title">Perfume</div><div class="mini-product-price">$55</div></div></div>
+      </div>
+      <div class="palettes" style="background:#f0f4ff">
+        <div><div class="swatch" style="background:#0f3460"></div></div>
+        <div><div class="swatch" style="background:#16213e"></div></div>
+        <div><div class="swatch" style="background:#e94560"></div></div>
+        <div><div class="swatch" style="background:white;border-color:#ddd"></div></div>
+      </div>
+      <div class="card-label" style="background:#0f3460;color:white;">Option C — Bold Blue + Red</div>
+      <div class="card-body">
+        <h3>Deep Blue + Crimson Red</h3>
+        <p>Midnight blue header, crimson red accent — energetic and bold. Feels modern and techy, similar to Noon.com or Jumia. Strong contrast, high visual impact.</p>
+        <span class="badge" style="background:#fff0f2;color:#c0102a;">Energetic · Modern · Distinctive</span>
+      </div>
+    </div>
+
+    <!-- Option D: Keep Navy, swap Orange → Green -->
+    <div class="card scheme-d" onclick="selectCard(this,'D')" data-choice="D">
+      <div class="mini-nav">
+        <span class="mini-logo" style="color:#f0c040">ESS</span>
+        <div class="mini-search" style="border-radius:4px 0 0 4px;"><span style="color:#aac;">Search for anything</span></div>
+        <div class="mini-search-btn"></div>
+        <div class="mini-icons">
+          <div class="mini-icon" style="background:#f0c040;"></div>
+          <div class="mini-icon" style="background:#f0c040;"></div>
+        </div>
+      </div>
+      <div class="mini-subnav">
+        <span>All Categories</span><span>Flash Deals</span><span>New Arrivals</span><span>Brands</span><span>Blog</span>
+      </div>
+      <div class="mini-hero">
+        <div>
+          <span class="mini-hero-badge">BEST DEALS</span>
+          <div class="mini-hero-h">Shop the Latest<br>Electronics &amp; Fashion</div>
+          <span class="mini-hero-cta">Shop Now →</span>
+        </div>
+      </div>
+      <div class="mini-products">
+        <div class="mini-product"><div class="mini-product-img"></div><div class="mini-product-info"><div class="mini-product-title">Headphones</div><div class="mini-product-price">$49.99</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#ddeedd,#ccddcc)"></div><div class="mini-product-info"><div class="mini-product-title">Smart Watch</div><div class="mini-product-price">$129</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#e0ede0,#d0ddd0)"></div><div class="mini-product-info"><div class="mini-product-title">Sneakers</div><div class="mini-product-price">$79</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#e4ede0,#d4ddd0)"></div><div class="mini-product-info"><div class="mini-product-title">Leather Bag</div><div class="mini-product-price">$89</div></div></div>
+        <div class="mini-product"><div class="mini-product-img" style="background:linear-gradient(135deg,#eee4dd,#ddd4cc)"></div><div class="mini-product-info"><div class="mini-product-title">Perfume</div><div class="mini-product-price">$55</div></div></div>
+      </div>
+      <div class="palettes" style="background:#f2f8f4">
+        <div><div class="swatch" style="background:#1b3a2d"></div></div>
+        <div><div class="swatch" style="background:#142a20"></div></div>
+        <div><div class="swatch" style="background:#f0c040"></div></div>
+        <div><div class="swatch" style="background:#1b7a4d"></div></div>
+      </div>
+      <div class="card-label" style="background:#1b3a2d;color:#f0c040;">Option D — Forest Green + Gold</div>
+      <div class="card-body">
+        <h3>Forest Green + Gold</h3>
+        <p>Deep forest green header, gold accent — rich, earthy, and trustworthy. Less crowded marketplace — your site stands out immediately. Popular for organic/natural brands.</p>
+        <span class="badge" style="background:#f0fdf4;color:#166534;">Unique · Trustworthy · Memorable</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="text-align:center;margin-top:20px;font-size:13px;color:#666;min-height:20px;" id="indicator"></div>
+
+  <script>
+    function selectCard(el, choice) {
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('indicator').textContent = `You selected Option ${choice} — let me know in the chat!`;
+      document.getElementById('indicator').style.color = '#6366f1';
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redesign Approaches</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f0f2f5; padding: 24px; }
+  h1 { font-size: 22px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; text-align: center; }
+  .subtitle { text-align: center; color: #666; font-size: 14px; margin-bottom: 28px; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; max-width: 1100px; margin: 0 auto; }
+  .card { background: white; border-radius: 12px; overflow: hidden; border: 2px solid transparent; cursor: pointer; transition: all 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .card:hover { box-shadow: 0 6px 20px rgba(0,0,0,0.15); transform: translateY(-2px); }
+  .card.selected { border-color: #6366f1; box-shadow: 0 0 0 4px rgba(99,102,241,0.15); }
+  .card-header { padding: 12px 14px 10px; border-bottom: 1px solid #f0f0f0; }
+  .card-header h3 { font-size: 14px; font-weight: 700; color: #1a1a2e; margin-bottom: 2px; }
+  .card-header p { font-size: 11px; color: #888; }
+  .mockup-wrap { padding: 12px; background: #f8f9fa; }
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 99px; margin-bottom: 8px; }
+  .feature-list { padding: 12px 14px; }
+  .feature-list li { font-size: 11.5px; color: #444; padding: 3px 0; display: flex; align-items: flex-start; gap: 6px; list-style: none; }
+  .feature-list li .dot { flex-shrink: 0; margin-top: 4px; }
+  .check { color: #16a34a; font-size: 12px; }
+  .plus { color: #f77f00; font-size: 12px; font-weight: 700; }
+  .star { color: #6366f1; font-size: 12px; font-weight: 700; }
+  .effort { padding: 10px 14px; border-top: 1px solid #f0f0f0; display: flex; justify-content: space-between; font-size: 11px; color: #888; }
+  .rec-badge { background: #f77f00; color: white; font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 99px; }
+
+  /* ── Mini page mockup shared styles ── */
+  .mp { border: 1px solid #e0e0e0; border-radius: 6px; overflow: hidden; background: white; font-size: 0; }
+
+  /* nav */
+  .mp-nav { background: #2f3b51; height: 32px; display: flex; align-items: center; padding: 0 8px; gap: 6px; }
+  .mp-logo { color: white; font-size: 10px; font-weight: 900; letter-spacing: -0.3px; flex-shrink: 0; }
+  .mp-search { flex: 1; height: 20px; background: #4a5468; border-radius: 3px 0 0 3px; display: flex; align-items: center; padding: 0 6px; }
+  .mp-search span { font-size: 7px; color: #aaa; }
+  .mp-search-btn { background: #f77f00; width: 28px; height: 20px; border-radius: 0 3px 3px 0; display: flex; align-items: center; justify-content: center; }
+  .mp-search-btn svg { width: 8px; height: 8px; fill: white; }
+  .mp-icons { display: flex; gap: 4px; }
+  .mp-icon { width: 14px; height: 14px; border-radius: 50%; background: rgba(255,255,255,0.3); }
+
+  /* trust bar */
+  .mp-trust { background: #1b233a; height: 20px; display: flex; align-items: center; justify-content: center; gap: 16px; padding: 0 8px; }
+  .mp-trust span { font-size: 6.5px; color: #9ab; display: flex; align-items: center; gap: 3px; }
+  .mp-trust-icon { width: 8px; height: 8px; background: #f77f00; border-radius: 50%; flex-shrink: 0; }
+
+  /* subnav */
+  .mp-subnav { background: #263348; height: 18px; display: flex; align-items: center; gap: 10px; padding: 0 8px; }
+  .mp-subnav span { font-size: 7px; color: #ccc; white-space: nowrap; }
+
+  /* hero section */
+  .mp-hero-wrap { display: flex; gap: 0; }
+  .mp-sidebar { width: 60px; background: white; border-right: 1px solid #eee; flex-shrink: 0; }
+  .mp-sidebar-item { padding: 3px 6px; font-size: 6.5px; color: #333; border-bottom: 1px solid #f5f5f5; display: flex; align-items: center; gap: 3px; }
+  .mp-sidebar-item.active { background: #fff8f0; color: #f77f00; font-weight: 700; border-left: 2px solid #f77f00; }
+  .mp-sidebar-dot { width: 6px; height: 6px; border-radius: 50%; background: #ddd; flex-shrink: 0; }
+  .mp-hero { flex: 1; height: 72px; background: linear-gradient(135deg, #1b233a 0%, #2f3b51 100%); display: flex; align-items: center; padding: 0 12px; position: relative; overflow: hidden; }
+  .mp-hero-text { z-index: 1; }
+  .mp-hero-badge { background: #f77f00; color: white; font-size: 6px; font-weight: 800; padding: 1px 4px; border-radius: 2px; display: inline-block; margin-bottom: 3px; }
+  .mp-hero-h { font-size: 11px; font-weight: 900; color: white; line-height: 1.2; margin-bottom: 4px; }
+  .mp-hero-cta { background: #f77f00; color: white; font-size: 7px; font-weight: 700; padding: 2px 7px; border-radius: 2px; display: inline-block; }
+  .mp-hero-img { position: absolute; right: 8px; bottom: 0; width: 50px; height: 65px; background: rgba(255,255,255,0.07); border-radius: 4px 4px 0 0; }
+
+  /* flash row */
+  .mp-section-header { padding: 5px 8px 3px; display: flex; align-items: center; justify-content: space-between; }
+  .mp-section-title { display: flex; align-items: center; gap: 4px; }
+  .mp-section-title .bar { width: 2px; height: 12px; background: #f77f00; border-radius: 1px; }
+  .mp-section-title span { font-size: 8px; font-weight: 800; color: #1b233a; text-transform: uppercase; letter-spacing: 0.05em; }
+  .mp-section-badge { background: #e53e3e; color: white; font-size: 6px; font-weight: 700; padding: 1px 4px; border-radius: 2px; }
+  .mp-view-all { font-size: 6.5px; color: #f77f00; font-weight: 600; }
+  .mp-timer { display: flex; gap: 2px; align-items: center; }
+  .mp-timer-box { background: #1b233a; color: white; font-size: 7px; font-weight: 700; padding: 1px 3px; border-radius: 2px; }
+  .mp-timer-sep { font-size: 7px; color: #1b233a; font-weight: 700; }
+
+  .mp-products { display: grid; gap: 4px; padding: 0 6px 6px; }
+  .mp-products.cols5 { grid-template-columns: repeat(5, 1fr); }
+  .mp-products.cols6 { grid-template-columns: repeat(6, 1fr); }
+  .mp-product { background: white; border: 1px solid #eee; border-radius: 3px; overflow: hidden; }
+  .mp-product-img { height: 32px; background: linear-gradient(135deg, #f0f2f8, #e4e8f4); position: relative; }
+  .mp-product-img .discount { position: absolute; top: 2px; left: 2px; background: #e53e3e; color: white; font-size: 5.5px; font-weight: 700; padding: 0 3px; border-radius: 1px; }
+  .mp-product-body { padding: 3px 4px; }
+  .mp-product-name { font-size: 6.5px; color: #333; line-height: 1.3; margin-bottom: 2px; }
+  .mp-product-stars { color: #f77f00; font-size: 7px; letter-spacing: -0.5px; }
+  .mp-product-price { font-size: 8px; font-weight: 700; color: #f77f00; }
+  .mp-product-orig { font-size: 6.5px; color: #aaa; text-decoration: line-through; }
+  .mp-product-cart { background: #f77f00; color: white; font-size: 5.5px; font-weight: 700; text-align: center; padding: 2px; margin-top: 2px; border-radius: 1px; }
+
+  .mp-promo { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 0 6px 6px; }
+  .mp-promo-banner { height: 32px; border-radius: 3px; overflow: hidden; position: relative; }
+  .mp-promo-banner-text { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; padding: 0 8px; }
+  .mp-promo-banner-text .label { font-size: 7px; font-weight: 800; color: white; }
+  .mp-promo-banner-text .sub { font-size: 5.5px; color: rgba(255,255,255,0.8); }
+  .mp-promo-banner-text .btn { font-size: 5.5px; background: white; color: #333; padding: 1px 5px; border-radius: 2px; display: inline-block; margin-top: 2px; font-weight: 600; }
+
+  .mp-brands { display: flex; gap: 4px; padding: 0 6px 8px; }
+  .mp-brand { flex: 1; height: 20px; background: #f8f9fa; border: 1px solid #eee; border-radius: 3px; display: flex; align-items: center; justify-content: center; }
+  .mp-brand span { font-size: 6px; color: #888; font-weight: 700; letter-spacing: 0.05em; }
+</style>
+</head>
+<body>
+  <h1>Which redesign approach fits your goals?</h1>
+  <p class="subtitle">All use Navy + Orange — they differ in depth of change. Click to select.</p>
+
+  <div class="cards">
+
+    <!-- Approach 1: Light Polish -->
+    <div class="card" onclick="selectCard(this,'1')">
+      <div class="card-header">
+        <div class="badge" style="background:#e8f4fd;color:#0369a1;">Approach 1 — Lighter lift</div>
+        <h3>Visual Polish</h3>
+        <p>Keep the structure, sharpen the details</p>
+      </div>
+      <div class="mockup-wrap">
+        <div class="mp">
+          <!-- Nav -->
+          <div class="mp-nav">
+            <span class="mp-logo">ESS</span>
+            <div class="mp-search"><span>Search for anything</span></div>
+            <div class="mp-search-btn"><svg viewBox="0 0 16 16"><circle cx="6" cy="6" r="4" stroke="white" stroke-width="2" fill="none"/><line x1="9" y1="9" x2="13" y2="13" stroke="white" stroke-width="2"/></svg></div>
+            <div class="mp-icons"><div class="mp-icon"></div><div class="mp-icon"></div></div>
+          </div>
+          <!-- Subnav only, no trust bar -->
+          <div class="mp-subnav">
+            <span>All Categories</span><span>Flash Deals</span><span>New Arrivals</span><span>Brands</span><span>Blog</span>
+          </div>
+          <!-- Hero — no sidebar -->
+          <div style="height:60px;background:linear-gradient(135deg,#1b233a 0%,#2f3b51 100%);display:flex;align-items:center;padding:0 12px;position:relative;overflow:hidden;">
+            <div>
+              <span style="background:#f77f00;color:white;font-size:6px;font-weight:800;padding:1px 4px;border-radius:2px;display:inline-block;margin-bottom:3px;">BEST DEALS</span>
+              <div style="font-size:11px;font-weight:900;color:white;line-height:1.2;margin-bottom:4px;">Shop the Latest<br>Electronics &amp; Fashion</div>
+              <span style="background:#f77f00;color:white;font-size:7px;font-weight:700;padding:2px 7px;border-radius:2px;display:inline-block;">Shop Now →</span>
+            </div>
+            <div style="position:absolute;right:8px;bottom:0;width:50px;height:55px;background:rgba(255,255,255,0.07);border-radius:4px 4px 0 0;"></div>
+          </div>
+          <!-- Section header — improved style -->
+          <div class="mp-section-header">
+            <div class="mp-section-title"><div class="bar"></div><span>Best Selling</span><span class="mp-section-badge">HOT</span></div>
+            <span class="mp-view-all">View all →</span>
+          </div>
+          <!-- Products with ratings -->
+          <div class="mp-products cols6">
+            <div class="mp-product"><div class="mp-product-img"><span class="discount">-30%</span></div><div class="mp-product-body"><div class="mp-product-name">Wireless Headphones</div><div class="mp-product-stars">★★★★☆</div><div class="mp-product-price">$49</div></div></div>
+            <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#e0e8f0,#d4dce8)"><span class="discount">-20%</span></div><div class="mp-product-body"><div class="mp-product-name">Smart Watch</div><div class="mp-product-stars">★★★★★</div><div class="mp-product-price">$129</div></div></div>
+            <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#e8f0e0,#d8e8d0)"></div><div class="mp-product-body"><div class="mp-product-name">Running Shoes</div><div class="mp-product-stars">★★★★☆</div><div class="mp-product-price">$79</div></div></div>
+            <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#f0e8e0,#e4d8d0)"></div><div class="mp-product-body"><div class="mp-product-name">Leather Bag</div><div class="mp-product-stars">★★★☆☆</div><div class="mp-product-price">$89</div></div></div>
+            <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#f0e0f0,#e0d0e0)"></div><div class="mp-product-body"><div class="mp-product-name">Perfume Set</div><div class="mp-product-stars">★★★★☆</div><div class="mp-product-price">$55</div></div></div>
+            <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#e0f0f0,#d0e4e4)"></div><div class="mp-product-body"><div class="mp-product-name">Sunglasses</div><div class="mp-product-stars">★★★★☆</div><div class="mp-product-price">$35</div></div></div>
+          </div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li><span class="dot check">✓</span> Better section headers (orange left-bar, bold uppercase)</li>
+        <li><span class="dot check">✓</span> Star ratings on product cards</li>
+        <li><span class="dot check">✓</span> Discount badges on product images</li>
+        <li><span class="dot check">✓</span> Improved spacing &amp; typography</li>
+        <li><span class="dot check">✓</span> Cleaner promo banner design</li>
+      </ul>
+      <div class="effort">
+        <span>Effort: <strong>Low</strong></span>
+        <span>Files changed: ~5</span>
+      </div>
+    </div>
+
+    <!-- Approach 2: Amazon Full (Recommended) -->
+    <div class="card" onclick="selectCard(this,'2')">
+      <div class="card-header">
+        <div class="badge" style="background:#fff7ed;color:#c2410c;">Approach 2 — Recommended ⭐</div>
+        <h3>Amazon Full Redesign</h3>
+        <p>Complete professional look with all key sections</p>
+      </div>
+      <div class="mockup-wrap">
+        <div class="mp">
+          <!-- Nav -->
+          <div class="mp-nav">
+            <span class="mp-logo">ESS</span>
+            <div class="mp-search"><span>Search for anything</span></div>
+            <div class="mp-search-btn"><svg viewBox="0 0 16 16"><circle cx="6" cy="6" r="4" stroke="white" stroke-width="2" fill="none"/><line x1="9" y1="9" x2="13" y2="13" stroke="white" stroke-width="2"/></svg></div>
+            <div class="mp-icons"><div class="mp-icon"></div><div class="mp-icon"></div></div>
+          </div>
+          <!-- Trust Bar -->
+          <div class="mp-trust">
+            <span><div class="mp-trust-icon"></div> Free Shipping</span>
+            <span><div class="mp-trust-icon" style="background:#22c55e"></div> Easy Returns</span>
+            <span><div class="mp-trust-icon" style="background:#3b82f6"></div> Secure Pay</span>
+            <span><div class="mp-trust-icon" style="background:#a855f7"></div> 24/7 Support</span>
+          </div>
+          <!-- Subnav -->
+          <div class="mp-subnav">
+            <span>☰ All Categories</span><span>⚡ Flash Deals</span><span>✨ New Arrivals</span><span>🏷️ Brands</span><span>📖 Blog</span>
+          </div>
+          <!-- Hero with sidebar -->
+          <div class="mp-hero-wrap">
+            <div class="mp-sidebar">
+              <div class="mp-sidebar-item active"><div class="mp-sidebar-dot" style="background:#f77f00"></div>Fashion</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#3b82f6"></div>Electronics</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#22c55e"></div>Sports</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#ec4899"></div>Beauty</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#f59e0b"></div>Home</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#8b5cf6"></div>Kids</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#14b8a6"></div>Jewelry</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#ef4444"></div>Phones</div>
+            </div>
+            <div class="mp-hero">
+              <div class="mp-hero-text">
+                <span class="mp-hero-badge">⚡ FLASH SALE · UP TO 50% OFF</span>
+                <div class="mp-hero-h">Shop the Latest<br>Electronics &amp; Fashion</div>
+                <span class="mp-hero-cta">Shop Now →</span>
+              </div>
+              <div class="mp-hero-img"></div>
+            </div>
+          </div>
+          <!-- Flash deals with timer -->
+          <div style="background:#fff8f0;padding:0 0 2px;">
+            <div class="mp-section-header" style="padding-top:5px;">
+              <div style="display:flex;align-items:center;gap:6px;">
+                <div class="mp-section-title"><div class="bar"></div><span>Flash Deals</span></div>
+                <div class="mp-timer">
+                  <div class="mp-timer-box">02</div>
+                  <div class="mp-timer-sep">:</div>
+                  <div class="mp-timer-box">14</div>
+                  <div class="mp-timer-sep">:</div>
+                  <div class="mp-timer-box">38</div>
+                </div>
+              </div>
+              <span class="mp-view-all">View all →</span>
+            </div>
+            <div class="mp-products cols6">
+              <div class="mp-product"><div class="mp-product-img"><span class="discount">-40%</span></div><div class="mp-product-body"><div class="mp-product-name">Headphones Pro</div><div class="mp-product-stars">★★★★☆</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$49</div><div class="mp-product-orig">$82</div></div></div></div>
+              <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#e0e8f0,#d4dce8)"><span class="discount">-25%</span></div><div class="mp-product-body"><div class="mp-product-name">Smart Watch</div><div class="mp-product-stars">★★★★★</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$129</div><div class="mp-product-orig">$172</div></div></div></div>
+              <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#e8f0e0,#d8e8d0)"></div><div class="mp-product-body"><div class="mp-product-name">Running Shoes</div><div class="mp-product-stars">★★★★☆</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$79</div><div class="mp-product-orig">$110</div></div></div></div>
+              <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#f0e8e0,#e4d8d0)"><span class="discount">-15%</span></div><div class="mp-product-body"><div class="mp-product-name">Leather Bag</div><div class="mp-product-stars">★★★★☆</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$89</div><div class="mp-product-orig">$105</div></div></div></div>
+              <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#f0e0f0,#e0d0e0)"></div><div class="mp-product-body"><div class="mp-product-name">Perfume</div><div class="mp-product-stars">★★★★☆</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$55</div><div class="mp-product-orig">$70</div></div></div></div>
+              <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#e0f0f0,#d0e4e4)"><span class="discount">-35%</span></div><div class="mp-product-body"><div class="mp-product-name">Sunglasses</div><div class="mp-product-stars">★★★★☆</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$35</div><div class="mp-product-orig">$54</div></div></div></div>
+            </div>
+          </div>
+          <!-- Promo banners -->
+          <div class="mp-promo">
+            <div class="mp-promo-banner" style="background:linear-gradient(135deg,#1a3a5c,#0d2137)">
+              <div class="mp-promo-banner-text"><span class="label">Laptops Sale</span><span class="sub">Up to 40% off top brands</span><span class="btn">Shop Now</span></div>
+            </div>
+            <div class="mp-promo-banner" style="background:linear-gradient(135deg,#4a1a5c,#2d0d37)">
+              <div class="mp-promo-banner-text"><span class="label">Gadgets</span><span class="sub">Discover the latest tech</span><span class="btn">Explore</span></div>
+            </div>
+          </div>
+          <!-- Brand logos -->
+          <div class="mp-section-header">
+            <div class="mp-section-title"><div class="bar"></div><span>Top Brands</span></div>
+          </div>
+          <div class="mp-brands">
+            <div class="mp-brand"><span>SAMSUNG</span></div>
+            <div class="mp-brand"><span>NIKE</span></div>
+            <div class="mp-brand"><span>APPLE</span></div>
+            <div class="mp-brand"><span>ADIDAS</span></div>
+            <div class="mp-brand"><span>SONY</span></div>
+          </div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li><span class="dot check">✓</span> Everything in Approach 1, plus:</li>
+        <li><span class="dot plus">+</span> Trust badges bar (Free shipping, Returns, Secure, Support)</li>
+        <li><span class="dot plus">+</span> Category sidebar on hero (Amazon-style left panel)</li>
+        <li><span class="dot plus">+</span> Flash deals countdown timer</li>
+        <li><span class="dot plus">+</span> Original price + strikethrough on cards</li>
+        <li><span class="dot plus">+</span> Better promo banners with text overlay</li>
+        <li><span class="dot plus">+</span> Brand logo strip section</li>
+      </ul>
+      <div class="effort">
+        <span>Effort: <strong>Medium</strong></span>
+        <span>Files changed: ~10</span>
+      </div>
+    </div>
+
+    <!-- Approach 3: Full + Extras -->
+    <div class="card" onclick="selectCard(this,'3')">
+      <div class="card-header">
+        <div class="badge" style="background:#f0fdf4;color:#166534;">Approach 3 — Full premium</div>
+        <h3>Amazon + Modern Extras</h3>
+        <p>Everything + additional high-impact sections</p>
+      </div>
+      <div class="mockup-wrap">
+        <div class="mp">
+          <!-- Nav -->
+          <div class="mp-nav">
+            <span class="mp-logo">ESS</span>
+            <div class="mp-search"><span>Search for anything</span></div>
+            <div class="mp-search-btn"><svg viewBox="0 0 16 16"><circle cx="6" cy="6" r="4" stroke="white" stroke-width="2" fill="none"/><line x1="9" y1="9" x2="13" y2="13" stroke="white" stroke-width="2"/></svg></div>
+            <div class="mp-icons"><div class="mp-icon"></div><div class="mp-icon"></div></div>
+          </div>
+          <!-- Trust Bar -->
+          <div class="mp-trust">
+            <span><div class="mp-trust-icon"></div> Free Shipping $50+</span>
+            <span><div class="mp-trust-icon" style="background:#22c55e"></div> 30-Day Returns</span>
+            <span><div class="mp-trust-icon" style="background:#3b82f6"></div> SSL Secure</span>
+            <span><div class="mp-trust-icon" style="background:#a855f7"></div> 24/7 Support</span>
+          </div>
+          <!-- Subnav -->
+          <div class="mp-subnav">
+            <span>☰ All Categories</span><span>⚡ Flash Deals</span><span>✨ New Arrivals</span><span>🏷️ Brands</span><span>📖 Blog</span>
+          </div>
+          <!-- Hero with sidebar -->
+          <div class="mp-hero-wrap">
+            <div class="mp-sidebar">
+              <div class="mp-sidebar-item active"><div class="mp-sidebar-dot" style="background:#f77f00"></div>Fashion</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#3b82f6"></div>Electronics</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#22c55e"></div>Sports</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#ec4899"></div>Beauty</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#f59e0b"></div>Home</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#8b5cf6"></div>Kids</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#14b8a6"></div>Jewelry</div>
+              <div class="mp-sidebar-item"><div class="mp-sidebar-dot" style="background:#ef4444"></div>Phones</div>
+            </div>
+            <div class="mp-hero">
+              <div class="mp-hero-text">
+                <span class="mp-hero-badge">⚡ FLASH SALE · UP TO 50% OFF</span>
+                <div class="mp-hero-h">Shop the Latest<br>Electronics &amp; Fashion</div>
+                <span class="mp-hero-cta">Shop Now →</span>
+              </div>
+              <div class="mp-hero-img"></div>
+            </div>
+          </div>
+
+          <!-- Deal of the Day featured banner -->
+          <div style="margin:4px 6px;background:linear-gradient(135deg,#1b233a,#2f3b51);border-radius:4px;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:6px;color:#f77f00;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:2px;">⭐ Deal of the Day</div>
+              <div style="font-size:9px;font-weight:800;color:white;line-height:1.2;">Premium Wireless Earbuds — 55% OFF</div>
+            </div>
+            <div style="display:flex;gap:2px;">
+              <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:2px;padding:2px 4px;text-align:center;"><div style="font-size:8px;font-weight:700;color:white;">04</div><div style="font-size:5px;color:#9ab;">HRS</div></div>
+              <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:2px;padding:2px 4px;text-align:center;"><div style="font-size:8px;font-weight:700;color:white;">22</div><div style="font-size:5px;color:#9ab;">MIN</div></div>
+              <div style="background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);border-radius:2px;padding:2px 4px;text-align:center;"><div style="font-size:8px;font-weight:700;color:white;">15</div><div style="font-size:5px;color:#9ab;">SEC</div></div>
+            </div>
+            <span style="background:#f77f00;color:white;font-size:7px;font-weight:700;padding:3px 8px;border-radius:3px;">Grab Deal</span>
+          </div>
+
+          <!-- Products with full card -->
+          <div class="mp-products cols5" style="padding:4px 6px;">
+            <div class="mp-product"><div class="mp-product-img"><span class="discount">-55%</span></div><div class="mp-product-body"><div class="mp-product-name">Wireless Earbuds</div><div class="mp-product-stars">★★★★★</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$29</div><div class="mp-product-orig">$65</div></div><div class="mp-product-cart">+ Add to Cart</div></div></div>
+            <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#e0e8f0,#d4dce8)"><span class="discount">-30%</span></div><div class="mp-product-body"><div class="mp-product-name">Smart Watch</div><div class="mp-product-stars">★★★★☆</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$89</div><div class="mp-product-orig">$128</div></div><div class="mp-product-cart">+ Add to Cart</div></div></div>
+            <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#e8f0e0,#d8e8d0)"></div><div class="mp-product-body"><div class="mp-product-name">Running Shoes</div><div class="mp-product-stars">★★★★☆</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$79</div><div class="mp-product-orig">$110</div></div><div class="mp-product-cart">+ Add to Cart</div></div></div>
+            <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#f0e8e0,#e4d8d0)"></div><div class="mp-product-body"><div class="mp-product-name">Leather Bag</div><div class="mp-product-stars">★★★★★</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$89</div><div class="mp-product-orig">$105</div></div><div class="mp-product-cart">+ Add to Cart</div></div></div>
+            <div class="mp-product"><div class="mp-product-img" style="background:linear-gradient(135deg,#f0e0f0,#e0d0e0)"><span class="discount">-20%</span></div><div class="mp-product-body"><div class="mp-product-name">Perfume</div><div class="mp-product-stars">★★★★☆</div><div style="display:flex;gap:3px;align-items:baseline;"><div class="mp-product-price">$55</div><div class="mp-product-orig">$70</div></div><div class="mp-product-cart">+ Add to Cart</div></div></div>
+          </div>
+
+          <!-- Newsletter strip -->
+          <div style="background:linear-gradient(135deg,#f77f00,#e67300);margin:0 6px 8px;border-radius:4px;padding:6px 10px;display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="font-size:8px;font-weight:800;color:white;">📧 Get Exclusive Deals in Your Inbox</div>
+              <div style="font-size:6px;color:rgba(255,255,255,0.85);">Join 50,000+ subscribers</div>
+            </div>
+            <div style="display:flex;gap:3px;">
+              <div style="background:white;height:16px;border-radius:2px;width:70px;padding:0 5px;display:flex;align-items:center;"><span style="font-size:6px;color:#999;">Your email...</span></div>
+              <div style="background:#1b233a;color:white;font-size:6.5px;font-weight:700;height:16px;padding:0 6px;border-radius:2px;display:flex;align-items:center;">Subscribe</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <ul class="feature-list">
+        <li><span class="dot check">✓</span> Everything in Approach 2, plus:</li>
+        <li><span class="dot star">★</span> "Deal of the Day" featured banner with large countdown</li>
+        <li><span class="dot star">★</span> "Add to Cart" button directly on product cards</li>
+        <li><span class="dot star">★</span> Newsletter sign-up strip section</li>
+        <li><span class="dot star">★</span> Animated countdown timers</li>
+      </ul>
+      <div class="effort">
+        <span>Effort: <strong>High</strong></span>
+        <span>Files changed: ~15</span>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="text-align:center;margin-top:24px;background:white;border-radius:10px;padding:14px;max-width:600px;margin-left:auto;margin-right:auto;box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+    <p style="font-size:13px;color:#333;font-weight:600;">⭐ My recommendation: <span style="color:#f77f00;">Approach 2</span></p>
+    <p style="font-size:12px;color:#666;margin-top:4px;">It delivers the full Amazon-professional look without overcomplicating things. Adds a trust bar, category sidebar, countdown timer, and improved product cards — all the signals shoppers expect from a serious store.</p>
+  </div>
+
+  <div style="text-align:center;margin-top:14px;font-size:13px;color:#888;min-height:20px;" id="indicator"></div>
+
+  <script>
+    function selectCard(el, choice) {
+      document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('indicator').textContent = `You selected Approach ${choice} — let me know in the chat!`;
+      document.getElementById('indicator').style.color = '#f77f00';
+    }
+  </script>
+</body>
+</html>
