@@ -13,7 +13,7 @@ const promoBanners = {
       label: "Laptops Sale",
       sub: "Up to 40% off top brands",
       cta: "Shop Now",
-      overlay: "from-blue-900/80 to-blue-600/30",
+      overlay: "from-blue-900/85 to-blue-600/30",
     },
     {
       id: "promo-2",
@@ -23,7 +23,7 @@ const promoBanners = {
       label: "Your Favorite Gadget",
       sub: "Discover the latest tech",
       cta: "Explore",
-      overlay: "from-purple-900/80 to-purple-500/30",
+      overlay: "from-purple-900/85 to-purple-500/30",
     },
   ],
   fullWidth: {
@@ -34,7 +34,7 @@ const promoBanners = {
     label: "MAXIMUM ENGINE PERFORMANCE",
     sub: "Premium auto parts & accessories for every build",
     cta: "Shop Automotive",
-    overlay: "from-gray-900/85 to-gray-700/30",
+    overlay: "from-gray-900/90 to-gray-700/40",
   },
 };
 
@@ -42,21 +42,27 @@ export function PromoBanners() {
   return (
     <div className="max-w-[1340px] mx-auto px-4 space-y-3 py-3">
       {/* Two banners side by side */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {promoBanners.row1.map((banner) => (
-          <Link key={banner.id} href={banner.link} className="block overflow-hidden rounded group">
-            <div className="relative aspect-[2.3/1] bg-gray-900">
+          <Link
+            key={banner.id}
+            href={banner.link}
+            className="block overflow-hidden rounded-lg group shadow-sm hover:shadow-md transition-shadow"
+          >
+            <div className="relative aspect-[2.4/1] bg-gray-900">
               <Image
                 src={banner.image}
                 alt={banner.alt}
                 fill
-                sizes="(max-width: 768px) 100vw, 50vw"
+                sizes="(max-width: 640px) 100vw, 50vw"
                 className="object-cover group-hover:scale-[1.04] transition-transform duration-500"
               />
-              <div className={`absolute inset-0 bg-gradient-to-r ${banner.overlay} flex flex-col justify-center px-8`}>
-                <h3 className="text-white text-2xl font-extrabold mb-1 drop-shadow-lg tracking-wide">{banner.label}</h3>
+              <div className={`absolute inset-0 bg-gradient-to-r ${banner.overlay} flex flex-col justify-center px-7 sm:px-8`}>
+                <h3 className="text-white text-xl sm:text-2xl font-extrabold mb-1 drop-shadow-lg tracking-wide">
+                  {banner.label}
+                </h3>
                 <p className="text-white/80 text-sm mb-4 drop-shadow">{banner.sub}</p>
-                <span className="inline-block bg-white text-gray-900 text-xs font-bold px-4 py-1.5 rounded w-fit uppercase tracking-wider group-hover:bg-[#f77f00] group-hover:text-white transition-colors duration-200">
+                <span className="inline-block bg-white text-gray-900 text-xs font-bold px-4 py-1.5 rounded-md w-fit uppercase tracking-wider group-hover:bg-[#f77f00] group-hover:text-white transition-colors duration-200 shadow-sm">
                   {banner.cta}
                 </span>
               </div>
@@ -66,8 +72,11 @@ export function PromoBanners() {
       </div>
 
       {/* Full-width banner */}
-      <Link href={promoBanners.fullWidth.link} className="block overflow-hidden rounded group">
-        <div className="relative aspect-[4.2/1] bg-gray-900">
+      <Link
+        href={promoBanners.fullWidth.link}
+        className="block overflow-hidden rounded-lg group shadow-sm hover:shadow-md transition-shadow"
+      >
+        <div className="relative aspect-[4.5/1] sm:aspect-[5/1] bg-gray-900">
           <Image
             src={promoBanners.fullWidth.image}
             alt={promoBanners.fullWidth.alt}
@@ -75,10 +84,14 @@ export function PromoBanners() {
             sizes="100vw"
             className="object-cover group-hover:scale-[1.02] transition-transform duration-500"
           />
-          <div className={`absolute inset-0 bg-gradient-to-r ${promoBanners.fullWidth.overlay} flex flex-col justify-center px-12`}>
-            <h3 className="text-white text-3xl font-extrabold mb-1 drop-shadow-lg uppercase tracking-widest">{promoBanners.fullWidth.label}</h3>
-            <p className="text-white/75 text-sm mb-5 drop-shadow max-w-md">{promoBanners.fullWidth.sub}</p>
-            <span className="inline-block bg-[#f77f00] text-white text-xs font-bold px-5 py-2 rounded w-fit uppercase tracking-wider group-hover:bg-white group-hover:text-gray-900 transition-colors duration-200">
+          <div className={`absolute inset-0 bg-gradient-to-r ${promoBanners.fullWidth.overlay} flex flex-col justify-center px-8 sm:px-12`}>
+            <h3 className="text-white text-2xl sm:text-3xl font-extrabold mb-1.5 drop-shadow-lg uppercase tracking-widest">
+              {promoBanners.fullWidth.label}
+            </h3>
+            <p className="text-white/75 text-sm mb-5 drop-shadow max-w-md hidden sm:block">
+              {promoBanners.fullWidth.sub}
+            </p>
+            <span className="inline-block bg-[#f77f00] text-white text-xs font-bold px-5 py-2 rounded-md w-fit uppercase tracking-wider group-hover:bg-white group-hover:text-gray-900 transition-colors duration-200 shadow-sm">
               {promoBanners.fullWidth.cta}
             </span>
           </div>
