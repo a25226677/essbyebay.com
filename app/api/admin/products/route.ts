@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const context = await getAdminContext();
   if (context instanceof NextResponse) return context;
-  const { db } = context;
+  const { db, userId } = context;
 
   const body = await request.json();
 

@@ -1,17 +1,23 @@
-import { createAdminServiceClient } from "@/lib/supabase/admin-client";
+import { createClient } from "@supabase/supabase-js";
 import type { BlogPost, Brand, Category, FlashDeal, Product, Shop } from "@/lib/types";
-import {
-  bannerSlides as placeholderBannerSlides,
-  products as placeholderProducts,
-  categories as placeholderCategories,
-  brands as placeholderBrands,
-} from "@/lib/placeholder-data";
 
 const DEFAULT_PRODUCT_IMAGE = "/images/placeholders/product-1.svg";
 const DEFAULT_CATEGORY_IMAGE = "/images/placeholders/computers.svg";
 const DEFAULT_BRAND_LOGO = "/images/placeholders/brand-apple.svg";
 const DEFAULT_SHOP_BANNER = "/images/placeholders/hero-1.svg";
 const DEFAULT_SHOP_LOGO = "/images/placeholders/logo-footer.svg";
+
+// Public read-only client — uses the publishable (anon) key so PostgREST applies
+// the standard RLS policies.  Active products are readable by anyone per the
+// "products_public_read_active" policy (is_active = true).
+// Call this inside each function (never cache globally across requests).
+function createStorefrontClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
+    { auth: { persistSession: false, autoRefreshToken: false } },
+  );
+}
 
 type BannerRow = {
   id: string;
@@ -25,6 +31,7 @@ type BannerRow = {
 type ProductRow = {
   id: string;
   category_id?: string | null;
+  brand_id?: string | null;
   title: string;
   slug: string;
   price: number | string;
@@ -65,7 +72,7 @@ function toNumber(value: number | string | null | undefined, fallback = 0) {
 }
 
 export async function getActiveBannerSlides() {
-  const supabase = createAdminServiceClient();
+  const supabase = createStorefrontClient();
 
   const { data: rows, error } = await supabase
     .from("banners")
@@ -76,8 +83,7 @@ export async function getActiveBannerSlides() {
 
   if (error) console.error("[storefront] banners query error:", error.message);
 
-  const mapped = ((rows || []) as BannerRow[])
-    // Only keep rows that have a real remote image — skip local SVG/placeholder paths
+  return ((rows || []) as BannerRow[])
     .filter((row) => row.image_url?.startsWith("http"))
     .map((row) => ({
       id: row.id,
@@ -87,17 +93,24 @@ export async function getActiveBannerSlides() {
       link: row.link,
       buttonText: row.button_text,
     }));
-
-  return mapped.length > 0 ? mapped : placeholderBannerSlides;
 }
 
-function rowToProduct(row: ProductRow): Product {
-  const category = pickRelation(row.categories);
-  const brand = pickRelation(row.brands);
+function rowToProduct(
+  row: ProductRow,
+  catMap?: Map<string, { name: string; slug: string }>,
+  brandMap?: Map<string, { name: string }>,
+): Product {
+  // Resolve category/brand either from embedded join data or from lookup maps
+  const catFromJoin = pickRelation(row.categories);
+  const brandFromJoin = pickRelation(row.brands);
   const shop = pickRelation(row.shops);
 
-  const categorySlug = category?.slug || "uncategorized";
-  const categoryName = category?.name || "Uncategorized";
+  const catLookup = row.category_id ? catMap?.get(row.category_id) : undefined;
+  const brandLookup = row.brand_id ? brandMap?.get(row.brand_id) : undefined;
+
+  const categorySlug = catFromJoin?.slug ?? catLookup?.slug ?? "uncategorized";
+  const categoryName = catFromJoin?.name ?? catLookup?.name ?? "Uncategorized";
+  const brandName = brandFromJoin?.name ?? brandLookup?.name ?? "No Brand";
 
   return {
     id: row.id,
@@ -110,7 +123,7 @@ function rowToProduct(row: ProductRow): Product {
     clubPoint: 0,
     category: categorySlug,
     categoryName,
-    brand: brand?.name || "No Brand",
+    brand: brandName,
     description: row.description || "",
     sku: row.sku || "",
     tags: [],
@@ -132,12 +145,11 @@ function rowToProduct(row: ProductRow): Product {
 }
 
 export async function getHomeStorefrontData() {
-  const supabase = createAdminServiceClient();
+  const supabase = createStorefrontClient();
 
-  // Fetch categories, brands, and products in parallel.
-  // Products query intentionally omits the categories/brands JOIN to keep it
-  // simple and fast — category/brand names are resolved below using the
-  // separately-fetched lookup arrays instead of per-row subqueries.
+  // Fetch categories, brands, products, and banners in parallel.
+  // Products query omits the categories/brands JOIN — names are resolved
+  // from the separately-fetched lookup maps to keep the main query simple.
   const [
     { data: categories, error: catErr },
     { data: brands, error: brandErr },
@@ -148,81 +160,55 @@ export async function getHomeStorefrontData() {
     supabase.from("brands").select("id,name,slug,logo_url").order("name"),
     supabase
       .from("products")
-      .select(
-        "id,title,slug,price,compare_at_price,image_url,sku,stock_count,rating,review_count,category_id,brand_id",
-      )
+      .select("id,title,slug,price,compare_at_price,image_url,sku,stock_count,rating,review_count,category_id,brand_id")
       .eq("is_active", true)
       .order("created_at", { ascending: false })
       .limit(100),
     getActiveBannerSlides(),
   ]);
 
-  if (catErr) console.error("[storefront] categories query error:", catErr.message);
-  if (brandErr) console.error("[storefront] brands query error:", brandErr.message);
-  if (prodErr) console.error("[storefront] products query error:", prodErr.message);
+  if (catErr) console.error("[storefront] categories error:", catErr.message);
+  if (brandErr) console.error("[storefront] brands error:", brandErr.message);
+  if (prodErr) console.error("[storefront] products error:", prodErr.message);
 
-  // Build lookup maps from the separately-fetched categories/brands so we can
-  // resolve names without a per-product JOIN in the products query.
-  type CatRow = { id: string; name: string; slug: string };
-  type BrandRow = { id: string; name: string };
-  const categoryById = new Map<string, { name: string; slug: string }>(
-    ((categories || []) as CatRow[]).map((c) => [c.id, { name: c.name, slug: c.slug }])
+  type CatRow = { id: string; name: string; slug: string; image_url: string | null };
+  type BrandRow = { id: string; name: string; slug: string; logo_url: string | null };
+
+  const catRows = (categories || []) as CatRow[];
+  const brandRows = (brands || []) as BrandRow[];
+
+  const categoryById = new Map(catRows.map((c) => [c.id, { name: c.name, slug: c.slug }]));
+  const brandById = new Map(brandRows.map((b) => [b.id, { name: b.name }]));
+
+  const dbProducts: Product[] = ((productRows || []) as ProductRow[]).map((row) =>
+    rowToProduct(row, categoryById, brandById)
   );
-  const brandById = new Map<string, { name: string }>(
-    ((brands || []) as BrandRow[]).map((b) => [b.id, { name: b.name }])
-  );
-
-  type ProductWithIds = ProductRow & { category_id?: string | null; brand_id?: string | null };
-  const augmented = ((productRows || []) as ProductWithIds[]).map((row) => ({
-    ...row,
-    categories: row.category_id ? (categoryById.get(row.category_id) ?? null) : null,
-    brands: row.brand_id ? (brandById.get(row.brand_id) ?? null) : null,
-  }));
-
-  const dbProducts = augmented.map(rowToProduct);
 
   console.log(`[storefront] fetched ${dbProducts.length} active products from database`);
 
-  // Fall back to placeholder data when the database has no active products
-  const usingPlaceholders = dbProducts.length === 0;
-  if (usingPlaceholders) {
-    console.warn("[storefront] no active products found in database — using placeholder data. " +
-      "Ensure products have is_active=true. Run the migration: 20260610_000030_allow_inhouse_admin_products.sql");
-  }
-  const products = usingPlaceholders ? placeholderProducts : dbProducts;
-
   const countsByCategory = new Map<string, number>();
-  products.forEach((product) => {
-    countsByCategory.set(product.category, (countsByCategory.get(product.category) || 0) + 1);
+  dbProducts.forEach((p) => {
+    countsByCategory.set(p.category, (countsByCategory.get(p.category) || 0) + 1);
   });
 
-  const mappedCategories: Category[] = (categories || []).map((category) => ({
-    id: category.id,
-    name: category.name,
-    slug: category.slug,
+  const mappedCategories: Category[] = catRows.map((c) => ({
+    id: c.id,
+    name: c.name,
+    slug: c.slug,
     icon: "Grid3X3",
-    image: category.image_url || DEFAULT_CATEGORY_IMAGE,
-    productCount: countsByCategory.get(category.slug) || 0,
+    image: c.image_url || DEFAULT_CATEGORY_IMAGE,
+    productCount: countsByCategory.get(c.slug) || 0,
   }));
 
-  const mappedBrands: Brand[] = (brands || []).map((brand) => ({
-    id: brand.id,
-    name: brand.name,
-    slug: brand.slug,
-    logo: brand.logo_url || DEFAULT_BRAND_LOGO,
+  const mappedBrands: Brand[] = brandRows.map((b) => ({
+    id: b.id,
+    name: b.name,
+    slug: b.slug,
+    logo: b.logo_url || DEFAULT_BRAND_LOGO,
   }));
 
-  // When using placeholder products, also fall back categories and brands so
-  // per-category sections and brand logos match the placeholder slugs
-  const finalCategories = usingPlaceholders && mappedCategories.length === 0
-    ? placeholderCategories
-    : mappedCategories;
-  const finalBrands = usingPlaceholders && mappedBrands.length === 0
-    ? placeholderBrands
-    : mappedBrands;
-
-  const flashDeals: FlashDeal[] = products
-    .filter((product) => product.originalPrice && product.originalPrice > product.price)
+  const flashDeals: FlashDeal[] = dbProducts
+    .filter((p) => p.originalPrice && p.originalPrice > p.price)
     .slice(0, 15)
     .map((product) => ({
       product,
@@ -232,62 +218,46 @@ export async function getHomeStorefrontData() {
       dealEndTime: new Date(Date.now() + 1000 * 60 * 60 * 24 * 2).toISOString(),
     }));
 
-  // If there are no real flash deals, create a fallback set of randomized
-  // flash deals from existing products so the UI doesn't look empty.
-  if (flashDeals.length === 0) {
-    // helper: shuffle and pick up to 12 products that are in stock
-    const shuffled = products
-      .filter((p) => p.inStock)
-      .slice()
-      .sort(() => Math.random() - 0.5);
-
-    const fallback = shuffled.slice(0, 12).map((product) => {
-      const discountPercent = Math.floor(Math.random() * 50) + 10; // 10% - 59%
-      const originalPrice = Math.max(
-        Math.round(product.price * (1 + discountPercent / 100)),
-        product.price + 1,
-      );
-
-      const dealEndTime = new Date(
-        Date.now() + (Math.floor(Math.random() * (72 - 6)) + 6) * 60 * 60 * 1000,
-      ).toISOString(); // between 6 and 72 hours
-
-      // copy product and set originalPrice so UI shows discount
-      const p = { ...product, originalPrice };
-
-      return {
-        product: p,
-        discountPercent,
-        dealEndTime,
-      } as FlashDeal;
-    });
-
-    // use the fallback deals instead of empty list
-    return {
-      categories: finalCategories,
-      brands: finalBrands,
-      products,
-      flashDeals: fallback,
-      bannerSlides,
-    };
-  }
+  // If no products have a compare_at_price, generate flash deals from in-stock items
+  const finalFlashDeals: FlashDeal[] =
+    flashDeals.length > 0
+      ? flashDeals
+      : dbProducts
+          .filter((p) => p.inStock)
+          .slice()
+          .sort(() => Math.random() - 0.5)
+          .slice(0, 12)
+          .map((product) => {
+            const discountPercent = Math.floor(Math.random() * 50) + 10;
+            const originalPrice = Math.max(
+              Math.round(product.price * (1 + discountPercent / 100)),
+              product.price + 1,
+            );
+            return {
+              product: { ...product, originalPrice },
+              discountPercent,
+              dealEndTime: new Date(
+                Date.now() + (Math.floor(Math.random() * 66) + 6) * 60 * 60 * 1000,
+              ).toISOString(),
+            } as FlashDeal;
+          });
 
   return {
-    categories: finalCategories,
-    brands: finalBrands,
-    products,
-    flashDeals,
+    categories: mappedCategories,
+    brands: mappedBrands,
+    products: dbProducts,
+    flashDeals: finalFlashDeals,
     bannerSlides,
   };
 }
 
 export async function getProductBySlug(slug: string) {
-  const supabase = createAdminServiceClient();
+  const supabase = createStorefrontClient();
 
   const { data } = await supabase
     .from("products")
     .select(
-      "id,category_id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
+      "id,category_id,brand_id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
     )
     .eq("slug", slug)
     .eq("is_active", true)
@@ -300,7 +270,7 @@ export async function getProductBySlug(slug: string) {
   const relatedBaseQuery = supabase
     .from("products")
     .select(
-      "id,category_id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
+      "id,category_id,brand_id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
     )
     .eq("is_active", true)
     .neq("id", data.id)
@@ -312,13 +282,13 @@ export async function getProductBySlug(slug: string) {
 
   const { data: relatedRows } = await relatedQuery;
 
-  const relatedProducts = ((relatedRows || []) as ProductRow[]).map(rowToProduct).slice(0, 4);
+  const relatedProducts = ((relatedRows || []) as ProductRow[]).map((r) => rowToProduct(r)).slice(0, 4);
 
   return { product, relatedProducts };
 }
 
 export async function getShopWithProducts(shopSlug: string, options?: { topSelling?: boolean }) {
-  const supabase = createAdminServiceClient();
+  const supabase = createStorefrontClient();
 
   const { data: shopRow } = await supabase
     .from("shops")
@@ -331,17 +301,15 @@ export async function getShopWithProducts(shopSlug: string, options?: { topSelli
   let productsQuery = supabase
     .from("products")
     .select(
-      "id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
+      "id,category_id,brand_id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
     )
     .eq("shop_id", shopRow.id)
     .eq("is_active", true)
     .limit(120);
 
-  if (options?.topSelling) {
-    productsQuery = productsQuery.order("rating", { ascending: false });
-  } else {
-    productsQuery = productsQuery.order("created_at", { ascending: false });
-  }
+  productsQuery = options?.topSelling
+    ? productsQuery.order("rating", { ascending: false })
+    : productsQuery.order("created_at", { ascending: false });
 
   const { data: productRows } = await productsQuery;
 
@@ -357,7 +325,7 @@ export async function getShopWithProducts(shopSlug: string, options?: { topSelli
     memberSince: shopRow.created_at,
   };
 
-  const products = ((productRows || []) as ProductRow[]).map(rowToProduct);
+  const products = ((productRows || []) as ProductRow[]).map((r) => rowToProduct(r));
 
   return { shop, products };
 }
@@ -367,7 +335,7 @@ export async function searchStoreProducts(
   page = 1,
   perPage = 24,
 ): Promise<{ products: Product[]; total: number }> {
-  const supabase = createAdminServiceClient();
+  const supabase = createStorefrontClient();
   const term = query.trim();
   if (!term) return { products: [], total: 0 };
 
@@ -377,7 +345,7 @@ export async function searchStoreProducts(
   const { data: rows, count } = await supabase
     .from("products")
     .select(
-      "id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
+      "id,category_id,brand_id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
       { count: "exact" },
     )
     .eq("is_active", true)
@@ -386,13 +354,13 @@ export async function searchStoreProducts(
     .range(from, to);
 
   return {
-    products: ((rows || []) as ProductRow[]).map(rowToProduct),
+    products: ((rows || []) as ProductRow[]).map((r) => rowToProduct(r)),
     total: count ?? 0,
   };
 }
 
 export async function getBlogPosts() {
-  const supabase = createAdminServiceClient();
+  const supabase = createStorefrontClient();
 
   const { data: rows } = await supabase
     .from("blog_posts")
@@ -405,9 +373,9 @@ export async function getBlogPosts() {
     ? await supabase.from("profiles").select("id,full_name").in("id", authorIds)
     : { data: [] as { id: string; full_name: string | null }[] };
 
-  const authorMap = new Map((authors || []).map((author) => [author.id, author.full_name || "Admin"]));
+  const authorMap = new Map((authors || []).map((a) => [a.id, a.full_name || "Admin"]));
 
-  const posts: BlogPost[] = (rows || []).map((row) => ({
+  return (rows || []).map((row) => ({
     id: row.id,
     title: row.title,
     slug: row.slug,
@@ -415,10 +383,8 @@ export async function getBlogPosts() {
     content: row.content || "",
     image: row.image_url || "/images/placeholders/blog-1.svg",
     date: row.published_at || row.created_at,
-    author: row.author_id ? authorMap.get(row.author_id) || "Admin" : "Admin",
-  }));
-
-  return posts;
+    author: row.author_id ? (authorMap.get(row.author_id) ?? "Admin") : "Admin",
+  })) as BlogPost[];
 }
 
 export async function getBlogPostBySlug(slug: string) {
@@ -427,16 +393,13 @@ export async function getBlogPostBySlug(slug: string) {
 }
 
 export async function getStorefrontCategories() {
-  const data = await getHomeStorefrontData();
-  return data.categories;
+  return (await getHomeStorefrontData()).categories;
 }
 
 export async function getStorefrontBrands() {
-  const data = await getHomeStorefrontData();
-  return data.brands;
+  return (await getHomeStorefrontData()).brands;
 }
 
 export async function getFlashDeals() {
-  const data = await getHomeStorefrontData();
-  return data.flashDeals;
+  return (await getHomeStorefrontData()).flashDeals;
 }
