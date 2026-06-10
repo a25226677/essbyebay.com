@@ -53,3 +53,7 @@ yarn-error.log*
 next-env.d.ts
 
 .vercel
+
+# eBay scraper credentials
+scripts/scraper/.env.scraper
+scripts/scraper/node_modules/
