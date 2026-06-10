@@ -1,6 +1,6 @@
 require("dotenv").config({ path: require("path").join(__dirname, ".env.scraper") });
 
-const { launchBrowser, newStealthPage } = require("./browser.js");
+const { launchBrowser, newStealthContext, newStealthPage } = require("./browser.js");
 const { scrapeSearchUrls }              = require("./search-scraper.js");
 const { scrapeProduct }                 = require("./product-scraper.js");
 const { mapToDbProduct, mapToDbImages, buildVariantRows, isPriceInRange } = require("./mapper.js");
@@ -26,9 +26,9 @@ const LIMIT = (() => {
 
 if (DRY_RUN) console.log("[DRY RUN] No DB writes, no image uploads.\n");
 
-// ── Process a single product URL ─────────────────────────
-async function processProduct(supabase, browser, url, category, dryRun) {
-  const { page, context } = await newStealthPage(browser);
+// ── Process a single product URL (reuses shared context for session cookies) ──
+async function processProduct(supabase, ctx, url, category, dryRun) {
+  const { page } = await newStealthPage(ctx);
   try {
     const raw = await scrapeProduct(page, url);
     if (!raw) return "error";
@@ -48,8 +48,7 @@ async function processProduct(supabase, browser, url, category, dryRun) {
       return "dry-run";
     }
 
-    const productId = await insertProduct(supabase, productRow);
-
+    const productId   = await insertProduct(supabase, productRow);
     const imageRows   = mapToDbImages(productId, imageUrls);
     const variantRows = buildVariantRows(productId, raw.variants, raw.stockCount);
 
@@ -62,7 +61,7 @@ async function processProduct(supabase, browser, url, category, dryRun) {
     console.error("  [ERR] " + err.message + " — " + url);
     return "error";
   } finally {
-    await context.close();
+    await page.close();
   }
 }
 
@@ -72,30 +71,39 @@ async function processCategory(supabase, browser, category, limit) {
   console.log("Category: " + category.name + " (target: " + limit + ")");
   console.log("=".repeat(60));
 
-  const { page: sp, context: sc } = await newStealthPage(browser);
-  let urls;
+  // One shared context per category so product pages inherit session cookies
+  // from the search page navigation (no explicit warmup needed)
+  const ctx = await newStealthContext(browser);
+
+  // Collect URLs using a dedicated search page
+  const searchPage = await ctx.newPage();
+  let urls = [];
   try {
-    urls = await scrapeSearchUrls(sp, category.keyword, limit);
+    urls = await scrapeSearchUrls(searchPage, category.keyword, limit);
   } finally {
-    await sc.close();
+    await searchPage.close();
   }
 
   console.log("  Found " + urls.length + " product URLs\n");
 
   const stats = { inserted: 0, duplicate: 0, skipped: 0, error: 0 };
 
-  for (let i = 0; i < urls.length; i += BATCH_SIZE) {
-    const batch   = urls.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(
-      batch.map(url => processProduct(supabase, browser, url, category, DRY_RUN))
-    );
-    results.forEach(r => {
-      if (r === "inserted" || r === "dry-run") stats.inserted++;
-      else if (r === "duplicate")              stats.duplicate++;
-      else if (r === "skip-price")             stats.skipped++;
-      else                                     stats.error++;
-    });
-    if (i + BATCH_SIZE < urls.length) await randomDelay(3000, 6000);
+  try {
+    for (let i = 0; i < urls.length; i += BATCH_SIZE) {
+      const batch = urls.slice(i, i + BATCH_SIZE);
+      // Sequential within batch — eBay rate-limits parallel requests
+      for (const url of batch) {
+        const result = await processProduct(supabase, ctx, url, category, DRY_RUN);
+        if (result === "inserted" || result === "dry-run") stats.inserted++;
+        else if (result === "duplicate")                   stats.duplicate++;
+        else if (result === "skip-price")                  stats.skipped++;
+        else                                               stats.error++;
+        await randomDelay(2000, 4000);
+      }
+      if (i + BATCH_SIZE < urls.length) await randomDelay(3000, 5000);
+    }
+  } finally {
+    await ctx.close();
   }
 
   console.log("\n  Stats — inserted:" + stats.inserted +

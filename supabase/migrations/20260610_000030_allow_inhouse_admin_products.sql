@@ -34,6 +34,3 @@ CREATE INDEX IF NOT EXISTS idx_products_shop_id
   ON public.products (shop_id)
   WHERE shop_id IS NOT NULL;
 
--- 3. Activate any products that are currently inactive so they appear in the storefront.
---    Comment out the line below to keep existing inactive products hidden.
-UPDATE public.products SET is_active = true WHERE is_active = false;

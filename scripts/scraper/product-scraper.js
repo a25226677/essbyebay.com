@@ -15,8 +15,13 @@ async function scrapeProduct(page, url) {
   const itemId = extractItemId(url);
   if (!itemId) return null;
 
-  await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT });
-  await randomDelay(2000, 5000);
+  await page.goto(url, { waitUntil: "domcontentloaded", timeout: NAV_TIMEOUT, referer: "https://www.ebay.com/" });
+  // Wait for eBay React app to hydrate and render product fields
+  await page.waitForFunction(
+    () => document.querySelectorAll("h1").length > 0 || document.title.includes("|"),
+    { timeout: 12000 }
+  ).catch(() => {});
+  await randomDelay(2000, 4000);
 
   if (await isCaptchaPage(page)) {
     console.warn("  CAPTCHA on product " + itemId + ". Waiting 30s...");
@@ -37,7 +42,7 @@ async function scrapeProduct(page, url) {
 
   // Price
   const priceRaw = await safeText(page.locator(
-    ".x-price-primary .ux-textspans--BOLD, .x-price-primary span[itemprop=\"price\"], #prcIsum"
+    ".x-price-primary span, [data-testid=\"x-bin-price\"] .x-price-primary span, #prcIsum"
   ));
   const price = parsePrice(priceRaw);
   if (!price) return null;

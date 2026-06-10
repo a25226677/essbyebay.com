@@ -1,6 +1,11 @@
-const PRICE_MIN = 50;
-const PRICE_MAX = 2000;
-const PRODUCTS_PER_CATEGORY = 100;
+// 3-tier pricing: 800 products per category × 10 categories = 8,000 total
+// Low 45% | Mid 35% | High 20%
+const TIERS = [
+  { name: "low",  min: 20,  max: 200,  count: 360, sop: "15" }, // lowest price first
+  { name: "mid",  min: 200, max: 800,  count: 280, sop: "12" }, // best match
+  { name: "high", min: 800, max: 2000, count: 160, sop: "16" }, // highest price first
+];
+const PRODUCTS_PER_CATEGORY = TIERS.reduce((s, t) => s + t.count, 0); // 800
 const BATCH_SIZE = 5;
 const PAGE_TIMEOUT = 30000;
 const NAV_TIMEOUT = 60000;
@@ -33,21 +38,22 @@ function randomUA() {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
-function buildSearchUrl(keyword, page) {
-  const p = page || 1;
+function buildSearchUrl(keyword, page, tier) {
+  const p    = page || 1;
+  const t    = tier || TIERS[1]; // default: mid tier
   const params = new URLSearchParams({
-    _nkw: keyword,
-    _udlo: String(PRICE_MIN),
-    _udhi: String(PRICE_MAX),
+    _nkw:  keyword,
+    _udlo: String(t.min),
+    _udhi: String(t.max),
     LH_BIN: "1",
-    _sop: "12",
-    _pgn: String(p),
+    _sop:  t.sop,
+    _pgn:  String(p),
   });
   return "https://www.ebay.com/sch/i.html?" + params.toString();
 }
 
 module.exports = {
-  PRICE_MIN, PRICE_MAX, PRODUCTS_PER_CATEGORY, BATCH_SIZE,
+  TIERS, PRODUCTS_PER_CATEGORY, BATCH_SIZE,
   PAGE_TIMEOUT, NAV_TIMEOUT, CATEGORIES, USER_AGENTS,
   randomUA, buildSearchUrl,
 };
