@@ -89,15 +89,14 @@ async function processTier(supabase, browser, category, tier) {
   try {
     for (let i = 0; i < urls.length; i += BATCH_SIZE) {
       const batch = urls.slice(i, i + BATCH_SIZE);
-      for (const url of batch) {
-        const result = await processProduct(supabase, ctx, url, category, tier, DRY_RUN);
+      const results = await Promise.all(batch.map(url => processProduct(supabase, ctx, url, category, tier, DRY_RUN)));
+      results.forEach(result => {
         if (result === "inserted" || result === "dry-run") stats.inserted++;
         else if (result === "duplicate")                   stats.duplicate++;
         else if (result === "skip-price")                  stats.skipped++;
         else                                               stats.error++;
-        await randomDelay(2000, 4000);
-      }
-      if (i + BATCH_SIZE < urls.length) await randomDelay(3000, 5000);
+      });
+      if (i + BATCH_SIZE < urls.length) await randomDelay(500, 1000);
     }
   } finally {
     await ctx.close();
@@ -127,7 +126,7 @@ async function processCategory(supabase, browser, category) {
     totals.skipped   += stats.skipped;
     totals.error     += stats.error;
     // Brief pause between tiers to avoid triggering eBay rate limits
-    if (i < tiersToRun.length - 1) await randomDelay(5000, 10000);
+    if (i < tiersToRun.length - 1) await randomDelay(1500, 2000);
   }
 
   console.log("\n  Category total — ins:" + totals.inserted +
@@ -150,7 +149,7 @@ async function main() {
     process.exit(1);
   }
 
-  console.log("Target: " + toRun.length + " categories × " + PRODUCTS_PER_CATEGORY +
+  console.log("\n⚡ FAST SCRAPER - Parallel processing enabled\n"); console.log("Target: " + toRun.length + " categories × " + PRODUCTS_PER_CATEGORY +
     " products = " + (toRun.length * PRODUCTS_PER_CATEGORY) + " total");
   console.log("Tiers: Low " + TIERS[0].count + " | Mid " + TIERS[1].count +
     " | High " + TIERS[2].count + "\n");
@@ -164,7 +163,7 @@ async function main() {
       totals.duplicate += stats.duplicate;
       totals.skipped   += stats.skipped;
       totals.error     += stats.error;
-      if (i < toRun.length - 1) await randomDelay(8000, 15000);
+      if (i < toRun.length - 1) await randomDelay(2000, 3000);
     }
   } finally {
     await browser.close();

@@ -78,7 +78,7 @@ export default async function HomePage() {
             <div className="flex gap-3 items-stretch">
               {/* Category Banner (left — md+ only) */}
               <Link
-                href={`/search?q=${encodeURIComponent(category.name)}`}
+                href={`/search?category=${category.slug}`}
                 className="hidden md:flex flex-col flex-shrink-0 w-[160px] lg:w-[180px] rounded-lg overflow-hidden bg-white border border-gray-200 hover:shadow-md transition-shadow group relative"
               >
                 <div className="relative flex-1 min-h-[220px]">
@@ -107,7 +107,7 @@ export default async function HomePage() {
                 <div className="md:hidden mb-2">
                   <SectionHeader
                     title={category.name}
-                    viewAllHref={`/search?q=${encodeURIComponent(category.name)}`}
+                    viewAllHref={`/search?category=${category.slug}`}
                   />
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 h-full">

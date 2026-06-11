@@ -1,12 +1,12 @@
 // 3-tier pricing: 800 products per category × 10 categories = 8,000 total
 // Low 45% | Mid 35% | High 20%
 const TIERS = [
-  { name: "low",  min: 20,  max: 200,  count: 360, sop: "15" }, // lowest price first
-  { name: "mid",  min: 200, max: 800,  count: 280, sop: "12" }, // best match
-  { name: "high", min: 800, max: 2000, count: 160, sop: "16" }, // highest price first
+  { name: "low",  min: 20,  max: 200,  count: 267, sop: "15" }, // lowest price first
+  { name: "mid",  min: 200, max: 800,  count: 207, sop: "12" }, // best match
+  { name: "high", min: 800, max: 2000, count: 134, sop: "16" }, // highest price first
 ];
 const PRODUCTS_PER_CATEGORY = TIERS.reduce((s, t) => s + t.count, 0); // 800
-const BATCH_SIZE = 5;
+const BATCH_SIZE = 15;
 const PAGE_TIMEOUT = 30000;
 const NAV_TIMEOUT = 60000;
 

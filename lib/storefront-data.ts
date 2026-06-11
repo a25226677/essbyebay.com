@@ -84,7 +84,7 @@ export async function getActiveBannerSlides() {
   if (error) console.error("[storefront] banners query error:", error.message);
 
   return ((rows || []) as BannerRow[])
-    .filter((row) => row.image_url?.startsWith("http"))
+    .filter((row) => row.image_url?.startsWith("http") || row.image_url?.startsWith("/"))
     .map((row) => ({
       id: row.id,
       image: row.image_url,
@@ -144,6 +144,37 @@ function rowToProduct(
   };
 }
 
+const COUNTS_TTL_MS = 5 * 60 * 1000;
+let categoryCountsCache: { at: number; map: Map<string, number> } | null = null;
+
+async function getCategoryCounts(
+  supabase: ReturnType<typeof createStorefrontClient>,
+  categoryIds: string[],
+): Promise<Map<string, number>> {
+  if (categoryCountsCache && Date.now() - categoryCountsCache.at < COUNTS_TTL_MS) {
+    return categoryCountsCache.map;
+  }
+
+  const map = new Map<string, number>();
+  for (const id of categoryIds) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { count, error } = await supabase
+        .from("products")
+        .select("id", { count: "exact", head: true })
+        .eq("is_active", true)
+        .eq("category_id", id);
+      if (!error) {
+        map.set(id, count || 0);
+        break;
+      }
+      await new Promise((r) => setTimeout(r, 150 * (attempt + 1)));
+    }
+  }
+
+  categoryCountsCache = { at: Date.now(), map };
+  return map;
+}
+
 export async function getHomeStorefrontData() {
   const supabase = createStorefrontClient();
 
@@ -186,10 +217,13 @@ export async function getHomeStorefrontData() {
 
   console.log(`[storefront] fetched ${dbProducts.length} active products from database`);
 
-  const countsByCategory = new Map<string, number>();
-  dbProducts.forEach((p) => {
-    countsByCategory.set(p.category, (countsByCategory.get(p.category) || 0) + 1);
-  });
+  // Real per-category product counts. Head-only count queries run
+  // sequentially with retries (parallel bursts drop requests under load),
+  // and results are memoized for 5 minutes per server instance.
+  const countsByCategoryId = await getCategoryCounts(
+    supabase,
+    catRows.map((c) => c.id),
+  );
 
   const mappedCategories: Category[] = catRows.map((c) => ({
     id: c.id,
@@ -197,7 +231,7 @@ export async function getHomeStorefrontData() {
     slug: c.slug,
     icon: "Grid3X3",
     image: c.image_url || DEFAULT_CATEGORY_IMAGE,
-    productCount: countsByCategory.get(c.slug) || 0,
+    productCount: countsByCategoryId.get(c.id) || 0,
   }));
 
   const mappedBrands: Brand[] = brandRows.map((b) => ({
@@ -334,28 +368,51 @@ export async function searchStoreProducts(
   query: string,
   page = 1,
   perPage = 24,
-): Promise<{ products: Product[]; total: number }> {
+  categorySlug?: string,
+): Promise<{ products: Product[]; total: number; categoryName?: string }> {
   const supabase = createStorefrontClient();
   const term = query.trim();
-  if (!term) return { products: [], total: 0 };
+  const slug = categorySlug?.trim();
+  if (!term && !slug) return { products: [], total: 0 };
+
+  // Resolve category slug -> id so we can filter by FK
+  let categoryId: string | null = null;
+  let categoryName: string | undefined;
+  if (slug) {
+    const { data: cat } = await supabase
+      .from("categories")
+      .select("id,name")
+      .eq("slug", slug)
+      .maybeSingle();
+    if (!cat) return { products: [], total: 0 };
+    categoryId = cat.id;
+    categoryName = cat.name;
+  }
 
   const from = (page - 1) * perPage;
   const to = from + perPage - 1;
 
-  const { data: rows, count } = await supabase
+  let dbQuery = supabase
     .from("products")
     .select(
       "id,category_id,brand_id,title,slug,price,compare_at_price,image_url,description,sku,stock_count,rating,review_count,categories(name,slug),brands(name),shops(id,name,slug,logo_url,rating,product_count)",
       { count: "exact" },
     )
-    .eq("is_active", true)
-    .or(`title.ilike.%${term}%,description.ilike.%${term}%,sku.ilike.%${term}%`)
+    .eq("is_active", true);
+
+  if (categoryId) dbQuery = dbQuery.eq("category_id", categoryId);
+  if (term) {
+    dbQuery = dbQuery.or(`title.ilike.%${term}%,description.ilike.%${term}%,sku.ilike.%${term}%`);
+  }
+
+  const { data: rows, count } = await dbQuery
     .order("created_at", { ascending: false })
     .range(from, to);
 
   return {
     products: ((rows || []) as ProductRow[]).map((r) => rowToProduct(r)),
     total: count ?? 0,
+    categoryName,
   };
 }
 

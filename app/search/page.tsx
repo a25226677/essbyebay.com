@@ -11,13 +11,14 @@ export const dynamic = "force-dynamic";
 const PER_PAGE = 24;
 
 type SearchProps = {
-  searchParams: Promise<{ q?: string; page?: string }>;
+  searchParams: Promise<{ q?: string; page?: string; category?: string }>;
 };
 
 export async function generateMetadata({ searchParams }: SearchProps): Promise<Metadata> {
   const params = await searchParams;
   const query = (params.q || "").trim();
-  const suffix = query ? `: ${query}` : "";
+  const category = (params.category || "").trim();
+  const suffix = query ? `: ${query}` : category ? `: ${category}` : "";
 
   return buildMetadata({
     title: `Search${suffix}`,
@@ -32,11 +33,21 @@ export async function generateMetadata({ searchParams }: SearchProps): Promise<M
 export default async function SearchPage({ searchParams }: SearchProps) {
   const params = await searchParams;
   const query = (params.q || "").trim();
+  const categorySlug = (params.category || "").trim();
   const currentPage = Math.max(1, parseInt(params.page || "1", 10) || 1);
 
-  const { products: results, total } = query
-    ? await searchStoreProducts(query, currentPage, PER_PAGE)
-    : { products: [], total: 0 };
+  const { products: results, total, categoryName } =
+    query || categorySlug
+      ? await searchStoreProducts(query, currentPage, PER_PAGE, categorySlug || undefined)
+      : { products: [], total: 0, categoryName: undefined };
+
+  const isCategoryBrowse = Boolean(categoryName && !query);
+  const heading = isCategoryBrowse ? categoryName : `Search results for "${query}"`;
+  const breadcrumbLabel = isCategoryBrowse
+    ? (categoryName as string)
+    : query
+    ? `Search: "${query}"`
+    : "Search";
 
   const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
@@ -44,6 +55,7 @@ export default async function SearchPage({ searchParams }: SearchProps) {
   function pageUrl(page: number) {
     const sp = new URLSearchParams();
     if (query) sp.set("q", query);
+    if (categorySlug) sp.set("category", categorySlug);
     if (page > 1) sp.set("page", String(page));
     return `/search?${sp.toString()}`;
   }
@@ -64,17 +76,13 @@ export default async function SearchPage({ searchParams }: SearchProps) {
   return (
     <div className="store-page-bg">
       <div className="store-page-container py-8">
-        <BreadcrumbNav
-          items={[{ label: query ? `Search: "${query}"` : "Search" }]}
-        />
+        <BreadcrumbNav items={[{ label: breadcrumbLabel }]} />
 
-        {query ? (
+        {query || categorySlug ? (
           <>
-            <h1 className="text-xl font-bold mb-1">
-              Search results for &quot;{query}&quot;
-            </h1>
+            <h1 className="text-xl font-bold mb-1">{heading}</h1>
             <p className="text-sm text-muted-foreground mb-5">
-              {total} product{total !== 1 ? "s" : ""} found
+              {total.toLocaleString()} product{total !== 1 ? "s" : ""} found
               {totalPages > 1 && (
                 <span className="ml-1">
                   — Page {currentPage} of {totalPages}
@@ -157,8 +165,9 @@ export default async function SearchPage({ searchParams }: SearchProps) {
                 <SearchIcon size={48} className="text-muted-foreground/40 mb-3" />
                 <h2 className="font-semibold mb-1">No Products Found</h2>
                 <p className="text-sm text-muted-foreground max-w-sm">
-                  We couldn&apos;t find any products matching &quot;{query}&quot;.
-                  Try a different search term.
+                  We couldn&apos;t find any products matching{" "}
+                  &quot;{query || categoryName || categorySlug}&quot;. Try a
+                  different search term.
                 </p>
               </div>
             )}

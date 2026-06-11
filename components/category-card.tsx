@@ -52,7 +52,7 @@ export function CategoryCard({ category, variant = "card" }: CategoryCardProps) 
   if (variant === "circle") {
     return (
       <Link
-        href={`/search?q=${encodeURIComponent(category.name)}`}
+        href={`/search?category=${category.slug}`}
         className="flex flex-col items-center gap-2.5 group"
       >
         <div className="w-[74px] h-[74px] sm:w-[84px] sm:h-[84px] rounded-full overflow-hidden relative ring-2 ring-transparent group-hover:ring-[#f77f00] shadow-md transition-all duration-300 group-hover:shadow-lg group-hover:shadow-orange-200">
@@ -77,7 +77,7 @@ export function CategoryCard({ category, variant = "card" }: CategoryCardProps) 
   /* ── Full card variant ── */
   return (
     <Link
-      href={`/search?q=${encodeURIComponent(category.name)}`}
+      href={`/search?category=${category.slug}`}
       className="group flex flex-col rounded-xl overflow-hidden border border-gray-200 hover:border-[#f77f00]/50 hover:shadow-lg hover:shadow-orange-100/60 transition-all duration-300 bg-white"
     >
       {/* Top image */}
@@ -101,7 +101,7 @@ export function CategoryCard({ category, variant = "card" }: CategoryCardProps) 
         </span>
         {category.productCount > 0 && (
           <span className="text-[11px] text-gray-400 font-medium">
-            {category.productCount} products
+            {category.productCount.toLocaleString()} products
           </span>
         )}
       </div>

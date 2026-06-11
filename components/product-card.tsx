@@ -116,7 +116,7 @@ export function ProductCard({ product, variant = "default", showNewBadge = false
 
         {/* Price row */}
         <div className="flex items-baseline gap-2 mt-1.5">
-          <span className="text-[15px] font-bold text-[#f77f00]">
+          <span className="text-[16px] font-bold text-[#1b233a]">
             ${product.price.toFixed(2)}
           </span>
           {product.originalPrice && (
@@ -125,6 +125,11 @@ export function ProductCard({ product, variant = "default", showNewBadge = false
             </span>
           )}
         </div>
+
+        {/* Shipping hint */}
+        <span className="text-[11px] text-green-700 font-medium mt-0.5">
+          {product.price >= 50 ? "Free Shipping" : "Fast Delivery"}
+        </span>
 
         {/* Add to Cart — always visible */}
         <button

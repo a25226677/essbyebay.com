@@ -20,7 +20,28 @@ interface HeroSectionProps {
   flashDeals?: FlashDeal[];
 }
 
+// Shown when no active banners exist in the DB so the hero is never empty
+const FALLBACK_SLIDES: BannerSlide[] = [
+  {
+    id: "fallback-1",
+    image: "https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=1600&q=80",
+    title: "Shop Top Deals Across Every Category",
+    subtitle: "Thousands of products from trusted sellers — updated daily.",
+    link: "/flash-deals",
+    buttonText: "Shop Now",
+  },
+  {
+    id: "fallback-2",
+    image: "https://images.unsplash.com/photo-1441986300917-64674bd600d8?w=1600&q=80",
+    title: "New Arrivals Every Week",
+    subtitle: "Fresh finds in fashion, tech, home and more.",
+    link: "/search?category=women-clothing-fashion",
+    buttonText: "Explore",
+  },
+];
+
 export function HeroSection({ categories, bannerSlides, flashDeals = [] }: HeroSectionProps) {
+  const slides = bannerSlides.length > 0 ? bannerSlides : FALLBACK_SLIDES;
   const [api, setApi] = useState<CarouselApi>();
   const [current, setCurrent] = useState(0);
   const [count, setCount] = useState(0);
@@ -53,7 +74,7 @@ export function HeroSection({ categories, bannerSlides, flashDeals = [] }: HeroS
               {categories.map((cat) => (
                 <Link
                   key={cat.id}
-                  href={`/search?q=${encodeURIComponent(cat.name)}`}
+                  href={`/search?category=${cat.slug}`}
                   className="flex items-center gap-2.5 px-3 py-2 text-[13px] text-gray-700 hover:bg-[#fff8f0] hover:text-[#f77f00] border-l-2 border-transparent hover:border-[#f77f00] transition-all group"
                 >
                   <span className="w-2 h-2 rounded-full bg-gray-300 group-hover:bg-[#f77f00] transition-colors flex-shrink-0" />
@@ -80,7 +101,7 @@ export function HeroSection({ categories, bannerSlides, flashDeals = [] }: HeroS
               plugins={[Autoplay({ delay: 5000, stopOnInteraction: false })]}
             >
               <CarouselContent>
-                {bannerSlides.map((slide, i) => (
+                {slides.map((slide, i) => (
                   <CarouselItem key={slide.id}>
                     <Link href={slide.link} className="block group">
                       <div className="relative w-full h-[220px] sm:h-[280px] md:h-[360px] lg:h-[400px] xl:h-[440px] rounded-xl overflow-hidden bg-gray-950 shadow-xl">
