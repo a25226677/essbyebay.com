@@ -10,6 +10,7 @@ import { TopBrandsRow } from "@/components/home/top-brands-row";
 import { TrustBar } from "@/components/home/trust-bar";
 import { DealOfTheDay } from "@/components/home/deal-of-the-day";
 import { NewsletterStrip } from "@/components/home/newsletter-strip";
+import { FeaturedProductsCarousel } from "@/components/home/featured-products-carousel";
 import { SectionHeader } from "@/components/section-header";
 import { CategoryCard } from "@/components/category-card";
 import { ProductCard } from "@/components/product-card";
@@ -44,6 +45,14 @@ export default async function HomePage() {
 
       {/* ── Deal of the Day ── */}
       <DealOfTheDay flashDeals={flashDeals} />
+
+      {/* ── Featured Products Carousel ── */}
+      {products.length > 0 && (
+        <FeaturedProductsCarousel
+          products={products.slice(0, 15)}
+          title="Featured for You"
+        />
+      )}
 
       {/* ── Promotional Banners ── */}
       <PromoBanners />

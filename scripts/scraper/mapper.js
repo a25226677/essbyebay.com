@@ -1,5 +1,4 @@
 const slugify = require("slugify");
-const { PRICE_MIN, PRICE_MAX } = require("./config.js");
 
 function generateSlug(title, sku) {
   const base = slugify(title.slice(0, 80), { lower: true, strict: true });
@@ -68,8 +67,4 @@ function buildVariantRows(productId, variantGroups, totalStock) {
   }));
 }
 
-function isPriceInRange(price) {
-  return price >= PRICE_MIN && price <= PRICE_MAX;
-}
-
-module.exports = { mapToDbProduct, mapToDbImages, buildVariantRows, isPriceInRange };
+module.exports = { mapToDbProduct, mapToDbImages, buildVariantRows };

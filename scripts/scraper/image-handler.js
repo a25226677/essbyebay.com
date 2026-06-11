@@ -30,28 +30,42 @@ async function uploadToStorage(supabase, buffer, storagePath) {
   return data.publicUrl;
 }
 
+// Try s-l1600 first, fall back to s-l800 if CDN rate-limits with 503
+async function fetchWithFallback(url) {
+  try {
+    return await fetchImageBuffer(url);
+  } catch (err) {
+    if (err.message.includes("503")) {
+      const fallback = url.replace("s-l1600", "s-l800");
+      return fetchImageBuffer(fallback);
+    }
+    throw err;
+  }
+}
+
 async function downloadAndUploadImages(supabase, imageUrls, categorySlug, sku, dryRun) {
+  if (dryRun) {
+    // Skip network calls entirely in dry-run
+    return imageUrls.slice(0, 7).map((_, i) => "[DRY-RUN] scraped/" + categorySlug + "/" + sku + "/" + i + ".jpg");
+  }
+
   const publicUrls = [];
   const limit = Math.min(imageUrls.length, 7);
 
   for (let i = 0; i < limit; i++) {
-    const url = imageUrls[i];
+    // Force .jpg — eBay CDN 503s on .webp at s-l1600 but serves .jpg fine
+    const url = imageUrls[i].replace(/\.webp(\?.*)?$/, ".jpg");
     try {
-      const buffer  = await retry(() => fetchImageBuffer(url), 3, [3000, 8000, 15000]);
+      const buffer    = await retry(() => fetchWithFallback(url), 2, [3000, 8000]);
       const processed = await processImage(buffer);
       const storagePath = "scraped/" + categorySlug + "/" + sku + "/" + i + ".jpg";
-
-      if (dryRun) {
-        publicUrls.push("[DRY-RUN] " + storagePath);
-      } else {
-        const publicUrl = await retry(
-          () => uploadToStorage(supabase, processed, storagePath),
-          3, [3000, 8000, 15000]
-        );
-        publicUrls.push(publicUrl);
-      }
+      const publicUrl = await retry(
+        () => uploadToStorage(supabase, processed, storagePath),
+        2, [3000, 8000]
+      );
+      publicUrls.push(publicUrl);
     } catch (err) {
-      console.warn("    Image " + i + " skipped: " + err.message);
+      console.warn("    Image " + i + " skipped: " + err.message.slice(0, 80));
     }
   }
 

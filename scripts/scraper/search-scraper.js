@@ -68,13 +68,22 @@ async function scrapeSearchUrls(page, keyword, targetCount, tier) {
         break;
       }
 
+      const sizeBefore = urls.size;
       for (const url of productLinks) {
         if (urls.size >= count) break;
         const itemId = extractItemId(url);
         if (itemId) urls.add("https://www.ebay.com/itm/" + itemId);
       }
 
-      console.log("  Collected " + urls.size + "/" + count + " URLs (page " + pageNum + ")");
+      const newCount = urls.size - sizeBefore;
+      console.log("  Collected " + urls.size + "/" + count + " URLs (page " + pageNum +
+        ", +" + newCount + " new)");
+
+      // eBay is looping — no new unique products on this page
+      if (newCount === 0) {
+        console.log("  No new URLs on page " + pageNum + " — eBay exhausted.");
+        break;
+      }
 
       const hasNextPage = await page.evaluate(() => {
         const next = document.querySelector(
