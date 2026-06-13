@@ -36,7 +36,7 @@ async function processProduct(supabase, ctx, url, category, tier, dryRun) {
 
     // Validate scraped price falls within this tier's range
     if (raw.price < tier.min || raw.price > tier.max) return "skip-price";
-    if (!dryRun && await isDuplicate(supabase, raw.itemId)) return "duplicate";
+    if (!dryRun && await isDuplicate(supabase, raw.itemId, raw.title)) return "duplicate";
 
     const categoryId = dryRun ? "dry-cat" : await findOrCreateCategory(supabase, category.name);
     const brandId    = dryRun ? null      : await findOrCreateBrand(supabase, raw.brand);
@@ -51,7 +51,12 @@ async function processProduct(supabase, ctx, url, category, tier, dryRun) {
       return "dry-run";
     }
 
-    const productId   = await insertProduct(supabase, productRow);
+    const productId = await insertProduct(supabase, productRow);
+    if (productId === "duplicate") {
+      console.log("    [DUP] \"" + raw.title.slice(0, 50) + "\" (constraint)");
+      return "duplicate";
+    }
+
     const imageRows   = mapToDbImages(productId, imageUrls);
     const variantRows = buildVariantRows(productId, raw.variants, raw.stockCount);
 

@@ -9,14 +9,28 @@ function createSupabaseClient() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-async function isDuplicate(supabase, sku) {
-  const { data, error } = await supabase
+async function isDuplicate(supabase, sku, title) {
+  // Check by SKU (eBay item ID)
+  const { data: bySku, error: e1 } = await supabase
     .from("products")
     .select("id")
     .eq("sku", sku)
     .maybeSingle();
-  if (error) throw error;
-  return !!data;
+  if (e1) throw e1;
+  if (bySku) return true;
+
+  // Check by exact title (case-insensitive) — mirrors the DB unique index
+  if (title && title.trim().length > 0) {
+    const { data: byTitle, error: e2 } = await supabase
+      .from("products")
+      .select("id")
+      .ilike("title", title.trim())
+      .maybeSingle();
+    if (e2) throw e2;
+    if (byTitle) return true;
+  }
+
+  return false;
 }
 
 async function findOrCreateCategory(supabase, name) {
@@ -64,7 +78,13 @@ async function insertProduct(supabase, product) {
     .insert(product)
     .select("id")
     .single();
-  if (error) throw error;
+
+  if (error) {
+    // Postgres unique_violation — title already exists despite pre-check
+    if (error.code === "23505") return "duplicate";
+    throw error;
+  }
+
   return data.id;
 }
 
