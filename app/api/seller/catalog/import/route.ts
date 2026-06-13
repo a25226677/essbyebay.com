@@ -225,14 +225,19 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, imported: 0, skipped: sourceProducts.length, message: "All selected products already exist in your shop" });
   }
 
-  const { error: insertError } = await supabase.from("products").insert(toInsert);
+  const { data: inserted, error: insertError } = await supabase
+    .from("products")
+    .upsert(toInsert, { onConflict: "seller_id,source_product_id", ignoreDuplicates: true })
+    .select("id");
+
   if (insertError) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
+  const actualImported = Array.isArray(inserted) ? inserted.length : toInsert.length;
   return NextResponse.json({
     success: true,
-    imported: toInsert.length,
-    skipped: sourceProducts.length - toInsert.length,
+    imported: actualImported,
+    skipped: sourceProducts.length - actualImported,
   });
 }
