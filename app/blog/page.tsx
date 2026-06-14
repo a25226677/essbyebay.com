@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata = buildMetadata({
   title: "Shopping Blog and Marketplace News",
   description:
-    "Read shopping guides, seller tips, product trends, and marketplace updates from ESS by eBay.",
+    "Read shopping guides, seller tips, product trends, and marketplace updates from StoreBay.",
   path: "/blog",
   keywords: ["shopping blog", "marketplace news", "product guides", "seller tips"],
 });

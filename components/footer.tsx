@@ -44,14 +44,14 @@ export function Footer() {
             <div className="mb-4">
               <Image
                 src="/logo.png"
-                alt="ESS by eBay"
+                alt="StoreBay"
                 width={140}
                 height={44}
                 className="object-contain brightness-110"
               />
             </div>
               <p className="text-sm text-gray-400 leading-relaxed mb-6">
-              <strong className="text-white">ESS by eBay</strong> is a modern multi-vendor eCommerce marketplace
+              <strong className="text-white">StoreBay</strong> is a modern multi-vendor eCommerce marketplace
               connecting customers with trusted sellers in one seamless shopping destination. We curate a diverse range of
               products across multiple categories, offering quality, convenience, and choice.
             </p>
@@ -211,7 +211,7 @@ export function Footer() {
       <div className="border-t border-[#1e2735]">
         <div className="max-w-[1340px] mx-auto px-4 py-5 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-gray-400">
-            Copyright &copy; {new Date().getFullYear()} ESS by eBay. All Rights Reserved.
+            Copyright &copy; {new Date().getFullYear()} StoreBay. All Rights Reserved.
           </p>
           <div className="flex items-center gap-1.5 flex-wrap justify-center">
             {([
@@ -239,6 +239,14 @@ export function Footer() {
               </div>
             ))}
           </div>
+        </div>
+      </div>
+      {/* eBay Non-Affiliation Disclaimer */}
+      <div className="bg-[#1e2735] border-t border-[#151d2b]">
+        <div className="max-w-[1340px] mx-auto px-4 py-3 text-center">
+          <p className="text-xs text-gray-500">
+            This website is an independent marketplace platform and is not affiliated with, endorsed by, or operated by eBay Inc. All trademarks belong to their respective owners.
+          </p>
         </div>
       </div>
     </footer>

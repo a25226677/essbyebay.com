@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 export const metadata = buildMetadata({
   title: "Multi-Vendor Marketplace for Fashion, Electronics and More",
   description:
-    "Discover trending products, flash deals, top brands, and trusted sellers on ESS by eBay.",
+    "Discover trending products, flash deals, top brands, and trusted sellers on StoreBay.",
   path: "/",
   keywords: ["flash deals", "top brands", "trusted sellers", "online marketplace"],
 });

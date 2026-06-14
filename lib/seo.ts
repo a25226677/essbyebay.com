@@ -8,19 +8,19 @@ const fallbackSiteUrl =
 export const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || fallbackSiteUrl;
 
 export const seoConfig = {
-  name: "ESS by eBay",
-  alternateName: "eSeller Store Bay",
+  name: "StoreBay",
+  alternateName: "Seller Store",
   defaultTitle: "Multi-Vendor Marketplace for Fashion, Electronics and More",
   description:
-    "Shop fashion, electronics, beauty, home essentials, and more on ESS by eBay, a modern multi-vendor marketplace connecting buyers with trusted sellers.",
+    "Shop fashion, electronics, beauty, home essentials, and more on StoreBay, a modern multi-vendor marketplace connecting buyers with trusted sellers.",
   locale: "en_US",
-  creator: "ESS by eBay",
-  publisher: "ESS by eBay",
+  creator: "StoreBay",
+  publisher: "StoreBay",
   themeColor: "#2f3b51",
   defaultOgImage: "/opengraph-image?v=2",
   keywords: [
-    "ESS by eBay",
-    "eSeller Store Bay",
+    "StoreBay",
+    "Seller Store",
     "multi-vendor marketplace",
     "online shopping",
     "fashion store",

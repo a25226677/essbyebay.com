@@ -7,7 +7,7 @@ import { buildMetadata } from "@/lib/seo";
 export const metadata = buildMetadata({
   title: "Affiliate Program",
   description:
-    "Join the ESS by eBay affiliate program and earn commissions by promoting products from trusted marketplace sellers.",
+    "Join the StoreBay affiliate program and earn commissions by promoting products from trusted marketplace sellers.",
   path: "/affiliate",
   keywords: ["affiliate program", "earn commissions", "referral marketing"],
 });

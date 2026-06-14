@@ -194,6 +194,9 @@ export default function SellerLoginPage() {
               Register Now
             </Link>
           </div>
+          <p className="text-xs text-gray-400 text-center mt-4 border-t pt-4">
+            StoreBay is an independent marketplace platform and is not affiliated with, endorsed by, or operated by eBay Inc.
+          </p>
         </div>
       </div>
     </div>

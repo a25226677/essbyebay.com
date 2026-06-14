@@ -314,7 +314,7 @@ export default function AdminLoginPage() {
             </Link>
           </div>
           <p className="text-[11px] text-gray-700">
-            &copy; {new Date().getFullYear()} eSellerStoreBay — All rights reserved
+            &copy; {new Date().getFullYear()} StoreBay — All rights reserved
           </p>
         </div>
       </div>

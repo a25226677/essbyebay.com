@@ -23,8 +23,8 @@ export async function generateMetadata({ searchParams }: SearchProps): Promise<M
   return buildMetadata({
     title: `Search${suffix}`,
     description: query
-      ? `Search results for ${query} on ESS by eBay.`
-      : "Search products on ESS by eBay.",
+      ? `Search results for ${query} on StoreBay.`
+      : "Search products on StoreBay.",
     path: query ? `/search?q=${encodeURIComponent(query)}` : "/search",
     noIndex: true,
   });
